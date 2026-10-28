@@ -1,11 +1,16 @@
 ; Twilight's installer, in Twilight's colours. electron-builder includes this file before the
 ; installer's pages are built, so the Modern UI settings below apply to every page.
 ;
-; Colours (BGR-free hex, as NSIS takes them): night 0B0D1C, surface 111430, ink ECEEFE,
-; ink-muted A6ABD8, line-strong 6F77BD, iris 9497FF.
+; Colours: night 0B0D1C, surface 111430, ink ECEEFE, ink-muted A6ABD8, line-strong 6F77BD,
+; iris 9497FF.
 
 !define MUI_BGCOLOR "0B0D1C"
 !define MUI_TEXTCOLOR "ECEEFE"
+
+; The same script builds the uninstaller; installer-only parts stay out of it (NSIS treats an
+; unused function as an error here).
+!ifndef BUILD_UNINSTALLER
+
 !define MUI_INSTFILESPAGE_COLORS "A6ABD8 111430"
 !define MUI_INSTFILESPAGE_PROGRESSBAR "smooth"
 !define MUI_CUSTOMFUNCTION_GUIINIT twilightGuiInit
@@ -15,13 +20,16 @@
 !define MUI_FINISHPAGE_TITLE "Twilight is ready"
 !define MUI_FINISHPAGE_TEXT "Everything is in place. Twilight opens with a short welcome that helps you connect a model and choose where your writing lives."
 
-!define WM_USER_PBM_SETBARCOLOR 0x0409
-!define PBM_SETBKCOLOR 0x2001
+!define TWILIGHT_PBM_SETBARCOLOR 0x0409
+!define TWILIGHT_PBM_SETBKCOLOR 0x2001
 
 ; The window around the pages: night behind everything.
 Function twilightGuiInit
   SetCtlColors $HWNDPARENT "A6ABD8" "0B0D1C"
+  ; The version label at the bottom left (Modern UI draws it twice, as 1028 and 1256).
   GetDlgItem $0 $HWNDPARENT 1028
+  SetCtlColors $0 /BRANDING "6F77BD" "0B0D1C"
+  GetDlgItem $0 $HWNDPARENT 1256
   SetCtlColors $0 /BRANDING "6F77BD" "0B0D1C"
 FunctionEnd
 
@@ -37,8 +45,8 @@ Function twilightDarkPage
     System::Call 'user32::GetClassName(p r1, t .r2, i 64) i'
     StrCmp $2 "msctls_progress32" 0 twilightNotBar
       System::Call 'uxtheme::SetWindowTheme(p r1, w " ", w " ")'
-      SendMessage $1 ${WM_USER_PBM_SETBARCOLOR} 0 0x00FF9794
-      SendMessage $1 ${PBM_SETBKCOLOR} 0 0x00301411
+      SendMessage $1 ${TWILIGHT_PBM_SETBARCOLOR} 0 0x00FF9794
+      SendMessage $1 ${TWILIGHT_PBM_SETBKCOLOR} 0 0x00301411
       Goto twilightNext
     twilightNotBar:
     StrCmp $2 "Button" 0 twilightLabel
@@ -58,11 +66,7 @@ Function twilightDarkPage
   twilightDone:
 FunctionEnd
 
-; The finish page's "Open Twilight" checkbox, readable on the dark page.
-Function twilightFinishShow
-  System::Call 'uxtheme::SetWindowTheme(p $mui.FinishPage.Run, w " ", w " ")'
-  SetCtlColors $mui.FinishPage.Run "ECEEFE" "0B0D1C"
-FunctionEnd
+!endif
 
 ; A welcome page first; the page after it (who to install for) gets the dark treatment.
 !macro customWelcomePage
@@ -75,7 +79,8 @@ FunctionEnd
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW twilightDarkPage
 !macroend
 
-; The finish page, with Twilight's words and the app opening afterwards.
+; The finish page, with Twilight's words, an "Open Twilight" box readable on the dark page, and
+; the app opening afterwards.
 !macro customFinishPage
   Function StartApp
     ${if} ${isUpdated}
@@ -90,4 +95,9 @@ FunctionEnd
   !define MUI_FINISHPAGE_RUN_TEXT "Open Twilight"
   !define MUI_PAGE_CUSTOMFUNCTION_SHOW twilightFinishShow
   !insertmacro MUI_PAGE_FINISH
+  Function twilightFinishShow
+    StrCpy $0 $mui.FinishPage.Run
+    System::Call 'uxtheme::SetWindowTheme(p r0, w " ", w " ")'
+    SetCtlColors $0 "ECEEFE" "0B0D1C"
+  FunctionEnd
 !macroend
