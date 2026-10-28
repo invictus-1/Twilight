@@ -1,8 +1,10 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import { attachmentKind, formatBytes, tooBig } from '@shared/attachments'
 import { formatTokens } from '@shared/pricing'
 import type { Attachment, SendTarget } from '@shared/types'
 import { useStore } from '../store'
-import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from './Icons'
+import { CloseIcon, DocIcon, PaperclipIcon, SendIcon, StopIcon } from './Icons'
+import { DocPicker } from './DocPicker'
 import { ModelPicker } from './ModelPicker'
 import { Hint, ToolsMenu } from './ToolsMenu'
 
@@ -17,9 +19,30 @@ const TARGETS: { value: SendTarget; label: string; hint: string }[] = [
 
 const PLACEHOLDER: Record<SendTarget, string> = { a: 'Message A', b: 'Message B', both: 'Message both panes' }
 
+/** A dropped or pasted file as an attachment: text read as text, images and PDFs as base64. */
+export async function fileToAttachment(file: File): Promise<Attachment> {
+  // A pasted screenshot arrives as "image.png"; give it a name worth keeping.
+  const name = file.name && file.name !== 'image.png' ? file.name : `Pasted image ${new Date().toLocaleTimeString().replace(/[:\s]/g, '-')}.png`
+  const { kind, mediaType } = attachmentKind(name, file.type)
+  const big = tooBig(kind, file.size, name)
+  if (big) throw new Error(big)
+  if (kind === 'text') {
+    const text = await file.text()
+    if (text.includes('\u0000')) throw new Error(`${name} isn't a text file. Text, images (PNG, JPEG, GIF, WebP) and PDFs can be attached.`)
+    return { name, text }
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return { name, text: '', kind, mediaType, data: btoa(binary) }
+}
+
+const chipSize = (a: Attachment): string => (a.data ? formatBytes(Math.floor((a.data.length * 3) / 4)) : `~${formatTokens(Math.round(a.text.length / 4))}`)
+
 export function Composer() {
   const [text, setText] = useState('')
   const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [dragging, setDragging] = useState(false)
   const area = useRef<HTMLTextAreaElement>(null)
   const split = useStore((s) => !!s.current?.split)
   const target = useStore((s) => (s.current?.split ? s.target : 'a'))
@@ -53,6 +76,16 @@ export function Composer() {
     void send(value, attachments)
   }
 
+  const addFiles = async (files: File[]): Promise<void> => {
+    try {
+      const added = await Promise.all(files.map(fileToAttachment))
+      if (added.length) setAttachments((list) => [...list, ...added])
+    } catch (err) {
+      useStore.getState().setError(err instanceof Error ? err.message : String(err))
+    }
+    area.current?.focus()
+  }
+
   const attach = async (): Promise<void> => {
     try {
       const picked = await window.twilight.pickAttachments()
@@ -65,14 +98,40 @@ export function Composer() {
 
   return (
     <div className={`composer-wrap ${split ? 'composer-split' : ''}`}>
-      <div className="tw-composer">
+      <div
+        className={`tw-composer ${dragging ? 'tw-composer-drop' : ''}`}
+        onDragOver={(e) => {
+          if (![...e.dataTransfer.types].includes('Files')) return
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'copy'
+          setDragging(true)
+        }}
+        onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setDragging(false)}
+        onDrop={(e) => {
+          if (!e.dataTransfer.files.length) return
+          e.preventDefault()
+          setDragging(false)
+          void addFiles([...e.dataTransfer.files])
+        }}
+      >
+        {dragging && <div className="drop-hint">Drop to attach: text, images and PDFs</div>}
         {attachments.length > 0 && (
           <div className="tw-attach">
             {attachments.map((a, i) => (
-              <span key={`${a.name}-${i}`} className="tw-badge attach-chip" title={`${a.text.length.toLocaleString()} characters, sent in full`}>
-                <PaperclipIcon size={13} />
+              <span
+                key={`${a.name}-${i}`}
+                className={`tw-badge attach-chip ${a.kind === 'image' ? 'attach-image' : ''}`}
+                title={a.kind === 'image' ? 'Sent as an image' : a.kind === 'pdf' ? 'Sent as a PDF: pages are read as text and images' : `${a.text.length.toLocaleString()} characters, sent in full`}
+              >
+                {a.kind === 'image' && a.data ? (
+                  <img className="attach-thumb" src={`data:${a.mediaType};base64,${a.data}`} alt="" />
+                ) : a.kind === 'pdf' ? (
+                  <DocIcon size={13} />
+                ) : (
+                  <PaperclipIcon size={13} />
+                )}
                 {a.name}
-                <span className="attach-size">~{formatTokens(Math.round(a.text.length / 4))}</span>
+                <span className="attach-size">{chipSize(a)}</span>
                 <button
                   className="attach-remove"
                   aria-label={`Remove ${a.name}`}
@@ -90,6 +149,12 @@ export function Composer() {
           value={text}
           placeholder={split ? PLACEHOLDER[target] : 'Ask anything'}
           onChange={(e) => setText(e.target.value)}
+          onPaste={(e) => {
+            const files = [...e.clipboardData.files]
+            if (!files.length) return
+            e.preventDefault()
+            void addFiles(files)
+          }}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
               e.preventDefault()
@@ -98,9 +163,15 @@ export function Composer() {
           }}
         />
         <div className="tw-composer-bar">
-          <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Attach files" title="Attach files (their full text goes into the message)" onClick={() => void attach()}>
+          <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Attach files" title="Attach files: text, images or PDFs (or drop them here, or paste a screenshot)" onClick={() => void attach()}>
             <PaperclipIcon />
           </button>
+          <DocPicker
+            onPick={(a) => {
+              setAttachments((list) => [...list, a])
+              area.current?.focus()
+            }}
+          />
           {currentId && <ToolsMenu />}
           {currentId && (
             <Hint

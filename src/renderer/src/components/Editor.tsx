@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { editorText } from '../gameCopy'
 import { defaultKeymap, history, historyKeymap, redo, undo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { search, searchKeymap } from '@codemirror/search'
@@ -192,6 +193,10 @@ export function Editor({ docPath }: { docPath: string }) {
       })
     })
     viewRef.current = view
+    editorText.get = () => {
+      const { from, to } = view.state.selection.main
+      return from === to ? view.state.doc.toString() : view.state.sliceDoc(from, to)
+    }
     useWriting.getState().setWords(countWords(open.text))
     // Bring back this session's edit history if the text is as we left it.
     const kept = savedEdits.get(docPath)
@@ -209,6 +214,7 @@ export function Editor({ docPath }: { docPath: string }) {
       view.scrollDOM.removeEventListener('scroll', onScroll)
       view.destroy()
       viewRef.current = null
+      editorText.get = null
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docPath])

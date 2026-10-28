@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
+import { app, clipboard, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
 import { join } from 'node:path'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
@@ -32,6 +32,8 @@ import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { runShowcase } from './showcase'
 import { searchAll } from './search'
+import { themeInfo, type Theme } from '@shared/themes'
+import { attachmentKind, IMAGE_EXTENSIONS, tooBig } from '@shared/attachments'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
 const selfTestDir = process.env.TWILIGHT_SELFTEST
@@ -60,13 +62,10 @@ function lockDownNetwork(): void {
 }
 
 /** Window frame colours per theme: the title bar overlay sits outside the page, so it's set here. */
-const FRAMES: Record<string, { night: string; symbol: string }> = {
-  twilight: { night: '#0b0d1c', symbol: '#a6abd8' },
-  ultraviolet: { night: '#0c0614', symbol: '#c2b3dc' }
-}
+const frameFor = (theme: string | undefined): { night: string; symbol: string } => themeInfo(theme ?? 'twilight')
 
 function createWindow(): BrowserWindow {
-  const frame = FRAMES[db.kvGet<string>('theme') ?? 'twilight'] ?? FRAMES.twilight
+  const frame = frameFor(db.kvGet<string>('theme'))
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -100,7 +99,6 @@ function createWindow(): BrowserWindow {
 
 const folders = (): ChatFolder[] => workspaces.listWorkspaces()
 
-const ATTACH_LIMIT = 20 * 1024 * 1024
 
 /** Reads text files picked by the user; binary files are refused rather than injected as noise. */
 async function pickAttachments(win: BrowserWindow | null): Promise<Attachment[]> {
@@ -109,6 +107,8 @@ async function pickAttachments(win: BrowserWindow | null): Promise<Attachment[]>
     defaultPath: docs.writingFolder(),
     properties: ['openFile', 'multiSelections'],
     filters: [
+      { name: 'Everything Twilight can attach', extensions: ['md', 'txt', 'markdown', 'json', 'csv', 'tsv', 'yaml', 'yml', 'xml', 'html', 'htm', 'log', 'ini', 'toml', 'pdf', ...IMAGE_EXTENSIONS] },
+      { name: 'Images and PDFs', extensions: ['pdf', ...IMAGE_EXTENSIONS] },
       { name: 'Text and documents', extensions: ['md', 'txt', 'markdown', 'json', 'csv', 'tsv', 'yaml', 'yml', 'xml', 'html', 'htm', 'log', 'ini', 'toml'] },
       { name: 'Code', extensions: ['ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'java', 'cs', 'cpp', 'c', 'h', 'css', 'sql', 'sh', 'ps1', 'lua', 'rb', 'php'] },
       { name: 'All files', extensions: ['*'] }
@@ -118,11 +118,18 @@ async function pickAttachments(win: BrowserWindow | null): Promise<Attachment[]>
   if (result.canceled) return []
   const out: Attachment[] = []
   for (const file of result.filePaths) {
+    const name = basename(file)
+    const { kind, mediaType } = attachmentKind(name)
     const info = await stat(file)
-    if (info.size > ATTACH_LIMIT) throw new Error(`${basename(file)} is over 20 MB.`)
+    const big = tooBig(kind, info.size, name)
+    if (big) throw new Error(big)
+    if (kind !== 'text') {
+      out.push({ name, text: '', kind, mediaType, data: (await readFile(file)).toString('base64') })
+      continue
+    }
     const text = await readFile(file, 'utf8')
-    if (text.includes('\u0000')) throw new Error(`${basename(file)} isn't a text file. PDFs and images aren't supported yet.`)
-    out.push({ name: basename(file), text })
+    if (text.includes('\u0000')) throw new Error(`${name} isn't a text file. Text, images (PNG, JPEG, GIF, WebP) and PDFs can be attached.`)
+    out.push({ name, text })
   }
   return out
 }
@@ -214,6 +221,10 @@ function registerIpc(): void {
     closeSplit: (_e, id: string, keep: Pane) => chat.closeSplit(id, keep),
     branchToNewChat: (_e, id: string, nodeId: string, pane?: Pane) => chat.branchToNewChat(id, nodeId, pane),
     searchAll: (_e, query: string) => searchAll(query),
+    copyText: (_e, text: string) => clipboard.writeText(String(text)),
+    renameDoc: (_e, path: string, name: string) => docs.renameDoc(path, name),
+    renameDocFolder: (_e, path: string, name: string) => docs.renameDocFolder(path, name),
+    trashDocPath: (_e, path: string, kind: 'doc' | 'folder') => docs.trashDocPath(path, kind),
     revealMessage: (_e, id: string, nodeId: string) => chat.revealMessage(id, nodeId),
     listProviders: () => providers.getProviders(),
     saveProvider: (_e, config, apiKey?: string) => providers.saveProvider(config, apiKey),
@@ -280,9 +291,9 @@ function registerIpc(): void {
     openExternal: async (_e, url: string) => {
       if (isWebUrl(url)) await shell.openExternal(url)
     },
-    setWindowTheme: (e, theme: 'twilight' | 'ultraviolet') => {
+    setWindowTheme: (e, theme: Theme) => {
       db.kvSet('theme', theme)
-      const frame = FRAMES[theme] ?? FRAMES.twilight
+      const frame = frameFor(theme)
       const win = BrowserWindow.fromWebContents(e.sender)
       win?.setBackgroundColor(frame.night)
       win?.setTitleBarOverlay({ color: frame.night, symbolColor: frame.symbol, height: 40 })

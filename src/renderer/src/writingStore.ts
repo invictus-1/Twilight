@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { useStore } from './store'
 import type { DocContent, DocContext, DocEntry } from '@shared/types'
 
 const api = window.twilight
@@ -33,6 +34,10 @@ interface WritingState {
   /** Creates a document holding `text` (e.g. a chat reply) and opens it. */
   fromText(name: string, text: string): Promise<void>
   moveDoc(path: string, folder: string): Promise<void>
+  /** Renames a document or a folder. */
+  rename(path: string, name: string, kind: 'doc' | 'folder'): Promise<void>
+  /** Sends a document or a folder to the Recycle Bin. */
+  remove(path: string, kind: 'doc' | 'folder'): Promise<void>
   toggleFolder(path: string): void
   chooseFolder(): Promise<void>
   saveContext(context: DocContext): Promise<void>
@@ -131,8 +136,44 @@ export const useWriting = create<WritingState>((set, get) => ({
       return
     }
     try {
+      const from = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : ''
       const moved = await api.moveDoc(path, folder)
       if (open?.path === path) set({ open: { ...open, path: moved } })
+      await get().refresh()
+      useStore.getState().offerUndo(`Moved to ${folder || 'Documents'}`, () => get().moveDoc(moved, from))
+    } catch (err) {
+      set({ error: message(err) })
+    }
+  },
+
+  async rename(path, name, kind) {
+    const { open, status } = get()
+    const inside = !!open && (open.path === path || open.path.startsWith(`${path}/`))
+    // The editor saves to the open path; renaming mid-save could leave a copy behind.
+    if (inside && status !== 'saved') return set({ error: 'Still saving. Try again in a moment.' })
+    try {
+      const renamed = kind === 'doc' ? await api.renameDoc(path, name) : await api.renameDocFolder(path, name)
+      const oldName = (path.split('/').pop() ?? path).replace(/\.md$/i, '')
+      useStore.getState().offerUndo(`Renamed to ${name}`, () => get().rename(renamed, oldName, kind))
+      if (inside && open) set({ open: { ...open, path: renamed + open.path.slice(path.length) } })
+      if (kind === 'folder' && get().collapsed.has(path)) {
+        const collapsed = new Set(get().collapsed)
+        collapsed.delete(path)
+        collapsed.add(renamed)
+        set({ collapsed })
+      }
+      await get().refresh()
+    } catch (err) {
+      set({ error: message(err) })
+    }
+  },
+
+  async remove(path, kind) {
+    const { open } = get()
+    const inside = !!open && (open.path === path || open.path.startsWith(`${path}/`))
+    try {
+      if (inside) set({ open: null, context: null })
+      await api.trashDocPath(path, kind)
       await get().refresh()
     } catch (err) {
       set({ error: message(err) })

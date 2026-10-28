@@ -1,6 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { DocContext } from '@shared/types'
 import { formatTokens } from '@shared/pricing'
+import { gameFormat } from '@shared/gameFormat'
+import { editorText } from '../gameCopy'
+import { readGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
 import { useWriting } from '../writingStore'
 import { Editor } from './Editor'
@@ -99,6 +102,7 @@ export function WritingView() {
   const hasContext = useWriting((s) => !!s.context && (s.context.instructions.trim() !== '' || s.context.references.length > 0 || s.context.wholeManuscript))
   const toggleSidebar = useStore((s) => s.toggleSidebar)
   const [contextOpen, setContextOpen] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   return (
     <main className="chat writing">
@@ -120,6 +124,17 @@ export function WritingView() {
             >
               <UndoIcon />
               Edits{editCount > 0 && ` · ${editCount}`}
+            </button>
+            <button
+              className="tw-btn tw-btn-ghost tw-btn-sm no-drag game-format-btn"
+              title="Copy for a game: the selection, or the whole document when nothing is selected, with paragraphs joined by single line breaks (options in Settings)"
+              onClick={() => {
+                void window.twilight.copyText(gameFormat(editorText.get?.() ?? open.text, readGameFormat()))
+                setCopied(true)
+                setTimeout(() => setCopied(false), 1200)
+              }}
+            >
+              {copied ? 'Copied' : 'Game Format'}
             </button>
             <button
               className={`tw-btn tw-btn-ghost tw-btn-sm no-drag ${hasContext ? 'has-context' : ''}`}

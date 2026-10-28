@@ -1,8 +1,8 @@
-import { app, dialog, type BrowserWindow } from 'electron'
+import { app, dialog, shell, type BrowserWindow } from 'electron'
 import { promises as fs } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
 import type { DocContent, DocContext, DocEntry } from '@shared/types'
-import { kvDelete, kvGet, kvSet } from './db'
+import { handle, kvDelete, kvGet, kvSet } from './db'
 
 // A document's writing-tool context lives in Twilight's database, never in the user's files.
 const EMPTY_CONTEXT: DocContext = { instructions: '', references: [], wholeManuscript: false }
@@ -176,4 +176,82 @@ export async function createDoc(name: string, folder = ''): Promise<DocEntry> {
       if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err
     }
   }
+}
+
+// ——— Renaming and removing ———
+// Removing sends to the Recycle Bin, never deletes outright, so a slip is one restore away.
+
+const cleanName = (name: string): string => name.replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim()
+
+async function refuseExisting(full: string, label: string): Promise<void> {
+  try {
+    await fs.access(full)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return
+    throw err
+  }
+  throw new Error(`"${label}" already exists there.`)
+}
+
+/** Moves every stored document context under `from` (a document or a folder) to `to`. */
+function moveContexts(from: string, to: string | null): void {
+  const prefix = contextKey('')
+  const rows = handle().prepare('SELECT key, value FROM kv WHERE substr(key, 1, ?) = ?').all(prefix.length, prefix) as { key: string; value: string }[]
+  for (const row of rows) {
+    const rel = row.key.slice(prefix.length)
+    if (rel !== from && !rel.startsWith(`${from}/`)) continue
+    kvDelete(row.key)
+    if (to !== null) kvSet(contextKey(to + rel.slice(from.length)), JSON.parse(row.value))
+  }
+}
+
+/** Renames a document in place (".md" is added); never overwrites. Returns its new path. */
+export async function renameDoc(rel: string, name: string): Promise<string> {
+  const from = resolveInside(rel)
+  const clean = cleanName(name.replace(/\.md$/i, ''))
+  if (!clean || clean.startsWith('.')) throw new Error('Give the document a name.')
+  const to = join(dirname(from), `${clean}.md`)
+  if (to === from) return rel
+  // A change of case alone is the same file to Windows; rename through a temporary name.
+  if (to.toLowerCase() === from.toLowerCase()) {
+    await fs.rename(from, `${from}.renaming`)
+    await fs.rename(`${from}.renaming`, to)
+  } else {
+    await refuseExisting(to, `${clean}.md`)
+    await fs.rename(from, to)
+  }
+  moveContexts(rel, toRel(to))
+  return toRel(to)
+}
+
+/** Renames a folder (its last part); never overwrites. Returns its new path. */
+export async function renameDocFolder(rel: string, name: string): Promise<string> {
+  if (!rel) throw new Error("The writing folder itself can't be renamed here.")
+  const from = resolveFolder(rel)
+  const clean = cleanName(name)
+  if (!clean || clean.startsWith('.')) throw new Error('Give the folder a name.')
+  const to = join(dirname(from), clean)
+  if (to === from) return rel
+  if (to.toLowerCase() === from.toLowerCase()) {
+    await fs.rename(from, `${from}.renaming`)
+    await fs.rename(`${from}.renaming`, to)
+  } else {
+    await refuseExisting(to, clean)
+    await fs.rename(from, to)
+  }
+  moveContexts(rel, toRel(to))
+  return toRel(to)
+}
+
+/** Sends a document or a folder (with everything in it) to the Recycle Bin. */
+export async function trashDocPath(rel: string, kind: 'doc' | 'folder'): Promise<void> {
+  if (kind === 'folder' && !rel) throw new Error("The writing folder itself can't be removed here.")
+  const full = kind === 'doc' ? resolveInside(rel) : resolveFolder(rel)
+  if (process.env.TWILIGHT_E2E) {
+    // Test runs keep their removals in the throwaway profile, out of the real Recycle Bin.
+    const bin = join(app.getPath('userData'), 'e2e-recycled')
+    await fs.mkdir(bin, { recursive: true })
+    await fs.rename(full, join(bin, `${Date.now()}-${basename(full)}`))
+  } else await shell.trashItem(full)
+  moveContexts(rel, null)
 }

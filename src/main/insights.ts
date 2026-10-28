@@ -158,7 +158,16 @@ async function runScan(): Promise<void> {
   let written = 0
   let removed = 0
   let done = 0
+  // A file that vanished and one that appeared with the same size is a move or a rename, not new
+  // writing: the new path picks up where the old one left off.
+  const present = new Set(list.map((d) => d.path))
+  const vanished = new Map<number, Row[]>()
+  for (const row of known.values()) if (!present.has(row.path)) vanished.set(row.size, [...(vanished.get(row.size) ?? []), row])
   for (const d of todo) {
+    if (!known.has(d.path)) {
+      const moved = vanished.get(d.size)?.shift()
+      if (moved) known.set(d.path, moved)
+    }
     let analysis: DocAnalysis
     try {
       analysis = await analyze(join(folder, d.path), characters)
@@ -175,7 +184,6 @@ async function runScan(): Promise<void> {
     upsert.run(d.path, d.mtime, d.size, analysis.words, key, JSON.stringify(analysis))
     if (++done % 4 === 0 || done === todo.length) emitInsights({ kind: 'progress', done, total: todo.length })
   }
-  const present = new Set(list.map((d) => d.path))
   for (const path of known.keys()) if (!present.has(path)) h.prepare('DELETE FROM doc_stats WHERE path = ?').run(path)
 
   if (written || removed) {

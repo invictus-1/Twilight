@@ -14,9 +14,21 @@ Each version's section becomes its release notes on the releases page (`npm run 
 - **Branch into a new chat:** a new button on every reply starts a new chat with everything up to there. Messages are copied exactly, so the branch's first message still reads from the prompt cache.
 - **Choice card keys:** press 1–9 to pick (Alt+1–9 while typing). With several decisions, each number fills the next one and Enter sends. **More options** asks the model for different ones.
 - **Adventure workspaces:** a workspace can start its new chats with choice cards on.
+- **Images and PDFs:** attach them with the paperclip, drop them on the composer, or paste a screenshot. They go to the model as the files themselves (Claude reads both natively; OpenAI-compatible servers get image and file parts), and replay unchanged so the cache holds. Images show a thumbnail before sending.
+- **Attach a document:** a new button next to the paperclip finds a document in your writing folder and attaches its text.
+- **Game Format for a whole chat:** "Copy the chat for a game" in the command menu copies every reply on the thread, reflowed, without the choice cards.
+- **Undo for more things:** moving a chat to the trash, moving a chat or document, renaming, and deleting a workspace (it comes back with its settings and chats) all offer Undo.
 - **Syntax highlighting** in code blocks, in each theme's own colours, for the languages models write most. Twilight's own highlighter, so it adds no weight and keeps up while a reply streams.
 
+**Look and feel**
+- **Three new themes:** Phosphor (black and green, like an old terminal), Nightshade (black with royal purple) and Ember (black and red, with orange and gold). Pick one in Settings → General, in the welcome, or from the command menu. Every theme keeps text readable to the same contrast standard.
+
+**Writing**
+- **Rename and remove folders and documents** from the sidebar (hover a row). Removing goes to the Recycle Bin, never straight to deletion, and asks once first. Document context follows a rename.
+- **Game Format in the editor:** copies the selection, or the whole document.
+
 **Writer insights**
+- Moving or renaming a file is no longer counted as new writing.
 - **Earlier results:** Story analysis, Focus and Insights keep up to 30 past results each. Pick one from "Earlier results" to read it again, or remove it.
 - **Calls at once:** a deep scan can read 1 to 10 parts of your manuscript at the same time. The same model still writes the final themes.
 - **Edits cost less to rescan:** where a deep scan cuts your text into parts now depends on the text itself, not on counting from the top. An edit only changes the part it's in, and the rest are never paid for twice.

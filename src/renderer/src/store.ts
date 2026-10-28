@@ -21,6 +21,12 @@ export type Mode = 'chat' | 'write' | 'judge' | 'insights'
 
 const api = window.twilight
 
+export interface Undo {
+  label: string
+  run: () => Promise<void>
+  scope: 'chat' | 'app'
+}
+
 interface State {
   conversations: ConversationSummary[]
   folders: ChatFolder[]
@@ -51,8 +57,13 @@ interface State {
   error: string | null
   /** The current chat's recently deleted messages, newest first. */
   deletions: DeletionView[]
-  /** The last deletion, offered for undo in a toast until it times out. */
-  undo: { deletionId: string; pane: Pane; label: string } | null
+  /**
+   * The last undoable action, offered in a toast until it times out. A message's undo belongs to
+   * its chat ("chat") and goes when another chat opens; the rest ("app") stay.
+   */
+  undo: Undo | null
+  offerUndo(label: string, run: () => Promise<void>, scope?: Undo['scope']): void
+  runUndo(): Promise<void>
 
   init(): Promise<void>
   refreshList(): Promise<void>
@@ -115,6 +126,8 @@ export const useStore = create<State>((set, get) => {
     if (view && get().current?.id === view.id) set({ current: view })
   }
 
+  const appUndo = (): Undo | null => (get().undo?.scope === 'app' ? get().undo : null)
+
   return {
     conversations: [],
     folders: [],
@@ -164,7 +177,7 @@ export const useStore = create<State>((set, get) => {
     async open(id) {
       const view = await guard(set, () => api.openConversation(id))
       if (view) {
-        set({ current: view, undo: null })
+        set({ current: view, undo: appUndo() })
         void get().refreshDeletions()
       }
     },
@@ -173,7 +186,7 @@ export const useStore = create<State>((set, get) => {
       set({ mode: 'chat', settingsOpen: false })
       const view = await guard(set, () => api.revealMessage(conversationId, nodeId))
       if (!view) return
-      set({ current: view, undo: null, flash: nodeId })
+      set({ current: view, undo: appUndo(), flash: nodeId })
       void get().refreshDeletions()
     },
 
@@ -187,7 +200,7 @@ export const useStore = create<State>((set, get) => {
       }
       const view = await guard(set, () => api.createConversation(folderId))
       if (!view) return
-      set({ current: view, deletions: [], undo: null })
+      set({ current: view, deletions: [], undo: appUndo() })
       await get().refreshList()
     },
 
@@ -202,12 +215,33 @@ export const useStore = create<State>((set, get) => {
       if (folder) set({ folders: await api.setFolderCollapsed(id, !folder.collapsed) })
     },
     async deleteFolder(id) {
+      // Undo rebuilds the workspace with its settings and files its chats back into it.
+      const folder = get().folders.find((f) => f.id === id)
+      const chats = get().conversations.filter((c) => c.folderId === id).map((c) => c.id)
       set({ folders: await api.deleteFolder(id) })
       await get().refreshList()
+      if (!folder) return
+      get().offerUndo(`Workspace “${folder.name}” deleted`, async () => {
+        const before = new Set((await api.listFolders()).map((f) => f.id))
+        const after = await api.createFolder(folder.name)
+        const made = after.find((f) => !before.has(f.id))
+        if (!made) return
+        const { id: _id, name: _name, collapsed: _c, ...config } = folder
+        set({ folders: await api.updateWorkspace(made.id, config) })
+        for (const chat of chats) await api.moveConversation(chat, made.id)
+        await get().refreshList()
+      })
     },
     async moveChat(id, folderId) {
+      const before = get().conversations.find((c) => c.id === id)?.folderId ?? null
+      if (before === folderId) return
       await api.moveConversation(id, folderId)
       await get().refreshList()
+      const where = folderId ? (get().folders.find((f) => f.id === folderId)?.name ?? 'workspace') : 'Recent'
+      get().offerUndo(`Moved to ${where}`, async () => {
+        await api.moveConversation(id, before)
+        await get().refreshList()
+      })
     },
     async pinChat(id, pinned) {
       await api.pinConversation(id, pinned)
@@ -235,7 +269,7 @@ export const useStore = create<State>((set, get) => {
       await withCurrent((id) => api.deleteMessage(id, nodeId, kind, pane))
       await get().refreshDeletions()
       const latest = get().deletions[0]
-      if (latest) set({ undo: { deletionId: latest.id, pane, label: kind === 'below' ? `Deleted ${latest.count} messages` : 'Message deleted' } })
+      if (latest) get().offerUndo(kind === 'below' ? `Deleted ${latest.count} messages` : 'Message deleted', () => get().restoreDeletion(latest.id, pane), 'chat')
     },
     async restoreDeletion(deletionId, pane = 'a') {
       set({ undo: null })
@@ -250,6 +284,12 @@ export const useStore = create<State>((set, get) => {
     },
     editMessage: (nodeId, text, pane) => withCurrent((id) => api.editMessage(id, nodeId, text, pane)),
     dismissUndo: () => set({ undo: null }),
+    offerUndo: (label, run, scope = 'app') => set({ undo: { label, run, scope } }),
+    async runUndo() {
+      const undo = get().undo
+      set({ undo: null })
+      await undo?.run()
+    },
 
     async stop(target = 'both') {
       const current = get().current
@@ -274,7 +314,7 @@ export const useStore = create<State>((set, get) => {
       if (!current) return
       const view = await guard(set, () => api.branchToNewChat(current.id, nodeId, pane))
       if (!view) return
-      set({ current: view, deletions: [], undo: null })
+      set({ current: view, deletions: [], undo: appUndo() })
       await get().refreshList()
     },
     setTarget: (target) => set({ target }),
@@ -285,6 +325,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     async deleteChat(id) {
+      const title = get().conversations.find((c) => c.id === id)?.title ?? 'Chat'
       await api.deleteConversation(id)
       const conversations = await api.listConversations()
       set({ conversations })
@@ -293,6 +334,10 @@ export const useStore = create<State>((set, get) => {
         set({ current: null, deletions: [], undo: null })
         if (conversations[0]) await get().open(conversations[0].id)
       }
+      get().offerUndo(`“${title.length > 40 ? `${title.slice(0, 39)}…` : title}” moved to the trash`, async () => {
+        await get().restoreChat(id)
+        await get().open(id)
+      })
     },
 
     async refreshTrash() {

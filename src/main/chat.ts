@@ -171,8 +171,16 @@ export function send(
   }
   // Attached files go into the message itself, in full, ahead of what was typed. They become
   // part of the history like any message, so later turns read them from cache.
+  // Images and PDFs go as the files themselves, in Claude's block format (the OpenAI-compatible
+  // provider converts them).
   const content = [
-    ...attachments.map((a) => ({ type: 'text', text: `<document name="${escapeAttr(a.name)}">\n${a.text}\n</document>` })),
+    ...attachments.map((a) =>
+      a.kind === 'image' && a.data
+        ? { type: 'image', source: { type: 'base64', media_type: a.mediaType, data: a.data } }
+        : a.kind === 'pdf' && a.data
+          ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: a.data }, title: a.name }
+          : { type: 'text', text: `<document name="${escapeAttr(a.name)}">\n${a.text}\n</document>` }
+    ),
     ...(text ? [{ type: 'text', text }] : [])
   ]
   const nodes = db.loadNodes(id)
@@ -191,7 +199,9 @@ export function send(
         usage: null,
         status: 'done',
         error: null,
-        attachments: attachments.length ? JSON.stringify(attachments.map((a) => ({ name: a.name, chars: a.text.length }))) : null
+        attachments: attachments.length
+          ? JSON.stringify(attachments.map((a) => ({ name: a.name, chars: a.text.length, kind: a.kind ?? 'text', bytes: a.data ? Math.floor((a.data.length * 3) / 4) : a.text.length })))
+          : null
       },
       { activate: pane === 'a' }
     )
@@ -328,7 +338,7 @@ export function editMessage(contents: WebContents, id: string, nodeId: string, t
   if (node.role === 'user') {
     // Keep its attached documents; replace what was typed.
     const blocks = node.content ? (JSON.parse(node.content) as { type: string; text?: string }[]) : []
-    const docs = blocks.filter((b) => b.type === 'text' && b.text?.startsWith('<document name='))
+    const docs = blocks.filter((b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && b.text?.startsWith('<document name=')))
     edited = db.insertNode(
       { ...base, role: 'user', content: JSON.stringify([...docs, ...(text ? [{ type: 'text', text }] : [])]), model: null, provider_id: null, attachments: node.attachments ?? null },
       { activate: pane === 'a' }

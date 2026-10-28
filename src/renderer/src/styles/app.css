@@ -63,6 +63,8 @@ h1, h2, h3 { margin: 0; }
 .tw-conv[aria-current='true'] .row-actions { background: var(--iris-soft); }
 .tw-conv:hover .row-actions, .folder-head:hover .row-actions, .row-actions:focus-within { display: inline-flex; }
 .row-actions .tw-btn-icon { width: 24px; height: 24px; }
+.row-actions .remove-confirm { height: 24px; padding: 0 var(--space-2); font-size: 12px; }
+.doc-item .name-input, .folder-head .name-input { flex: 1; min-width: 0; }
 .row-actions [aria-pressed='true'] { color: var(--iris); }
 .pinned-mark { color: var(--iris); vertical-align: -1px; margin-right: 4px; }
 .name-input { width: 100%; height: 22px; }
@@ -246,6 +248,11 @@ h1, h2, h3 { margin: 0; }
 
 /* Attachments */
 .attach-chip { gap: 6px; max-width: 280px; }
+.attach-thumb { width: 22px; height: 22px; object-fit: cover; border-radius: 4px; flex: none; margin-left: -4px; }
+.attach-chip.attach-image { padding-top: 2px; padding-bottom: 2px; }
+.tw-composer { position: relative; }
+.tw-composer-drop { border-color: var(--iris); box-shadow: 0 0 0 3px var(--iris-soft); }
+.drop-hint { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; background: color-mix(in srgb, var(--surface-raised) 88%, transparent); color: var(--iris); font-size: 13px; font-weight: 500; pointer-events: none; z-index: 2; }
 .attach-chip > :not(svg):not(button) { overflow: hidden; text-overflow: ellipsis; }
 .attach-size { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
 .attach-remove { display: inline-flex; background: none; border: 0; padding: 0; color: var(--ink-faint); cursor: pointer; }
@@ -836,6 +843,11 @@ body.resizing .resize-handle { pointer-events: auto; }
 .tools-row > span { display: flex; flex-direction: column; gap: 1px; }
 .tools-label { font-size: 13px; font-weight: 500; color: var(--ink); }
 .tools-note { font-size: 12px; line-height: 16px; color: var(--ink-faint); }
+.doc-pop { width: 380px; padding: var(--space-1); gap: var(--space-1); }
+.doc-pop-input { background: var(--surface-raised); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 6px var(--space-2); color: var(--ink); font: inherit; font-size: 13px; outline: none; }
+.doc-pop-input:focus { border-color: var(--line-strong); }
+.doc-pop-list { max-height: 300px; overflow-y: auto; }
+.doc-pop-item { font-size: 13px; padding: 5px var(--space-2); }
 .tools-later { margin: 0; padding: 0 var(--space-2) var(--space-2); font-size: 12px; color: var(--ink-faint); }
 
 /* Insights: AI pages and reports */

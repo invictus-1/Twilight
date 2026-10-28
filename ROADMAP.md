@@ -11,6 +11,12 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Branch into a new chat** · Chat — start a new chat from any reply, cache intact
 - [x] **Choice card keys** · Chat — pick with 1–9, ask for more options, and a default for adventure workspaces
 - [x] **Syntax highlighting** · Chat — for code blocks, in every theme
+- [x] **PDFs and images** · Chat — attach them (Claude reads them natively), drop files on the composer, paste screenshots
+- [x] **Document picker** · Writing — attach documents from the writing folder
+- [x] **Folder management** · Writing — rename and remove documents and folders in Twilight
+- [x] **Game Format everywhere** · Writing — in the editor too, and for a whole chat
+- [x] **More undo** · Core — undo for trashing chats, moving, renaming and deleting workspaces
+- [x] **Colour themes** · Core — Phosphor (black and green), Nightshade (purple) and Ember (red), alongside Twilight and Ultraviolet
 - [x] **Earlier results** · Writing — every AI page keeps its past results to read again
 - [x] **Parallel deep scans** · Writing — 1 to 10 calls at once, finished by the same model
 - [x] **Cheaper rescans** · Writing — parts are cut by the text itself, so an edit only re-reads its own part
@@ -62,13 +68,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 0.4** · Core — fixes from real use of Writer insights, the updater and the Tools menu
-- [ ] **PDFs and images** · Chat — attach them (Claude reads them natively) and drop files on the composer
 - [ ] **Instruction changes mid-chat** · Chat — change the instructions without breaking the cache
 - [ ] **Your own prices** · Chat — an editable price list, and OpenRouter's reported cost
-- [ ] **Game Format everywhere** · Writing — in the editor too, and for a whole chat
-- [ ] **Document picker** · Writing — attach documents from the writing folder
-- [ ] **Folder management** · Writing — rename and delete document folders in Twilight
-- [ ] **More undo** · Core — undo for deleting chats and moving things
 - [ ] **Judge leaderboard** · Judge — a running tally across judgments, and more than two passages at once
 - [ ] **Code signing** · Core — a signed installer, so Windows doesn't warn
 
@@ -76,7 +77,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [ ] **Sidebar icon rail** · Core — a vertical row of icons with labels for every section, sleeker than tabs
 - [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion
 - [ ] **Custom backgrounds** · Core — your own image or gradient behind the app
-- [ ] **Colour themes** · Core — black and green, purple, and red, alongside Twilight and Ultraviolet
 - [ ] **Tools and MCP** · Chat — web search, web fetch, date and time, image generation, switched on per chat
 - [ ] **Agents and code** · Chat — an agent loop for any model with tool calling, with approvals and diffs
 - [ ] **More themes** · Core — Midnight, Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, and a theme builder

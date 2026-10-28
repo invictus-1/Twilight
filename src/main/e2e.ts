@@ -1,4 +1,4 @@
-import { app, type BrowserWindow } from 'electron'
+import { app, clipboard, type BrowserWindow } from 'electron'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { appendFileSync, writeFileSync } from 'node:fs'
@@ -309,7 +309,11 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(300)
         const t0 = performance.now()
         document.querySelector('.doc-item[data-path="Big manuscript.md"]').click()
-        while (!document.querySelector('.cm-content .cm-line')) await wait(1)
+        // Bounded, so a document that never opens fails the check instead of hanging the run.
+        for (let i = 0; i < 4000 && !document.querySelector('.cm-content .cm-line'); i++) {
+          await wait(1)
+          if (i === 2000) document.querySelector('.doc-item[data-path="Big manuscript.md"]')?.click()
+        }
         await frame()
         const openMs = performance.now() - t0
         await wait(400)
@@ -1582,6 +1586,194 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await idle(c31)
       check('More options asks the model for others', chat.view(c31).path.at(-2)?.text === 'Give me a few different options.', chat.view(c31).path.at(-2)?.text)
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-choicekeys.png'), img.toPNG()), () => undefined)
+
+      // 31. Images and PDFs: sent as the files themselves, in each provider's format.
+      const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
+      const pdf = Buffer.from('%PDF-1.4\n% Twilight test\n').toString('base64')
+      const c32 = chat.create().id
+      const before32 = log.length
+      chat.send(contents, c32, 'What is in these?', 'a', [
+        { name: 'dot.png', text: '', kind: 'image', mediaType: 'image/png', data: png },
+        { name: 'map.pdf', text: '', kind: 'pdf', mediaType: 'application/pdf', data: pdf }
+      ])
+      await idle(c32)
+      const mediaMsg = log[before32]?.messages.at(-1) as unknown as { content: { type: string; image_url?: { url: string }; file?: { filename: string; file_data: string }; text?: string }[] }
+      const parts = Array.isArray(mediaMsg?.content) ? mediaMsg.content : []
+      check(
+        'images and PDFs go to OpenAI-compatible servers as content parts',
+        parts[0]?.image_url?.url === `data:image/png;base64,${png}` && parts[1]?.file?.filename === 'map.pdf' && parts[1]?.file?.file_data.endsWith(pdf) && parts[2]?.text === 'What is in these?',
+        parts.map((p) => p.type)
+      )
+      const c32view = chat.view(c32)
+      check('attached files are listed on the message by kind', c32view.path[0].attachments?.map((a) => a.kind).join() === 'image,pdf' && c32view.path[1].status === 'done', c32view.path[0].attachments)
+      const c32rows = rowsOf(c32)
+      const mediaClaude = toMessages(c32rows)
+      check(
+        'Claude gets image and document blocks as stored',
+        mediaClaude[0].content[0].type === 'image' && (mediaClaude[0].content[1] as { source?: { data?: string } }).source?.data === pdf && mediaClaude[0].content[2].type === 'text'
+      )
+      chat.send(contents, c32, 'And now?')
+      await idle(c32)
+      const again = log.at(-1)?.messages.find((m) => Array.isArray(m.content)) as unknown as { content: unknown[] } | undefined
+      check('a later turn replays the same parts, so the cache holds', JSON.stringify(again?.content) === JSON.stringify(mediaMsg?.content))
+
+      // Dropping an image on the composer attaches it, with a thumbnail.
+      await key('N', ['control'])
+      const dropUi = await js<{ chips: number; thumb: boolean; size: string }>(`(async () => {
+        const bin = atob(${JSON.stringify(png)})
+        const bytes = Uint8Array.from(bin, (c) => c.charCodeAt(0))
+        const dt = new DataTransfer()
+        dt.items.add(new File([bytes], 'drop.png', { type: 'image/png' }))
+        const box = document.querySelector('.tw-composer')
+        box.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }))
+        box.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }))
+        await new Promise((r) => setTimeout(r, 300))
+        return { chips: document.querySelectorAll('.tw-attach .attach-chip').length, thumb: !!document.querySelector('.tw-attach img.attach-thumb'), size: document.querySelector('.tw-attach .attach-size')?.textContent ?? '' }
+      })()`)
+      check('dropping an image on the composer attaches it with a thumbnail', dropUi.chips === 1 && dropUi.thumb && /B$/.test(dropUi.size), dropUi)
+      const before33 = log.length
+      await js(`document.querySelector('.tw-send')?.click()`)
+      await new Promise((r) => setTimeout(r, 300))
+      for (let i = 0; i < 100 && log.length === before33; i++) await new Promise((r) => setTimeout(r, 30))
+      const dropped = log[before33]?.messages.at(-1) as unknown as { content: { image_url?: { url: string } }[] } | undefined
+      check('a dropped image is sent', Array.isArray(dropped?.content) && dropped.content[0]?.image_url?.url === `data:image/png;base64,${png}`, dropped?.content)
+      await new Promise((r) => setTimeout(r, 500))
+
+      // 32. Document folders: rename and remove, with contexts following and insights unfooled.
+      await docs.createDocFolder('Drafts e2e/Act one')
+      const scene1 = await docs.createDoc('Harbour', 'Drafts e2e/Act one')
+      await docs.writeDoc(scene1.path, 'Wren counted the boats twice before dawn.\n')
+      docs.setDocContext(scene1.path, { instructions: 'Keep it quiet.', references: [], wholeManuscript: false })
+      await insights.scan()
+      const todayBefore = insights.summary().today
+      const renamedFolder = await docs.renameDocFolder('Drafts e2e', 'Second draft e2e')
+      const movedScene = `${renamedFolder}/Act one/Harbour.md`
+      const listedAfter = (await docs.listDocs()).map((d) => d.path)
+      check('renaming a folder keeps its documents', renamedFolder === 'Second draft e2e' && listedAfter.includes(movedScene) && !listedAfter.some((p) => p.startsWith('Drafts e2e/')), listedAfter.filter((p) => p.includes('e2e')))
+      check('a document keeps its context through a folder rename', docs.getDocContext(movedScene).instructions === 'Keep it quiet.')
+      await insights.scan()
+      check('moving or renaming files is not counted as writing', insights.summary().today === todayBefore, { before: todayBefore, after: insights.summary().today })
+      const renamedDoc = await docs.renameDoc(movedScene, 'Harbour at dawn')
+      check('renaming a document keeps its context', renamedDoc.endsWith('/Harbour at dawn.md') && docs.getDocContext(renamedDoc).instructions === 'Keep it quiet.', renamedDoc)
+      check('renames never overwrite', await docs.renameDocFolder(renamedFolder, 'Second draft e2e').then(() => true) && (await docs.createDocFolder('Taken e2e')) === 'Taken e2e' && (await docs.renameDocFolder(renamedFolder, 'Taken e2e').then(() => false, () => true)))
+      await docs.trashDocPath(renamedFolder, 'folder')
+      const recycled = await readdir(join(app.getPath('userData'), 'e2e-recycled'))
+      check('removing a folder sends it to the bin with everything in it', !(await docs.listDocs()).some((d) => d.path.startsWith(`${renamedFolder}/`)) && recycled.some((f) => f.endsWith('Second draft e2e')) && docs.getDocContext(renamedDoc).instructions === '', recycled)
+
+      const gameDoc = await docs.createDoc('Game e2e')
+      await docs.writeDoc(gameDoc.path, 'One line.\n\nTwo lines.\n')
+
+      // The sidebar: rename a folder in place, and removal asks before it acts.
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 800))
+      await key('2', ['control'])
+      const folderUi = await js<{ asked: string; stillThere: boolean; renamed: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const head = () => document.querySelector('.folder-head[data-folder="Taken e2e"]')
+        for (let i = 0; i < 60 && !head(); i++) await wait(50)
+        head().querySelector('[aria-label^="Rename"]').click()
+        await wait(100)
+        const input = head().querySelector('input.name-input')
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        set.call(input, 'Kept e2e')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        input.blur()
+        await wait(600)
+        const kept = document.querySelector('.folder-head[data-folder="Kept e2e"]')
+        kept.querySelector('[aria-label^="Remove"]').click()
+        await wait(100)
+        const asked = kept.querySelector('.remove-confirm')?.textContent ?? ''
+        return { asked, stillThere: !!document.querySelector('.folder-head[data-folder="Kept e2e"]'), renamed: !!kept }
+      })()`)
+      check('folders rename in the sidebar, and removing asks first', folderUi.renamed && folderUi.asked === 'Move to Recycle Bin' && folderUi.stillThere, folderUi)
+      const undoRename = await js<string>(`document.querySelector('.toast-info')?.textContent ?? ''`)
+      check('a rename offers undo', /Renamed to Kept e2e/.test(undoRename), undoRename)
+
+      // Game Format for a whole chat, and in the editor.
+      await clipboard.writeText('')
+      await js(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('.doc-item[data-path="Game e2e.md"]')?.click()
+        await wait(600)
+        ;[...document.querySelectorAll('.chat-head button')].find((b) => b.textContent === 'Game Format')?.click()
+        await wait(200)
+      })()`)
+      const editorCopy = await clipboard.readText()
+      check('the editor copies a document in Game Format', editorCopy.trim() === 'One line.\nTwo lines.', editorCopy)
+
+      // Undo: a chat moved to the trash comes back.
+      await key('1', ['control'])
+      await js(`(async () => {
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Lanterns along the quay')
+        row?.click()
+        await new Promise((r) => setTimeout(r, 400))
+      })()`)
+      await key('K', ['control'])
+      win.webContents.insertText('copy the chat for a game')
+      await new Promise((r) => setTimeout(r, 150))
+      await key('Return')
+      await new Promise((r) => setTimeout(r, 200))
+      const chatCopy = await clipboard.readText()
+      check('a whole chat copies in Game Format', chatCopy.includes('replying to "Lanterns along the quay"') && chatCopy.includes('list:\n- one') && chatCopy.includes('Done.\nHere it is:') && chatCopy.includes('const lamps = 9'), chatCopy.slice(0, 300))
+      const undoUi = await js<{ toast: string; back: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[aria-label="Move Lanterns along the quay (branch) to the trash"]')?.click()
+        await wait(400)
+        const toast = document.querySelector('.toast-info')?.textContent ?? ''
+        ;[...document.querySelectorAll('.toast-info button')].find((b) => b.textContent === 'Undo')?.click()
+        await wait(500)
+        return { toast, back: [...document.querySelectorAll('.tw-conv-title')].some((t) => t.textContent === 'Lanterns along the quay (branch)') }
+      })()`)
+      check('moving a chat to the trash offers undo, and undo brings it back', /moved to the trash/.test(undoUi.toast) && undoUi.back, undoUi)
+
+      // The document picker attaches a document's text.
+      await js(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[aria-label="Attach a document from the writing folder"]')?.click()
+        await wait(200)
+      })()`)
+      win.webContents.insertText('game e2e')
+      await new Promise((r) => setTimeout(r, 200))
+      await key('Return')
+      const pickedDoc = await js<string[]>(`[...document.querySelectorAll('.tw-attach .attach-chip')].map((c) => c.textContent)`)
+      check('the document picker attaches a document from the writing folder', pickedDoc.length === 1 && pickedDoc[0].startsWith('Game e2e.md'), pickedDoc)
+
+      // 33. Every theme in the picker applies its own colours and frame.
+      await key(',', ['control'])
+      const themesUi = await js<{ options: string[]; nights: Record<string, string> }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        await wait(200)
+        const options = [...document.querySelectorAll('.theme-option')].map((o) => o.dataset.themeId)
+        const nights = {}
+        for (const id of ['phosphor', 'nightshade', 'ember']) {
+          document.querySelector('.theme-option[data-theme-id="' + id + '"]')?.click()
+          await wait(120)
+          nights[id] = getComputedStyle(document.documentElement).getPropertyValue('--night').trim()
+        }
+        return { options, nights }
+      })()`)
+      const frameTheme = db.kvGet<string>('theme')
+      // A look at each new theme on a chat, for the record.
+      await key('1', ['control'])
+      await new Promise((r) => setTimeout(r, 300))
+      for (const id of ['phosphor', 'nightshade', 'ember']) {
+        await js(`(() => { document.documentElement.dataset.theme = '${id}' })()`)
+        await new Promise((r) => setTimeout(r, 250))
+        await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, `e2e-theme-${id}.png`), img.toPNG()), () => undefined)
+      }
+      await key(',', ['control'])
+      await js(`(async () => {
+        await new Promise((r) => setTimeout(r, 200))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        await new Promise((r) => setTimeout(r, 200))
+        document.querySelector('.theme-option[data-theme-id="twilight"]')?.click()
+      })()`)
+      check('the picker lists every theme', themesUi.options.join() === 'twilight,ultraviolet,phosphor,nightshade,ember', themesUi.options)
+      check('Phosphor, Nightshade and Ember apply their colours', themesUi.nights.phosphor === '#030604' && themesUi.nights.nightshade === '#07050b' && themesUi.nights.ember === '#0a0505', themesUi.nights)
+      check('the window frame follows the theme', frameTheme === 'ember', frameTheme)
+      await key('Escape')
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

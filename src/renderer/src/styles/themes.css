@@ -40,6 +40,130 @@
   background: linear-gradient(180deg, #120821, var(--night) 40%);
 }
 
+/* Phosphor: black and green, an old terminal's glow. Green for actions, lime for tools, cyan for writing. */
+:root[data-theme='phosphor'] {
+  --night: #030604;
+  --surface: #070c09;
+  --surface-raised: #0d1510;
+  --surface-overlay: #132019;
+  --surface-hover: #ffffff0d;
+  --line: #1b2e22;
+  --line-strong: #3f7a55;
+  --ink: #e3ffe9;
+  --ink-muted: #9fd1ae;
+  --ink-faint: #74a886;
+  --iris: #3dff8f;
+  --iris-soft: #0f2f1c;
+  --on-iris: #021006;
+  --dusk: #b6ff5c;
+  --dusk-soft: #22300f;
+  --horizon: #4de8e0;
+  --horizon-soft: #0f2a2a;
+  --on-horizon: #021006;
+  --success: #3dff8f;
+  --selection: #3dff8f40;
+  --shadow-lg: 0 12px 32px -4px #000000d0, 0 0 0 1px #1f3a29;
+  --focus-ring: 0 0 0 2px #070c09, 0 0 0 4px #3dff8f;
+}
+:root[data-theme='phosphor'] .tw-btn-primary,
+:root[data-theme='phosphor'] .tw-send {
+  background: linear-gradient(90deg, #22d36f, #b6ff5c);
+  border-color: transparent;
+}
+:root[data-theme='phosphor'] .chat {
+  background: radial-gradient(1100px 520px at 85% -12%, #0d3320 0%, transparent 62%), var(--surface);
+}
+:root[data-theme='phosphor'] .sidebar {
+  background: linear-gradient(180deg, #06140c, var(--night) 40%);
+}
+/* Its flourish: headings glow faintly, the way phosphor does. */
+:root[data-theme='phosphor'] .t-display,
+:root[data-theme='phosphor'] .chat-title {
+  text-shadow: 0 0 14px #3dff8f55;
+}
+
+/* Nightshade: true black with royal purple and lavender. */
+:root[data-theme='nightshade'] {
+  --night: #07050b;
+  --surface: #0c0912;
+  --surface-raised: #14101d;
+  --surface-overlay: #1d1729;
+  --surface-hover: #ffffff0d;
+  --line: #2a2140;
+  --line-strong: #7b68b0;
+  --ink: #f1edff;
+  --ink-muted: #bdb2de;
+  --ink-faint: #958ab8;
+  --iris: #a78bfa;
+  --iris-soft: #2a2050;
+  --on-iris: #07050b;
+  --dusk: #8f73ff;
+  --dusk-soft: #251a4d;
+  --horizon: #e0b3ff;
+  --horizon-soft: #2e1d3d;
+  --on-horizon: #07050b;
+  --selection: #a78bfa47;
+  --shadow-lg: 0 12px 32px -4px #000000d0, 0 0 0 1px #2f2450;
+  --focus-ring: 0 0 0 2px #0c0912, 0 0 0 4px #a78bfa;
+}
+:root[data-theme='nightshade'] .tw-btn-primary,
+:root[data-theme='nightshade'] .tw-send {
+  background: linear-gradient(90deg, #7c5cff, #c084fc);
+  border-color: transparent;
+}
+:root[data-theme='nightshade'] .chat {
+  background: radial-gradient(1100px 520px at 85% -12%, #241446 0%, transparent 62%), var(--surface);
+}
+:root[data-theme='nightshade'] .sidebar {
+  background: linear-gradient(180deg, #110a20, var(--night) 40%);
+}
+
+/* Ember: black and red, with orange and gold. Danger turns rose so it never reads as the accent. */
+:root[data-theme='ember'] {
+  --night: #0a0505;
+  --surface: #120909;
+  --surface-raised: #1b0f0f;
+  --surface-overlay: #261515;
+  --surface-hover: #ffffff0d;
+  --line: #3a1d1d;
+  --line-strong: #a5605a;
+  --ink: #fff0ec;
+  --ink-muted: #e0b8b0;
+  --ink-faint: #b98d86;
+  --iris: #ff5a4f;
+  --iris-soft: #3d1414;
+  --on-iris: #0a0505;
+  --dusk: #ff9a4d;
+  --dusk-soft: #3a1f0f;
+  --horizon: #ffcf5c;
+  --horizon-soft: #3a2c10;
+  --on-horizon: #0a0505;
+  --danger: #ff7aa8;
+  --danger-soft: #3d1426;
+  --selection: #ff5a4f47;
+  --shadow-lg: 0 12px 32px -4px #000000d0, 0 0 0 1px #4a2020;
+  --focus-ring: 0 0 0 2px #120909, 0 0 0 4px #ff5a4f;
+}
+:root[data-theme='ember'] .tw-btn-primary,
+:root[data-theme='ember'] .tw-send {
+  background: linear-gradient(90deg, #ff3b30, #ff9a4d);
+  border-color: transparent;
+}
+:root[data-theme='ember'] .chat {
+  background: radial-gradient(1100px 520px at 85% -12%, #3d0e0e 0%, transparent 62%), var(--surface);
+}
+:root[data-theme='ember'] .sidebar {
+  background: linear-gradient(180deg, #1a0808, var(--night) 40%);
+}
+
+/* The skies on Insights, the Roadmap and the welcome, in each theme's colours. */
+:root[data-theme='phosphor'] .ins-hero, :root[data-theme='phosphor'] .rm-hero { background: linear-gradient(180deg, #04120a 0%, #082417 55%, #0f3a22 100%); }
+:root[data-theme='nightshade'] .ins-hero, :root[data-theme='nightshade'] .rm-hero { background: linear-gradient(180deg, #0d0820 0%, #1d1240 55%, #2d1a55 100%); }
+:root[data-theme='ember'] .ins-hero, :root[data-theme='ember'] .rm-hero { background: linear-gradient(180deg, #1a0606 0%, #3a0d0d 55%, #5a1a0f 100%); }
+:root[data-theme='phosphor'] .welcome { background: linear-gradient(180deg, #010302 0%, #030604 30%, #082417 62%, #0f3a22 86%, #1b5a33 100%); }
+:root[data-theme='nightshade'] .welcome { background: linear-gradient(180deg, #030205 0%, #07050b 30%, #1d1240 62%, #2d1a55 86%, #4a2a80 100%); }
+:root[data-theme='ember'] .welcome { background: linear-gradient(180deg, #050202 0%, #0a0505 30%, #3a0d0d 62%, #5a1a0f 86%, #8a2a10 100%); }
+
 /* Settings: the theme picker */
 .theme-picker { display: flex; gap: var(--space-3); flex-wrap: wrap; }
 .theme-option { display: flex; flex-direction: column; gap: var(--space-2); width: 200px; padding: var(--space-2); border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; }

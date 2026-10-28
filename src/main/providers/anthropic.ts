@@ -19,7 +19,8 @@ type Message = { role: 'user' | 'assistant'; content: Block[] }
 
 /** Block types replayed from a stored reply; anything else (another provider's bookkeeping) is left out. */
 const REPLAYED = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use'])
-const isDocument = (b: Block): boolean => b.type === 'text' && typeof b.text === 'string' && b.text.startsWith('<document name=')
+const isDocument = (b: Block): boolean =>
+  b.type === 'image' || b.type === 'document' || (b.type === 'text' && typeof b.text === 'string' && b.text.startsWith('<document name='))
 
 export function toMessages(history: NodeRow[]): Message[] {
   const messages: Message[] = []

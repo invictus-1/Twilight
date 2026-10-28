@@ -1,3 +1,4 @@
+import { ThemePicker } from './ThemePicker'
 import { useEffect, useMemo, useState } from 'react'
 import type { ProviderConfig } from '@shared/types'
 import { useStore } from '../store'
@@ -187,26 +188,7 @@ function LookStep() {
     <div className="wl-step">
       <h2 className="wl-title">Pick a look</h2>
       <p className="wl-sub">Both are dark and easy on the eyes at night. Switch whenever you like in Settings → General.</p>
-      <div className="theme-picker wl-themes" role="group" aria-label="Theme">
-        <button className="theme-option" aria-pressed={theme === 'twilight'} onClick={() => pick('twilight')}>
-          <span className="theme-swatch" style={{ background: 'linear-gradient(180deg, #171a3d, #3a2245)' }}>
-            <span style={{ background: '#9497ff' }} />
-            <span style={{ background: '#c4a0ff' }} />
-            <span style={{ background: '#ffb48a' }} />
-          </span>
-          <b>Twilight</b>
-          <small>Blue dusk, iris and a warm horizon.</small>
-        </button>
-        <button className="theme-option" aria-pressed={theme === 'ultraviolet'} onClick={() => pick('ultraviolet')}>
-          <span className="theme-swatch" style={{ background: 'radial-gradient(circle at 80% 0%, #2a1245, #0c0614 70%)' }}>
-            <span style={{ background: '#b07cff' }} />
-            <span style={{ background: '#f07cff' }} />
-            <span style={{ background: '#ff8fc8' }} />
-          </span>
-          <b>Ultraviolet</b>
-          <small>Deep violet with magenta and pink.</small>
-        </button>
-      </div>
+      <ThemePicker value={theme} onPick={pick} className="wl-themes" />
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import { useSyncExternalStore } from 'react'
 import { useStore } from './store'
+import { THEMES } from '@shared/themes'
 import { setTheme } from './theme'
+import { chatInGameFormat } from './gameCopy'
 import { useWriting } from './writingStore'
 
 // Every action the command menu (Ctrl+K) offers, with its keyboard shortcut. Shortcuts can be
@@ -51,6 +53,14 @@ export const COMMANDS: Command[] = [
     when: () => !!s().current,
     run: () => (go('chat'), window.dispatchEvent(new Event('twilight-model-settings')))
   },
+  {
+    id: 'game-chat',
+    title: 'Copy the chat for a game (Game Format)',
+    group: 'Chat',
+    hint: 'rpg maker export story replies',
+    when: () => !!s().current?.path.some((n) => n.role === 'assistant'),
+    run: () => void window.twilight.copyText(chatInGameFormat())
+  },
   { id: 'go-chat', title: 'Chats', group: 'Go to', keys: 'Ctrl+1', run: () => go('chat') },
   { id: 'go-write', title: 'Writing', group: 'Go to', keys: 'Ctrl+2', run: () => go('write') },
   { id: 'go-judge', title: 'Judge', group: 'Go to', keys: 'Ctrl+3', run: () => go('judge') },
@@ -60,8 +70,7 @@ export const COMMANDS: Command[] = [
   { id: 'go-updates', title: 'Updates', group: 'Go to', hint: 'version settings', run: () => settings('updates') },
   { id: 'go-roadmap', title: 'Roadmap', group: 'Go to', run: () => settings('roadmap') },
   { id: 'go-keys', title: 'Rebind keys', group: 'Go to', hint: 'shortcuts settings', run: () => settings('shortcuts') },
-  { id: 'theme-twilight', title: 'Twilight', group: 'Theme', hint: 'theme colors', run: () => setTheme('twilight') },
-  { id: 'theme-ultraviolet', title: 'Ultraviolet', group: 'Theme', hint: 'theme colors', run: () => setTheme('ultraviolet') },
+  ...THEMES.map((t): Command => ({ id: `theme-${t.id}`, title: t.name, group: 'Theme', hint: `theme colors ${t.note}`, run: () => setTheme(t.id) })),
   { id: 'welcome', title: 'Replay the welcome', group: 'App', hint: 'intro tour', run: () => s().setWelcomeOpen(true) },
   { id: 'data-folder', title: 'Open the data folder', group: 'App', run: () => void window.twilight.openDataFolder() }
 ]

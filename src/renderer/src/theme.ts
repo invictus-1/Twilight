@@ -1,11 +1,14 @@
-export type Theme = 'twilight' | 'ultraviolet'
+import { isTheme, type Theme } from '@shared/themes'
+
+export type { Theme }
 
 const KEY = 'twilight.theme'
 
 /** The theme chosen last; read before the first paint so the app never flashes the other one. */
 export function savedTheme(): Theme {
   try {
-    return localStorage.getItem(KEY) === 'ultraviolet' ? 'ultraviolet' : 'twilight'
+    const saved = localStorage.getItem(KEY)
+    return isTheme(saved) ? saved : 'twilight'
   } catch {
     return 'twilight'
   }

@@ -10,7 +10,7 @@ import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
-import { AlertIcon, BranchIcon, ChevronLeft, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
+import { AlertIcon, BranchIcon, ChevronLeft, ImageIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -128,8 +128,12 @@ function UserMessage({ node }: { node: NodeView }) {
         {node.attachments && node.attachments.length > 0 && (
           <div className="msg-attachments">
             {node.attachments.map((a, i) => (
-              <span key={`${a.name}-${i}`} className="tw-badge attach-chip" title={`${a.chars.toLocaleString()} characters, sent in full`}>
-                <PaperclipIcon size={13} />
+              <span
+                key={`${a.name}-${i}`}
+                className="tw-badge attach-chip"
+                title={a.kind === 'image' ? 'Sent as an image' : a.kind === 'pdf' ? 'Sent as a PDF' : `${a.chars.toLocaleString()} characters, sent in full`}
+              >
+                {a.kind === 'image' ? <ImageIcon size={13} /> : a.kind === 'pdf' ? <DocIcon size={13} /> : <PaperclipIcon size={13} />}
                 {a.name}
               </span>
             ))}

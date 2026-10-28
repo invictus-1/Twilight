@@ -14,6 +14,7 @@ import {
   FolderIcon,
   FolderPlusIcon,
   GridIcon,
+  PenIcon,
   PeopleIcon,
   PinIcon,
   PlusIcon,
@@ -380,23 +381,73 @@ function Trash() {
 
 const parentOf = (path: string): string => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '')
 
+/** Rename and remove for a document or folder row. Removing asks once more, then goes to the Recycle Bin. */
+function DocActions({ path, kind, onRename, children }: { path: string; kind: 'doc' | 'folder'; onRename: () => void; children?: ReactNode }) {
+  const [confirming, setConfirming] = useState(false)
+  return (
+    <span className="row-actions" onClick={(e) => e.stopPropagation()}>
+      {children}
+      <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label={`Rename ${path}`} title="Rename" onClick={onRename}>
+        <PenIcon size={13} />
+      </button>
+      {confirming ? (
+        <button
+          className="tw-btn tw-btn-sm tw-btn-danger remove-confirm"
+          autoFocus
+          onBlur={() => setConfirming(false)}
+          onClick={() => {
+            setConfirming(false)
+            void useWriting.getState().remove(path, kind)
+          }}
+        >
+          Move to Recycle Bin
+        </button>
+      ) : (
+        <button
+          className="tw-btn tw-btn-ghost tw-btn-icon"
+          aria-label={`Remove ${path}`}
+          title={kind === 'folder' ? 'Move this folder and everything in it to the Recycle Bin' : 'Move to the Recycle Bin'}
+          onClick={() => setConfirming(true)}
+        >
+          <TrashIcon size={13} />
+        </button>
+      )}
+    </span>
+  )
+}
+
 function DocRow({ d, depth }: { d: DocEntry; depth: number }) {
   const active = useWriting((s) => s.open?.path === d.path)
+  const [renaming, setRenaming] = useState(false)
   return (
     <div
       className="tw-conv doc-item"
       style={{ paddingLeft: 12 + depth * 16 }}
       data-path={d.path}
       aria-current={active ? 'true' : undefined}
-      draggable
+      draggable={!renaming}
       onDragStart={(e) => {
         e.dataTransfer.setData(DOC_MIME, d.path)
         e.dataTransfer.effectAllowed = 'move'
       }}
-      onClick={() => void useWriting.getState().openDoc(d.path)}
+      onClick={() => !renaming && void useWriting.getState().openDoc(d.path)}
     >
-      <span className="tw-conv-title">{d.name}</span>
-      <span className="tw-conv-meta">{relativeTime(d.mtime)}</span>
+      {renaming ? (
+        <NameInput
+          initial={d.name}
+          placeholder="Document name"
+          onDone={(name) => {
+            setRenaming(false)
+            if (name && name !== d.name) void useWriting.getState().rename(d.path, name, 'doc')
+          }}
+        />
+      ) : (
+        <>
+          <span className="tw-conv-title">{d.name}</span>
+          <span className="tw-conv-meta">{relativeTime(d.mtime)}</span>
+          <DocActions path={d.path} kind="doc" onRename={() => setRenaming(true)} />
+        </>
+      )}
     </div>
   )
 }
@@ -410,26 +461,33 @@ function DocFolder({ path, depth }: { path: string; depth: number }) {
   const subfolders = folders.filter((f) => parentOf(f) === path)
   const inHere = docs.filter((d) => parentOf(d.path) === path).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
   const count = docs.filter((d) => d.path.startsWith(`${path}/`)).length
+  const [renaming, setRenaming] = useState(false)
+  const name = path.split('/').pop() ?? path
   return (
     <div className={`folder ${drop.over ? 'drop-over' : ''}`} {...drop.props}>
       <div className="folder-head" style={{ paddingLeft: 8 + depth * 16 }} data-folder={path} onClick={() => w.toggleFolder(path)}>
         {collapsed ? <ChevronRight size={14} className="folder-chevron" /> : <ChevronDown size={14} className="folder-chevron" />}
         <FolderIcon size={15} className="folder-icon" />
-        <span className="folder-name">{path.split('/').pop()}</span>
-        <span className="folder-count">{count || ''}</span>
-        <span className="row-actions">
-          <button
-            className="tw-btn tw-btn-ghost tw-btn-icon"
-            aria-label={`New document in ${path}`}
-            title="New document in this folder"
-            onClick={(e) => {
-              e.stopPropagation()
-              void w.newDoc(path)
+        {renaming ? (
+          <NameInput
+            initial={name}
+            placeholder="Folder name"
+            onDone={(next) => {
+              setRenaming(false)
+              if (next && next !== name) void w.rename(path, next, 'folder')
             }}
-          >
-            <PlusIcon size={14} />
-          </button>
-        </span>
+          />
+        ) : (
+          <>
+            <span className="folder-name">{name}</span>
+            <span className="folder-count">{count || ''}</span>
+            <DocActions path={path} kind="folder" onRename={() => setRenaming(true)}>
+              <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label={`New document in ${path}`} title="New document in this folder" onClick={() => void w.newDoc(path)}>
+                <PlusIcon size={14} />
+              </button>
+            </DocActions>
+          </>
+        )}
       </div>
       {!collapsed && (
         <>

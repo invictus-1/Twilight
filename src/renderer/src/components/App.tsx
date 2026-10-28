@@ -171,7 +171,7 @@ export function App() {
       {undo && !error && (
         <div className="toast toast-info" role="status">
           <span>{undo.label}</span>
-          <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => void useStore.getState().restoreDeletion(undo.deletionId, undo.pane)}>
+          <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => void useStore.getState().runUndo()}>
             Undo
           </button>
           <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Dismiss" onClick={() => useStore.getState().dismissUndo()}>

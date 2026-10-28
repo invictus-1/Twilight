@@ -1,6 +1,10 @@
 import { CHOICES_TOOL } from '@shared/choices'
 import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
+import type { NodeRow } from '../db'
 import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
+
+/** A stored image or PDF block (Claude's format). */
+type Block = { type: string; title?: string; source?: { media_type?: string; data?: string } }
 
 /** A tool call as stored with the reply, replayed in the next request. */
 interface StoredCall {
@@ -91,6 +95,21 @@ export const openaiProvider: Provider = {
   },
 
   async generate(req: GenerateRequest): Promise<GenerateResult> {
+    // Images and PDFs are stored as Claude-format blocks; here they become content parts.
+    const mediaParts = (node: NodeRow): Record<string, unknown>[] =>
+      node.role !== 'user' || !node.content
+        ? []
+        : (JSON.parse(node.content) as Block[]).flatMap((b): Record<string, unknown>[] =>
+            b.type === 'image'
+              ? [{ type: 'image_url', image_url: { url: `data:${b.source?.media_type};base64,${b.source?.data}` } }]
+              : b.type === 'document' && b.source?.media_type === 'application/pdf'
+                ? [{ type: 'file', file: { filename: b.title ?? 'document.pdf', file_data: `data:application/pdf;base64,${b.source.data}` } }]
+                : []
+          )
+    const withMedia = (node: NodeRow, text: string): string | Record<string, unknown>[] => {
+      const media = mediaParts(node)
+      return media.length ? [...media, ...(text ? [{ type: 'text', text }] : [])] : text
+    }
     const { settings } = req
     const started = Date.now()
     const messages: Record<string, unknown>[] = []
@@ -106,16 +125,16 @@ export const openaiProvider: Provider = {
         pendingCalls.forEach((call, i) => messages.push({ role: 'tool', tool_call_id: call.id, content: i === 0 ? answer : 'Answered with the first call.' }))
         pendingCalls = []
         const docs = blocks.filter((b) => b.text.startsWith('<document name=')).map((b) => b.text).join('\n\n')
-        if (docs) messages.push({ role: 'user', content: docs })
+        if (docs || mediaParts(node).length) messages.push({ role: 'user', content: withMedia(node, docs) })
         continue
       }
       const text = blocks.map((b) => b.text).join('\n\n')
       const calls = node.role === 'assistant' && node.status === 'done' ? storedCalls(node.content) : []
-      if (!text && !calls.length) continue
+      if (!text && !calls.length && !mediaParts(node).length) continue
       if (calls.length) {
         messages.push({ role: 'assistant', content: text || null, tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } })) })
         pendingCalls = calls
-      } else messages.push({ role: node.role, content: text })
+      } else messages.push({ role: node.role, content: withMedia(node, text) })
     }
 
     const body: Record<string, unknown> = {

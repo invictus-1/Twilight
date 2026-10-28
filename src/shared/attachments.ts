@@ -1,0 +1,39 @@
+// Which files can be attached, and how. Text files go into the message as text; images and PDFs
+// go as the files themselves, which Claude (and OpenAI-compatible servers that take them) read
+// natively.
+
+export type AttachmentKind = 'text' | 'image' | 'pdf'
+
+const MEDIA: Record<string, string> = {
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  webp: 'image/webp',
+  pdf: 'application/pdf'
+}
+
+const REVERSE = Object.fromEntries(Object.values(MEDIA).map((m) => [m, true]))
+
+/** The API limits: 5 MB per image, 32 MB per PDF request; text is capped to keep requests sane. */
+export const LIMITS: Record<AttachmentKind, number> = { image: 5 * 1024 * 1024, pdf: 30 * 1024 * 1024, text: 20 * 1024 * 1024 }
+
+export const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp']
+
+/** What a file is, from its name (or the type the browser reports). */
+export function attachmentKind(name: string, type = ''): { kind: AttachmentKind; mediaType?: string } {
+  const ext = name.toLowerCase().split('.').pop() ?? ''
+  const mediaType = MEDIA[ext] ?? (type in REVERSE ? type : undefined)
+  if (mediaType === 'application/pdf') return { kind: 'pdf', mediaType }
+  if (mediaType?.startsWith('image/')) return { kind: 'image', mediaType }
+  return { kind: 'text' }
+}
+
+export function tooBig(kind: AttachmentKind, bytes: number, name: string): string | null {
+  if (bytes <= LIMITS[kind]) return null
+  const mb = Math.round(LIMITS[kind] / 1024 / 1024)
+  return kind === 'image' ? `${name} is over ${mb} MB, the limit for an image.` : `${name} is over ${mb} MB.`
+}
+
+export const formatBytes = (n: number): string =>
+  n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`

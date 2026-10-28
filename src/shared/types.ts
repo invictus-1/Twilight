@@ -1,5 +1,7 @@
 // Types shared by the main process, the preload bridge and the renderer.
 
+import type { AttachmentKind } from './attachments'
+import type { Theme } from './themes'
 import type { ChoiceSet } from './choices'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
 import type { JudgeInput, Judgment, JudgmentSummary, Rubric } from './judge'
@@ -113,10 +115,16 @@ export interface SettingsPreset {
   settings: Partial<ChatSettings>
 }
 
-/** A file attached to a message; its text is injected into that message in full. */
+/**
+ * A file attached to a message. A text file's text goes into the message in full; an image or PDF
+ * goes as the file itself (base64), for models that read them natively.
+ */
 export interface Attachment {
   name: string
   text: string
+  kind?: AttachmentKind
+  mediaType?: string
+  data?: string
 }
 
 export interface Usage {
@@ -159,7 +167,7 @@ export interface NodeView {
   siblingIndex: number
   siblingCount: number
   /** Files attached to a user message (their text is part of the message sent). */
-  attachments?: { name: string; chars: number }[]
+  attachments?: { name: string; chars: number; kind?: AttachmentKind; bytes?: number }[]
   /** Choices the model offered with a present_choices tool call. */
   toolChoices?: ChoiceSet
 }
@@ -402,6 +410,12 @@ export interface TwilightApi {
   createDocFolder(path: string): Promise<string>
   /** Moves a document into `folder` ('' = the top level); never overwrites. Returns its new path. */
   moveDoc(path: string, folder: string): Promise<string>
+  /** Renames a document in its folder; never overwrites. Returns its new path. */
+  renameDoc(path: string, name: string): Promise<string>
+  /** Renames a document folder; never overwrites. Returns its new path. */
+  renameDocFolder(path: string, name: string): Promise<string>
+  /** Sends a document or a folder (and everything in it) to the Recycle Bin. */
+  trashDocPath(path: string, kind: 'doc' | 'folder'): Promise<void>
   readDoc(path: string): Promise<DocContent>
   /** Saves atomically; returns the new modified time. */
   writeDoc(path: string, text: string): Promise<number>
@@ -415,8 +429,10 @@ export interface TwilightApi {
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
   openDataFolder(): Promise<void>
   openExternal(url: string): Promise<void>
+  /** Puts text on the clipboard from the main process (works whether or not the window has focus). */
+  copyText(text: string): Promise<void>
   /** Matches the window frame and title bar to a theme. */
-  setWindowTheme(theme: 'twilight' | 'ultraviolet'): Promise<void>
+  setWindowTheme(theme: Theme): Promise<void>
   /** Whether the first-run welcome has been seen (or skipped). */
   getWelcomed(): Promise<boolean>
   setWelcomed(): Promise<void>

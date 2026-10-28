@@ -125,3 +125,6 @@ export const AlertIcon = (p: Props) => <Icon {...p}><circle cx="12" cy="12" r="9
 export const BranchIcon = (p: Props) => (
   <Icon {...p}><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="8" r="2" /><path d="M6 7v10M18 10c0 4-6 3-11.5 7.5" /></Icon>
 )
+export const ImageIcon = (p: Props) => (
+  <Icon {...p}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.6" /><path d="M20.5 16l-5-5-9 8.5" /></Icon>
+)
