@@ -8,6 +8,7 @@ Twilight is a local-first Windows desktop app (Electron + React + TypeScript) fo
 - **Fresh installs start clean.** Nothing user-specific ships in the app: no built-in rubric beyond General fiction, no default system prompt content, every model hidden until chosen.
 - **Commits and pushes to `main` are fine without asking.** Never force-push unless the user asks for it.
 - **Releases are big versions only** (0.4, 0.5, …), published as GitHub releases of this repository (the updater reads them). Build patch versions locally if useful, but don't publish them. Always ask before running `npm run release`, because it publishes publicly.
+- Builds strip the project folder path from every bundle (electron.vite.config.ts), and `npm run release` refuses to publish if any built file still holds a path from this machine. Keep both.
 - Avoid destructive shell commands (`rm -rf` is blocked). Write multi-line scripts and patches as files rather than heredocs: the shell here mangles backslashes in heredocs.
 - Keep CHANGELOG.md (a section per version; it becomes the release notes) and ROADMAP.md (drawn in the app as Settings → Roadmap; keep its line format) current with every change.
 

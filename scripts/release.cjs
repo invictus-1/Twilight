@@ -6,9 +6,9 @@
 //   npm run release -- --dry   show what would be published
 
 const { execFileSync } = require('node:child_process')
-const { existsSync, readFileSync, writeFileSync, mkdtempSync } = require('node:fs')
+const { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync } = require('node:fs')
 const { join } = require('node:path')
-const { tmpdir } = require('node:os')
+const { homedir, tmpdir } = require('node:os')
 
 const REPO = 'invictus-1/twilight'
 const root = join(__dirname, '..')
@@ -29,6 +29,14 @@ const files = [`Twilight-Setup-${version}.exe`, `Twilight-Setup-${version}.exe.b
 for (const f of files) if (!existsSync(f)) fail(`missing ${f}; run npm run dist first.`)
 const yml = readFileSync(join(root, 'release', 'latest.yml'), 'utf8')
 if (!yml.includes(`version: ${version}`)) fail(`release/latest.yml is for another version; run npm run dist again.`)
+
+// The built app must not carry paths from this machine (a home folder holds the user's name).
+const leaks = [homedir(), root].flatMap((p) => [p, p.replace(/\\/g, '/'), p.replace(/\\/g, '\\\\')])
+const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]))
+for (const file of walk(join(root, 'out'))) {
+  const text = readFileSync(file, 'utf8')
+  if (leaks.some((p) => text.includes(p))) fail(`${file} contains a path from this machine; rebuild with npm run dist (the build scrubs them).`)
+}
 
 const changelog = readFileSync(join(root, 'CHANGELOG.md'), 'utf8')
 const section = new RegExp(`^## ${version.replace(/\./g, '\\.')}\\s*\\n([\\s\\S]*?)(?=^## |$(?![\\s\\S]))`, 'm').exec(changelog)
