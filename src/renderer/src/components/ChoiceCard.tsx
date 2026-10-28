@@ -1,11 +1,17 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ChoiceGroup, ChoiceSet } from '@shared/choices'
 import { renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
 import { useStore } from '../store'
-import { CheckIcon, PenIcon, SendIcon } from './Icons'
+import { CheckIcon, PenIcon, RefreshIcon, SendIcon } from './Icons'
 
 const groupName = (group: ChoiceGroup, k: number): string => group.title ?? `Choice ${k + 1}`
+
+/** Sent by "More options": a plain request, so it works with every way of offering choices. */
+export const MORE_OPTIONS = 'Give me a few different options.'
+
+const isTyping = (target: EventTarget | null): boolean =>
+  target instanceof HTMLElement && !!target.closest('input, textarea, select, [contenteditable="true"]')
 
 /** With several groups, the message sent is one "Title: pick" line per group. */
 function compose(groups: ChoiceGroup[], picks: (string | null)[]): string {
@@ -58,6 +64,33 @@ export function ChoiceCard({ choices, answer, active }: { choices: ChoiceSet; an
     setPicks((p) => p.map((x, j) => (j === k ? v : x)))
   }
   const ready = picks.every((p) => p !== null)
+
+  // Number keys pick (Alt+number while typing). With several decisions, each number fills the
+  // next one without a pick, and Enter sends once all are chosen.
+  useEffect(() => {
+    if (!active || answered) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.repeat || streaming) return
+      if (isTyping(e.target) && !e.altKey) return
+      const s = useStore.getState()
+      if (s.mode !== 'chat' || s.settingsOpen || s.welcomeOpen || s.overlay) return
+      // In split compare only the pane the composer sends to answers keys, so one key never sends twice.
+      if (s.current?.split ? s.target !== pane : pane !== 'a') return
+      const digit = /^(?:Digit|Numpad)([1-9])$/.exec(e.code)?.[1]
+      if (digit) {
+        const k = multi ? Math.max(0, picks.findIndex((p) => p === null)) : 0
+        const option = groups[k]?.options[Number(digit) - 1]
+        if (!option) return
+        e.preventDefault()
+        choose(k, option.label)
+      } else if (e.key === 'Enter' && multi && ready && !isTyping(e.target)) {
+        e.preventDefault()
+        send(compose(groups, picks))
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  })
 
   return (
     <div className={`choice-card ${answered ? 'choice-answered' : ''} ${multi ? 'choice-multi' : ''}`} role="group" aria-label="Choices">
@@ -135,15 +168,20 @@ export function ChoiceCard({ choices, answer, active }: { choices: ChoiceSet; an
           </section>
         )
       })}
-      {multi && active && !answered && (
+      {active && !answered && (
         <div className="choice-send">
-          <span className="field-note">
-            {picks.filter((p) => p !== null).length} of {groups.length} chosen
-          </span>
-          <button className="tw-btn tw-btn-primary tw-btn-sm" disabled={!ready || streaming} onClick={() => send(compose(groups, picks))}>
-            <SendIcon size={14} />
-            Send choices
+          <button className="tw-btn tw-btn-ghost tw-btn-sm choice-more" disabled={streaming} title="Ask the model for different options" onClick={() => send(MORE_OPTIONS)}>
+            <RefreshIcon size={14} />
+            More options
           </button>
+          <span className="choice-keys">{multi ? 'Keys 1–9 pick, Enter sends' : 'Press 1–9 to pick'}</span>
+          {multi && <span className="field-note">{`${picks.filter((p) => p !== null).length} of ${groups.length} chosen`}</span>}
+          {multi && (
+            <button className="tw-btn tw-btn-primary tw-btn-sm" disabled={!ready || streaming} onClick={() => send(compose(groups, picks))}>
+              <SendIcon size={14} />
+              Send choices
+            </button>
+          )}
         </div>
       )}
     </div>

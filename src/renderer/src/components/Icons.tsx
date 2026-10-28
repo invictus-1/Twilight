@@ -120,4 +120,8 @@ export const ToolIcon = (p: Props) => (
 )
 export const HistoryIcon = (p: Props) => <Icon {...p}><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" /></Icon>
 export const PulseIcon = (p: Props) => <Icon {...p}><path d="M3 12h4l2-6 4 12 2-6h6" /></Icon>
+export const SearchIcon = (p: Props) => <Icon {...p}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></Icon>
 export const AlertIcon = (p: Props) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.5" /></Icon>
+export const BranchIcon = (p: Props) => (
+  <Icon {...p}><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="8" r="2" /><path d="M6 7v10M18 10c0 4-6 3-11.5 7.5" /></Icon>
+)

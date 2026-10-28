@@ -97,6 +97,10 @@ export function WorkspaceDialog({ workspace, onClose }: { workspace: ChatFolder;
           <input type="checkbox" checked={draft.includeContext} onChange={(e) => set({ includeContext: e.target.checked })} />
           Put the workspace name and description at the top of new chats' system prompt
         </label>
+        <label className="check">
+          <input type="checkbox" checked={draft.choiceCards} onChange={(e) => set({ choiceCards: e.target.checked })} />
+          Start new chats with choice cards on (for text adventures)
+        </label>
         <p className="field-note">These defaults apply to chats started in this workspace from now on; existing chats keep their own settings.</p>
 
         <div className="dialog-actions">

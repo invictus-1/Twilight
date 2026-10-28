@@ -5,6 +5,12 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Shipped
 
 ### 0.5.0 · In progress
+- [x] **Command menu** · Core — Ctrl+K for everything, Ctrl+/ for the shortcut sheet, rebindable keys
+- [x] **Search everything** · Core — every chat and document at once (Ctrl+Shift+F)
+- [x] **Context meter** · Chat — tokens used against the model's window
+- [x] **Branch into a new chat** · Chat — start a new chat from any reply, cache intact
+- [x] **Choice card keys** · Chat — pick with 1–9, ask for more options, and a default for adventure workspaces
+- [x] **Syntax highlighting** · Chat — for code blocks, in every theme
 - [x] **Earlier results** · Writing — every AI page keeps its past results to read again
 - [x] **Parallel deep scans** · Writing — 1 to 10 calls at once, finished by the same model
 - [x] **Cheaper rescans** · Writing — parts are cut by the text itself, so an edit only re-reads its own part
@@ -56,14 +62,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 0.4** · Core — fixes from real use of Writer insights, the updater and the Tools menu
-- [ ] **Command menu** · Core — Ctrl+K for everything, Ctrl+/ for the shortcut sheet, rebindable keys
-- [ ] **Search everything** · Core — every chat and document at once (Ctrl+Shift+F)
-- [ ] **Context meter** · Chat — tokens used against the model's window
 - [ ] **PDFs and images** · Chat — attach them (Claude reads them natively) and drop files on the composer
-- [ ] **Choice card keys** · Chat — pick with 1–9, ask for more options, and a default for adventure workspaces
-- [ ] **Branch into a new chat** · Chat — start a new chat from any message
 - [ ] **Instruction changes mid-chat** · Chat — change the instructions without breaking the cache
-- [ ] **Syntax highlighting** · Chat — for code blocks
 - [ ] **Your own prices** · Chat — an editable price list, and OpenRouter's reported cost
 - [ ] **Game Format everywhere** · Writing — in the editor too, and for a whole chat
 - [ ] **Document picker** · Writing — attach documents from the writing folder

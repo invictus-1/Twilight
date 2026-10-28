@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { ShortcutsSection } from './ShortcutsSection'
 import type { ModelInfo, ProviderConfig } from '@shared/types'
 import { readGameFormat, writeGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
@@ -18,7 +19,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
   { id: 'writing', group: 'App', label: 'Writing', description: 'Where your documents live. Point it at an Obsidian vault and both apps edit the same files.' },
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats, settings and request logs on this machine.' },
-  { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows.' },
+  { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
   { id: 'updates', group: 'About', label: 'Updates', description: 'Your version, new releases, and rolling back to an earlier one. The daily check is the only request Twilight makes on its own.' },
   { id: 'roadmap', group: 'About', label: 'Roadmap', description: 'What has shipped, what comes next, and the ideas further out.' },
@@ -540,47 +541,6 @@ function DataSection() {
           Open folder
         </button>
       </div>
-    </div>
-  )
-}
-
-const SHORTCUTS: [string, string][] = [
-  ['Ctrl+N', 'New chat'],
-  ['Ctrl+Shift+N', 'New document'],
-  ['Ctrl+B', 'Toggle sidebar'],
-  ['Ctrl+,', 'Settings'],
-  ['Enter / Shift+Enter', 'Send / new line'],
-  ['Esc', 'Stop generating; close settings'],
-  ['Ctrl+Shift+S', 'Clone into split / close split'],
-  ['Alt+1 / Alt+2 / Alt+3', 'Send to A / B / Both'],
-  ['Ctrl+J', 'Ask about the selection (Writing)'],
-  ['Ctrl+B / Ctrl+I / Ctrl+E', 'Bold / italic / code (Writing)'],
-  ['Alt+Enter / Alt+Backspace', 'Accept / reject a suggestion'],
-  ['Alt+↑ / Alt+↓', 'Move a paragraph (Writing)'],
-  ['Ctrl+F', 'Find in document']
-]
-
-function ShortcutsSection() {
-  return (
-    <div className="settings-card">
-      <table className="shortcut-table">
-        <tbody>
-          {SHORTCUTS.map(([keys, what]) => (
-            <tr key={keys}>
-              <td>
-                {keys.split(' / ').map((k, i) => (
-                  <span key={k}>
-                    {i > 0 && ' / '}
-                    <kbd className="tw-kbd">{k}</kbd>
-                  </span>
-                ))}
-              </td>
-              <td>{what}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="field-note">Rebinding is on the roadmap.</p>
     </div>
   )
 }

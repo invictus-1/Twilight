@@ -3,7 +3,7 @@ import * as db from './db'
 
 type Config = Omit<ChatFolder, 'id' | 'name' | 'collapsed'>
 
-const EMPTY: Config = { description: '', color: '', systemPrompt: '', providerId: null, modelId: null, includeContext: false }
+const EMPTY: Config = { description: '', color: '', systemPrompt: '', providerId: null, modelId: null, includeContext: false, choiceCards: false }
 
 export function toWorkspace(row: db.FolderRow): ChatFolder {
   return { id: row.id, name: row.name, collapsed: !!row.collapsed, ...EMPTY, ...(row.config ? (JSON.parse(row.config) as Partial<Config>) : {}) }

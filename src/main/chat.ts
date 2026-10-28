@@ -131,6 +131,7 @@ export function create(folderId: string | null = null): ConversationView {
       settings.providerId = ws.providerId
       settings.modelId = ws.modelId
     }
+    if (ws.choiceCards) settings.choiceCards = true
   }
   return view(db.createConversation(settings, folderId).id)
 }
@@ -364,6 +365,50 @@ export function cloneIntoSplit(id: string, nodeId?: string): ConversationView {
   const leafId = nodeId && nodes.has(nodeId) ? nodeId : leafOf(conv, nodes, 'a')
   // B starts as an exact copy of A at that point: same history, system prompt and settings.
   setSplit(id, { leafId, settings: settingsFor(conv, 'a') })
+  return view(id)
+}
+
+/**
+ * A new chat holding the conversation up to `nodeId`, with the pane's settings and the same workspace. Every
+ * message is copied byte-for-byte, stored blocks included, so the new chat's first request reads
+ * the same prompt cache as the original.
+ */
+export function branchToNewChat(id: string, nodeId: string, pane: Pane = 'a'): ConversationView {
+  const conv = db.getConversation(id)
+  const nodes = db.loadNodes(id)
+  if (!nodes.has(nodeId)) throw new Error('That message is gone.')
+  const fresh = db.createConversation(settingsFor(conv, pane), conv.folder_id)
+  const oldRoot = nodes.get(conv.root_id)
+  if (oldRoot?.text) db.updateNode(fresh.root_id, { text: oldRoot.text })
+  let parent = fresh.root_id
+  for (const n of db.ancestors(nodes, nodeId)) {
+    if (n.role === 'root') continue
+    const copy = db.insertNode({
+      id: randomUUID(),
+      conversation_id: fresh.id,
+      parent_id: parent,
+      role: n.role,
+      text: n.text,
+      content: n.content,
+      thinking: n.thinking,
+      model: n.model,
+      provider_id: n.provider_id,
+      usage: n.usage,
+      status: n.status === 'streaming' ? 'stopped' : n.status,
+      error: n.error,
+      attachments: n.attachments ?? null,
+      created_at: n.created_at
+    })
+    parent = copy.id
+  }
+  const title = conv.title.length > 52 ? `${conv.title.slice(0, 51)}…` : conv.title
+  db.updateConversation(fresh.id, { started: 1, title: `${title} (branch)` })
+  return view(fresh.id)
+}
+
+export function revealMessage(id: string, nodeId: string): ConversationView {
+  const nodes = db.loadNodes(id)
+  for (let n = nodes.get(nodeId); n?.parent_id; n = nodes.get(n.parent_id)) db.setActiveChild(n.parent_id, n.id)
   return view(id)
 }
 

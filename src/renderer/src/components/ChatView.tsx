@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { NodeView } from '@shared/types'
 import { useJudge } from '../judgeStore'
 import { modelName, useStore } from '../store'
@@ -58,6 +58,11 @@ export function ChatView() {
   const deleted = useStore((s) => s.deletions.length)
   const [panel, setPanel] = useState<'settings' | 'deleted' | null>(null)
   const split = !!current?.split
+  useEffect(() => {
+    const open = (): void => setPanel('settings')
+    window.addEventListener('twilight-model-settings', open)
+    return () => window.removeEventListener('twilight-model-settings', open)
+  }, [])
   const empty = !current || (current.path.length === 0 && !split)
 
   return (

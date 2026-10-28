@@ -4,14 +4,15 @@ import { PaneContext } from '../pane'
 import { useRef } from 'react'
 import { useDragResize, usePersistentNumber } from '../resize'
 import { optionsFor, paneOf, useStore } from '../store'
-import { cacheStatus } from './CacheBar'
+import { cacheStatus, ContextMeter } from './CacheBar'
 import { CloseIcon } from './Icons'
 import { ModelPicker } from './ModelPicker'
 import { Thread } from './Thread'
 
 /** The same stats, in the same order, under both panes so they compare at a glance. */
 function PaneFooter({ pane }: { pane: Pane }) {
-  const last = useStore((s) => paneOf(s.current!, pane).path.findLast((n) => n.role === 'assistant'))
+  const path = useStore((s) => paneOf(s.current!, pane).path)
+  const last = path.findLast((n) => n.role === 'assistant')
   const settings = useStore((s) => paneOf(s.current!, pane).settings)
   const models = useStore((s) => s.models)
   const providers = useStore((s) => s.providers)
@@ -32,6 +33,8 @@ function PaneFooter({ pane }: { pane: Pane }) {
           <span className="cache-dot" aria-hidden="true" /> {cacheLabel}
         </span>
       )}
+      <span className="tw-spacer" />
+      <ContextMeter path={path} settings={settings} />
     </footer>
   )
 }

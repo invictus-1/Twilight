@@ -10,7 +10,7 @@ import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
-import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
+import { AlertIcon, BranchIcon, ChevronLeft, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -111,6 +111,7 @@ function UserMessage({ node }: { node: NodeView }) {
   return (
     <div
       className="msg msg-user-row"
+      data-node={node.id}
       style={{ containIntrinsicSize: `auto ${estimateHeight(long && !expanded ? node.text.slice(0, 1200) : node.text, 28)}px` }}
     >
       <span className="user-actions">
@@ -263,7 +264,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
     )
   }
   return (
-    <div className="msg tw-msg-ai" style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
+    <div className="msg tw-msg-ai" data-node={node.id} style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
       <div className="tw-msg-head">
         {modelName(models, node.modelId)}
         {node.usage && <span className="msg-time">· {(node.usage.ms / 1000).toFixed(1)}s</span>}
@@ -331,6 +332,14 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
                 <DocIcon />
               </button>
             )}
+            <button
+              className="tw-btn tw-btn-ghost tw-btn-icon branch-btn"
+              aria-label="Branch into a new chat"
+              title="Branch into a new chat (everything up to here; the original stays as it is)"
+              onClick={() => void useStore.getState().branchToNewChat(node.id, pane)}
+            >
+              <BranchIcon />
+            </button>
             {pane === 'a' && (
               <button
                 className="tw-btn tw-btn-ghost tw-btn-icon"

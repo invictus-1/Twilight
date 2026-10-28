@@ -31,6 +31,7 @@ import * as updates from './updates'
 import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { runShowcase } from './showcase'
+import { searchAll } from './search'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
 const selfTestDir = process.env.TWILIGHT_SELFTEST
@@ -211,6 +212,9 @@ function registerIpc(): void {
     stop: (_e, id: string, target?: SendTarget) => chat.stop(id, target),
     cloneIntoSplit: (_e, id: string, nodeId?: string) => chat.cloneIntoSplit(id, nodeId),
     closeSplit: (_e, id: string, keep: Pane) => chat.closeSplit(id, keep),
+    branchToNewChat: (_e, id: string, nodeId: string, pane?: Pane) => chat.branchToNewChat(id, nodeId, pane),
+    searchAll: (_e, query: string) => searchAll(query),
+    revealMessage: (_e, id: string, nodeId: string) => chat.revealMessage(id, nodeId),
     listProviders: () => providers.getProviders(),
     saveProvider: (_e, config, apiKey?: string) => providers.saveProvider(config, apiKey),
     deleteProvider: (_e, id: string) => providers.deleteProvider(id),

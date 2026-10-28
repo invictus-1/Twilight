@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { formatTokens } from '@shared/pricing'
-import type { ChatSettings, ModelOptions, Usage } from '@shared/types'
+import type { ChatSettings, ModelInfo, ModelOptions, NodeView, Usage } from '@shared/types'
 import { optionsFor, paneOf, useStore } from '../store'
 import { readHidden, writeHidden } from './ChatSettingsPanel'
 import { CloseIcon } from './Icons'
@@ -28,6 +28,42 @@ export function cacheStatus(usage: Usage | undefined, settings: ChatSettings, op
   return { tone: 'miss', text: 'Not cached · the prompt is under this model’s minimum for caching' }
 }
 
+/**
+ * How much of the model's context window the conversation fills: the last reply's whole prompt
+ * plus what it wrote, which is what the next message builds on.
+ */
+export function contextUse(path: NodeView[], models: ModelInfo[], settings: ChatSettings): { used: number; window?: number } | null {
+  const u = path.findLast((n) => n.role === 'assistant' && n.usage)?.usage
+  if (!u) return null
+  const window = models.find((m) => m.id === settings.modelId && m.providerId === settings.providerId)?.contextWindow
+  return { used: u.input + u.cacheRead + u.cacheWrite + u.output, window }
+}
+
+/** Tokens used against the window, with a thin bar that warms as it fills. */
+export function ContextMeter({ path, settings }: { path: NodeView[]; settings: ChatSettings }) {
+  const models = useStore((s) => s.models)
+  const use = contextUse(path, models, settings)
+  if (!use) return null
+  const pct = use.window ? Math.min(100, (use.used / use.window) * 100) : null
+  const level = pct === null ? '' : pct >= 90 ? 'ctx-full' : pct >= 70 ? 'ctx-high' : ''
+  const title = use.window
+    ? `${use.used.toLocaleString()} of ${use.window.toLocaleString()} tokens in this model's context window (${pct!.toFixed(0)}%)`
+    : `${use.used.toLocaleString()} tokens in the conversation (this model doesn't report its window)`
+  return (
+    <span className={`ctx-meter ${level}`} title={title}>
+      {pct !== null && (
+        <span className="ctx-track" aria-hidden="true">
+          <span className="ctx-fill" style={{ width: `${Math.max(2, pct)}%` }} />
+        </span>
+      )}
+      <span className="ctx-text">
+        {formatTokens(use.used)}
+        {use.window ? ` / ${formatTokens(use.window)}` : ' tokens'}
+      </span>
+    </span>
+  )
+}
+
 /** Under a single-pane chat. (Split panes show the same status in their footers.) */
 export function CacheBar() {
   const [hidden, setHidden] = useState(readHidden)
@@ -49,6 +85,7 @@ export function CacheBar() {
     <div className={`cache-bar cache-${status.tone}`} role="status">
       <span className="cache-dot" aria-hidden="true" />
       <span className="cache-text">{status.text}</span>
+      <ContextMeter path={path} settings={settings} />
       <button
         className="tw-btn tw-btn-ghost tw-btn-icon"
         aria-label="Hide the cache status bar"

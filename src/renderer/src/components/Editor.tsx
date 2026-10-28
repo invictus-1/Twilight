@@ -213,6 +213,16 @@ export function Editor({ docPath }: { docPath: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docPath])
 
+  // A search result: select the first place the text appears and bring it into view.
+  const reveal = useWriting((s) => s.reveal)
+  useEffect(() => {
+    const view = viewRef.current
+    if (!view || !reveal || reveal.path !== docPath) return
+    const at = view.state.doc.toString().toLowerCase().indexOf(reveal.text.toLowerCase())
+    if (at >= 0) view.dispatch({ selection: { anchor: at, head: at + reveal.text.length }, effects: EditorView.scrollIntoView(at, { y: 'center' }) })
+    view.focus()
+  }, [reveal, docPath])
+
   // Stream a tool's output into the suggestion, then switch it to a diff when done.
   useEffect(
     () =>

@@ -191,6 +191,8 @@ export interface ChatFolder {
   modelId: string | null
   /** Put the workspace name and description at the top of new chats' system prompt. */
   includeContext: boolean
+  /** New chats start with choice cards on (for text-adventure workspaces). */
+  choiceCards: boolean
 }
 
 export type WorkspacePatch = Partial<Omit<ChatFolder, 'id'>>
@@ -294,6 +296,27 @@ export interface WritingRequest {
   manuscript?: string
 }
 
+/** A stretch of text around a search match, the match itself kept apart for highlighting. */
+export interface Snippet {
+  before: string
+  match: string
+  after: string
+}
+
+export type SearchHit =
+  | { kind: 'chat'; conversationId: string; nodeId: string; title: string; role: 'user' | 'assistant'; at: number; snippet: Snippet }
+  | { kind: 'doc'; path: string; count: number; line: number; snippet: Snippet }
+
+export interface SearchResults {
+  query: string
+  chats: SearchHit[]
+  docs: SearchHit[]
+  /** Matches found, which can be more than the hits returned. */
+  chatTotal: number
+  docTotal: number
+  ms: number
+}
+
 export interface TwilightApi {
   listRubrics(): Promise<Rubric[]>
   saveRubric(rubric: Rubric): Promise<Rubric[]>
@@ -354,7 +377,13 @@ export interface TwilightApi {
   cloneIntoSplit(id: string, nodeId?: string): Promise<ConversationView>
   /** Closes split compare, continuing on the kept pane's branch. */
   closeSplit(id: string, keep: Pane): Promise<ConversationView>
+  /** A new chat with this conversation up to `nodeId` (the pane's settings, same workspace); returns it. */
+  branchToNewChat(id: string, nodeId: string, pane?: Pane): Promise<ConversationView>
   onStream(listener: (event: StreamEvent) => void): () => void
+  /** Every chat message and document containing the text (case-insensitive, two letters or more). */
+  searchAll(query: string): Promise<SearchResults>
+  /** Makes a message part of the chat's shown thread (switching versions above it as needed). */
+  revealMessage(id: string, nodeId: string): Promise<ConversationView>
 
   listProviders(): Promise<ProviderConfig[]>
   saveProvider(config: ProviderConfig, apiKey?: string): Promise<ProviderConfig[]>

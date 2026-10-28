@@ -15,6 +15,7 @@ import * as judge from './judge'
 import { anthropicOptions, keyShape, toMessages } from './providers/anthropic'
 import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
+import { searchAll } from './search'
 import * as providers from './providers'
 import * as updates from './updates'
 import * as insights from './insights'
@@ -94,7 +95,7 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
     if (req.url?.startsWith('/gh/')) return mockGithub(req.url, `http://${req.headers.host}/gh`, res)
     if (req.url?.endsWith('/models')) {
       res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ data: [{ id: 'mock-a' }, { id: 'mock-b' }] }))
+      res.end(JSON.stringify({ data: [{ id: 'mock-a', context_length: 8000 }, { id: 'mock-b' }] }))
       return
     }
     let body = ''
@@ -156,6 +157,8 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply = 'The corridor splits three ways.\n\n**What do you do?**\n\n1. Take the left stair\n2. Follow the draft\n3. Wait for the guard'
       } else if (system.includes('Interactive choices:')) {
         reply = `The door creaks open on "${lastUser}".\n\n\`\`\`choices\nWhat do you do?\n1. Light the lamp\n2. Wait in the rain\n3. Call out\n4. Run for the bridge\n\`\`\``
+      } else if (lastUser.includes('CODEBLOCK')) {
+        reply = 'Here it is:\n\n```ts\nconst lamps = 9 // lit at dusk\nfunction light(n: number) { return "lit " + n }\n```'
       } else if (lastUser.includes('STATUSCARD')) {
         reply =
           'The rain held.\n\n<details>\n<summary>status card</summary>\n\n```\n═══ STATUS CARD ═══\nDATE     Thursday\n```\n\n</details>\n\n' +
@@ -1433,6 +1436,153 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await new Promise((r) => setTimeout(r, 300))
       // A screenshot is a convenience; a capture hiccup shouldn't fail the run.
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-updates.png'), img.toPNG()), () => undefined)
+
+      // 30. Context meter, branching, choice keys, highlighting, command menu, rebinding, search.
+      const c30 = chat.create().id
+      chat.updateSettings(c30, { providerId: 'mock', modelId: 'mock-a' })
+      chat.send(contents, c30, 'Lanterns along the quay')
+      await idle(c30)
+      chat.send(contents, c30, 'CODEBLOCK please')
+      await idle(c30)
+      const p30 = chat.view(c30).path
+      const branch = chat.branchToNewChat(c30, p30[1].id)
+      const rowsOf = (id: string): db.NodeRow[] => db.activePath(db.getConversation(id), db.loadNodes(id)).slice(1)
+      check(
+        'branching copies the thread up to the message, byte for byte',
+        branch.path.length === 2 && rowsOf(branch.id).every((n, i) => n.content === rowsOf(c30)[i].content && n.text === rowsOf(c30)[i].text) && branch.title.endsWith('(branch)'),
+        { len: branch.path.length, title: branch.title }
+      )
+      check('branching leaves the original alone', chat.view(c30).path.length === 4)
+      const before30 = log.length
+      chat.send(contents, branch.id, 'And the bridge?')
+      await idle(branch.id)
+      const sentOrig = log.find((r) => r.messages.some((m) => m.content === 'CODEBLOCK please'))!.messages.slice(0, 3)
+      check('a branch sends the same prefix, so it reads the same cache', JSON.stringify(log[before30]?.messages.slice(0, 3)) === JSON.stringify(sentOrig), log[before30]?.messages.slice(0, 3))
+
+      const adv = db.createFolder('Adventure')
+      workspaces.updateWorkspace(adv.id, { choiceCards: true })
+      check('an adventure workspace starts chats with choice cards on', chat.create(adv.id).settings.choiceCards === true && chat.create(null).settings.choiceCards === false)
+
+      // Search: messages in every chat and every document; nothing from deleted messages.
+      const gone = chat.create().id
+      chat.send(contents, gone, 'Zephyrine lantern oil')
+      await idle(gone)
+      chat.deleteMessage(gone, chat.view(gone).path[0].id, 'below')
+      const found = await searchAll('lanterns along')
+      check('search finds messages across chats', found.chats.length >= 2 && found.chats.every((h) => h.kind === 'chat' && h.snippet.match.toLowerCase() === 'lanterns along'), found.chats.length)
+      check('search leaves deleted messages out', (await searchAll('zephyrine')).chatTotal === 0)
+      const wrenSearch = await searchAll('wren')
+      check('search counts matches in documents', wrenSearch.docs.some((h) => h.kind === 'doc' && h.count >= 60), wrenSearch.docs.map((h) => (h.kind === 'doc' ? [h.path, h.count] : null)))
+      // A message on another version comes forward when revealed.
+      chat.regenerate(contents, c30, p30[3].id)
+      await idle(c30)
+      const shown = chat.revealMessage(c30, p30[3].id)
+      check('revealing a message switches to its version', shown.path.at(-1)?.id === p30[3].id, shown.path.at(-1)?.siblingIndex)
+
+      // Choice cards answer number keys.
+      const c31 = chat.create(adv.id).id
+      chat.send(contents, c31, 'Begin')
+      await idle(c31)
+
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 800))
+      const key = async (keyCode: string, modifiers: ('control' | 'shift' | 'alt')[] = []): Promise<void> => {
+        win.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
+        win.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
+        await new Promise((r) => setTimeout(r, 250))
+      }
+      const js = <T,>(code: string): Promise<T> => win.webContents.executeJavaScript(code)
+      await js(`(async () => {
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Lanterns along the quay')
+        row?.click()
+        await new Promise((r) => setTimeout(r, 500))
+      })()`)
+      const meterUi = await js<{ meter: string | null; hl: number; branchBtns: number }>(`({
+        meter: document.querySelector('.cache-bar .ctx-text')?.textContent ?? null,
+        hl: document.querySelectorAll('.tw-codeblock .hl-k, .tw-codeblock .hl-c, .tw-codeblock .hl-s').length,
+        branchBtns: document.querySelectorAll('.branch-btn').length
+      })`)
+      check('the context meter shows tokens against the window', /\/ 8\.0k$/.test(meterUi.meter ?? ''), meterUi.meter)
+      check('code blocks are highlighted', meterUi.hl >= 3, meterUi.hl)
+      check('every reply offers Branch into a new chat', meterUi.branchBtns >= 2, meterUi.branchBtns)
+      await js(`document.activeElement?.blur()`)
+
+      await key('K', ['control'])
+      const menu = await js<{ open: boolean; items: number }>(`({ open: !!document.querySelector('.palette'), items: document.querySelectorAll('.palette-item').length })`)
+      win.webContents.insertText('splt')
+      await new Promise((r) => setTimeout(r, 200))
+      const filtered = await js<string[]>(`[...document.querySelectorAll('.palette-item .palette-title')].map((e) => e.textContent)`)
+      await key('Escape')
+      const menuClosed = await js<boolean>(`!document.querySelector('.palette')`)
+      check('Ctrl+K opens the command menu', menu.open && menu.items > 10, menu)
+      check('the command menu matches letters in order', filtered[0]?.startsWith('Clone into split'), filtered.slice(0, 3))
+      check('Esc closes the command menu', menuClosed)
+
+      await key('K', ['control'])
+      win.webContents.insertText('ultraviolet')
+      await new Promise((r) => setTimeout(r, 150))
+      await key('Return')
+      check('running a command from the menu works', (await js<string | undefined>(`document.documentElement.dataset.theme`)) === 'ultraviolet')
+      await js(`(() => { delete document.documentElement.dataset.theme; localStorage.removeItem('twilight.theme') })()`)
+
+      await key('/', ['control'])
+      const sheet = await js<{ groups: number; rows: number }>(`({ groups: document.querySelectorAll('.sheet-group').length, rows: document.querySelectorAll('.sheet-row').length })`)
+      check('Ctrl+/ shows the shortcut sheet', sheet.groups >= 4 && sheet.rows >= 15, sheet)
+      await key('Escape')
+
+      // Rebind "Toggle sidebar" to Ctrl+Shift+Y, use it, then put it back.
+      await key(',', ['control'])
+      await js(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button, .settings-nav a')].find((b) => /Keyboard shortcuts/.test(b.textContent))?.click()
+        await wait(200)
+        document.querySelector('tr[data-command="sidebar"] .keys-actions button:last-child')?.click()
+        await wait(100)
+      })()`)
+      await key('Y', ['control', 'shift'])
+      const rebound = await js<string>(`document.querySelector('tr[data-command="sidebar"] .keys-cell')?.textContent ?? ''`)
+      const sidebarBefore = await js<boolean>(`!document.querySelector('.app.sidebar-closed')`)
+      await key('Y', ['control', 'shift'])
+      const sidebarAfter = await js<boolean>(`!document.querySelector('.app.sidebar-closed')`)
+      await key('Y', ['control', 'shift'])
+      check('a shortcut can be rebound', rebound === 'CtrlShiftY', rebound)
+      check('the new shortcut works', sidebarBefore && !sidebarAfter, { sidebarBefore, sidebarAfter })
+      await js(`[...document.querySelectorAll('.settings-card button')].find((b) => b.textContent === 'Reset all')?.click()`)
+      check('reset puts the shortcuts back', (await js<string>(`document.querySelector('tr[data-command="sidebar"] .keys-cell')?.textContent ?? ''`)) === 'CtrlB')
+      await key('Escape')
+
+      // Search everything, then open a result at its message.
+      await key('F', ['control', 'shift'])
+      win.webContents.insertText('quay')
+      await new Promise((r) => setTimeout(r, 600))
+      const searchUi = await js<{ hits: number; marks: string[] }>(`({ hits: document.querySelectorAll('.search-hit').length, marks: [...document.querySelectorAll('.search-hit mark')].map((m) => m.textContent) })`)
+      check('Ctrl+Shift+F searches every chat as you type', searchUi.hits >= 2 && searchUi.marks.every((m) => m.toLowerCase() === 'quay'), searchUi)
+      await key('Return')
+      await new Promise((r) => setTimeout(r, 500))
+      const opened = await js<{ title: string; flash: boolean }>(`({ title: document.querySelector('.chat-title')?.textContent ?? '', flash: !!document.querySelector('.msg-flash') })`)
+      check('a search result opens its chat at the message', /quay/i.test(opened.title) && opened.flash, opened)
+
+      // Number keys pick a choice; More options asks for others.
+      await js(`(async () => {
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Begin')
+        row?.click()
+        await new Promise((r) => setTimeout(r, 500))
+        document.activeElement?.blur()
+      })()`)
+      const cardUi = await js<{ more: boolean; hint: string }>(`({ more: !!document.querySelector('.choice-more'), hint: document.querySelector('.choice-keys')?.textContent ?? '' })`)
+      await key('2')
+      await idle(c31)
+      const picked = chat.view(c31).path
+      check('a number key picks that choice', picked.at(-2)?.text === 'Wait in the rain' && picked.at(-1)?.status === 'done', picked.at(-2)?.text)
+      check('choice cards offer More options and say which keys pick', cardUi.more && /1–9/.test(cardUi.hint), cardUi)
+      await new Promise((r) => setTimeout(r, 400))
+      await js(`document.querySelector('.choice-more')?.click()`)
+      await new Promise((r) => setTimeout(r, 100))
+      await idle(c31)
+      check('More options asks the model for others', chat.view(c31).path.at(-2)?.text === 'Give me a few different options.', chat.view(c31).path.at(-2)?.text)
+      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-choicekeys.png'), img.toPNG()), () => undefined)
+
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
       check('no exceptions', false, String(err))

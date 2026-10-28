@@ -39,6 +39,14 @@ interface State {
   setWelcomeOpen(open: boolean): void
   /** The Settings section to open on. */
   settingsSection: string | null
+  /** A floating panel over everything: the command menu, the shortcut sheet or search. */
+  overlay: 'commands' | 'shortcuts' | 'search' | null
+  /** A message to scroll to and highlight once its chat shows (a search result). */
+  flash: string | null
+  revealMessage(conversationId: string, nodeId: string): Promise<void>
+  /** What search opens with (from the command menu). */
+  searchQuery: string
+  setOverlay(overlay: 'commands' | 'shortcuts' | 'search' | null, searchQuery?: string): void
   updates: UpdateState | null
   error: string | null
   /** The current chat's recently deleted messages, newest first. */
@@ -71,6 +79,8 @@ interface State {
   updateSettings(patch: Partial<ChatSettings>, pane?: Pane): Promise<void>
   cloneIntoSplit(nodeId?: string): Promise<void>
   closeSplit(keep: Pane): Promise<void>
+  /** Opens a new chat holding this one up to `nodeId`. */
+  branchToNewChat(nodeId: string, pane?: Pane): Promise<void>
   setTarget(target: SendTarget): void
   setMode(mode: Mode): void
   setDefaultModel(providerId: string, modelId: string): Promise<void>
@@ -119,6 +129,9 @@ export const useStore = create<State>((set, get) => {
     settingsOpen: false,
     welcomeOpen: false,
     settingsSection: null,
+    overlay: null,
+    searchQuery: '',
+    flash: null,
     updates: null,
     error: null,
     deletions: [],
@@ -154,6 +167,14 @@ export const useStore = create<State>((set, get) => {
         set({ current: view, undo: null })
         void get().refreshDeletions()
       }
+    },
+
+    async revealMessage(conversationId, nodeId) {
+      set({ mode: 'chat', settingsOpen: false })
+      const view = await guard(set, () => api.revealMessage(conversationId, nodeId))
+      if (!view) return
+      set({ current: view, undo: null, flash: nodeId })
+      void get().refreshDeletions()
     },
 
     async newChat(folderId = null) {
@@ -248,6 +269,14 @@ export const useStore = create<State>((set, get) => {
 
     cloneIntoSplit: (nodeId) => withCurrent((id) => api.cloneIntoSplit(id, nodeId)),
     closeSplit: (keep) => withCurrent((id) => api.closeSplit(id, keep)),
+    async branchToNewChat(nodeId, pane = 'a') {
+      const current = get().current
+      if (!current) return
+      const view = await guard(set, () => api.branchToNewChat(current.id, nodeId, pane))
+      if (!view) return
+      set({ current: view, deletions: [], undo: null })
+      await get().refreshList()
+    },
     setTarget: (target) => set({ target }),
     // Switching tabs leaves Settings, so the tab you picked is what you see.
     setMode: (mode) => set({ mode, settingsOpen: false }),
@@ -310,6 +339,7 @@ export const useStore = create<State>((set, get) => {
       set({ welcomeOpen: open })
       if (!open) void api.setWelcomed()
     },
+    setOverlay: (overlay, searchQuery = '') => set({ overlay, searchQuery }),
     setSettingsOpen: (open, section) => set({ settingsOpen: open, settingsSection: section ?? null }),
     setError: (error) => set({ error })
   }

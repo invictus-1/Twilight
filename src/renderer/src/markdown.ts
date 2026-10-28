@@ -1,6 +1,7 @@
 import MarkdownIt from 'markdown-it'
 import footnote from 'markdown-it-footnote'
 import taskLists from 'markdown-it-task-lists'
+import { highlight } from './highlight'
 
 // CommonMark + GFM tables, strikethrough, autolinks, footnotes and task lists — the same
 // markdown Obsidian writes — plus a safe subset of raw HTML, so a model's collapsible
@@ -22,7 +23,7 @@ md.renderer.rules.fence = (tokens, idx) => {
     `<div class="tw-codeblock"><div class="tw-codeblock-head"><span>${escapeHtml(lang || 'text')}</span>` +
     `<span class="tw-codeblock-tools"><button class="tw-codeblock-btn" data-collapse aria-label="Collapse">Collapse</button>` +
     `<button class="tw-codeblock-btn" data-copy>Copy</button></span></div>` +
-    `<pre><code>${escapeHtml(token.content)}</code></pre></div>`
+    `<pre><code>${highlight(token.content, lang)}</code></pre></div>`
   )
 }
 

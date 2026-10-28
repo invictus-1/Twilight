@@ -4,6 +4,18 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.5.0
 
+**Getting around**
+- **Command menu (Ctrl+K):** every command, chat and document by name. Letters in order are enough ("splt" finds Clone into split), arrows move, Enter runs.
+- **Search everything (Ctrl+Shift+F):** every message in every chat and every document in the writing folder, as you type. A result opens its chat at the message (switching versions if it's on another one), or its document with the match selected.
+- **Shortcut sheet (Ctrl+/)** and **rebindable keys:** Settings → Keyboard shortcuts lets you give any command your own keys, or none. New: Ctrl+1 to Ctrl+4 switch between Chats, Writing, Judge and Insights.
+
+**Chat**
+- **Context meter:** the cache bar shows how much of the model's context window the chat fills, with a bar that turns amber at 70% and red at 90%. Split panes show it in their footers.
+- **Branch into a new chat:** a new button on every reply starts a new chat with everything up to there. Messages are copied exactly, so the branch's first message still reads from the prompt cache.
+- **Choice card keys:** press 1–9 to pick (Alt+1–9 while typing). With several decisions, each number fills the next one and Enter sends. **More options** asks the model for different ones.
+- **Adventure workspaces:** a workspace can start its new chats with choice cards on.
+- **Syntax highlighting** in code blocks, in each theme's own colours, for the languages models write most. Twilight's own highlighter, so it adds no weight and keeps up while a reply streams.
+
 **Writer insights**
 - **Earlier results:** Story analysis, Focus and Insights keep up to 30 past results each. Pick one from "Earlier results" to read it again, or remove it.
 - **Calls at once:** a deep scan can read 1 to 10 parts of your manuscript at the same time. The same model still writes the final themes.

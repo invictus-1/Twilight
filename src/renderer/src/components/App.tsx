@@ -15,12 +15,17 @@ import { CloseIcon, TrophyIcon } from './Icons'
 import { SettingsView } from './SettingsView'
 import { useDragResize, usePersistentNumber } from '../resize'
 import { Sidebar } from './Sidebar'
+import { commandFor } from '../commands'
+import { recordingKeys } from './ShortcutsSection'
+import { CommandMenu, ShortcutSheet } from './CommandMenu'
+import { SearchPanel } from './SearchPanel'
 
 export function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const settingsOpen = useStore((s) => s.settingsOpen)
   const settingsSection = useStore((s) => s.settingsSection)
   const welcomeOpen = useStore((s) => s.welcomeOpen)
+  const overlay = useStore((s) => s.overlay)
   const mode = useStore((s) => s.mode)
   const error = useStore((s) => s.error)
   const undo = useStore((s) => s.undo)
@@ -74,28 +79,17 @@ export function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent): void => {
       const s = useStore.getState()
-      if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'n') {
+      // Keys an editor already used (Ctrl+B for bold, say) stay with it; the welcome and a
+      // shortcut being recorded take every key.
+      if (e.defaultPrevented || s.welcomeOpen || recordingKeys()) return
+      const command = commandFor(e)
+      if (command) {
         e.preventDefault()
-        s.setMode('chat')
-        void s.newChat()
-      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'n') {
-        e.preventDefault()
-        s.setMode('write')
-        void useWriting.getState().newDoc()
-      } else if (e.ctrlKey && e.key.toLowerCase() === 'b') {
-        e.preventDefault()
-        s.toggleSidebar()
-      } else if (e.ctrlKey && e.key === ',') {
-        e.preventDefault()
-        s.setSettingsOpen(true)
-      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's' && s.mode === 'chat') {
-        e.preventDefault()
-        if (s.current?.path.length) void (s.current.split ? s.closeSplit('a') : s.cloneIntoSplit())
-      } else if (e.altKey && ['1', '2', '3'].includes(e.key) && s.current?.split) {
-        e.preventDefault()
-        s.setTarget(e.key === '1' ? 'a' : e.key === '2' ? 'b' : 'both')
+        if (s.overlay && command.id !== s.overlay) s.setOverlay(null)
+        command.run()
       } else if (e.key === 'Escape') {
-        if (s.settingsOpen) s.setSettingsOpen(false)
+        if (s.overlay) s.setOverlay(null)
+        else if (s.settingsOpen) s.setSettingsOpen(false)
         else if (s.mode === 'chat') void s.stop()
       }
     }
@@ -131,6 +125,9 @@ export function App() {
         </Suspense>
       )}
       {welcomeOpen && <Welcome />}
+      {overlay === 'commands' && <CommandMenu />}
+      {overlay === 'shortcuts' && <ShortcutSheet />}
+      {overlay === 'search' && <SearchPanel />}
       {unlocked.length > 0 && !undo && !error && (
         <div className="toast toast-info ach-toast" role="status">
           <TrophyIcon size={16} />

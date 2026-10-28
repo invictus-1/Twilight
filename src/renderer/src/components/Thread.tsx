@@ -68,6 +68,22 @@ export function Thread() {
     if (el) el.scrollTop = el.scrollHeight
   }, [count])
 
+  // A search result: bring its message to the middle and light it up for a moment. Twice, since
+  // messages above it may lay out at their real height after the first jump.
+  const flash = useStore((s) => s.flash)
+  useEffect(() => {
+    if (!flash) return
+    const el = (): HTMLElement | null | undefined => scroller.current?.querySelector<HTMLElement>(`[data-node="${flash}"]`)
+    const go = (): void => el()?.scrollIntoView({ block: 'center' })
+    requestAnimationFrame(go)
+    const again = setTimeout(() => {
+      go()
+      el()?.classList.add('msg-flash')
+      useStore.setState({ flash: null })
+    }, 180)
+    return () => clearTimeout(again)
+  }, [flash])
+
   const onClick = (e: React.MouseEvent): void => {
     const target = e.target as HTMLElement
     const link = target.closest('a')

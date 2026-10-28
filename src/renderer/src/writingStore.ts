@@ -25,6 +25,9 @@ interface WritingState {
   init(): Promise<void>
   refresh(): Promise<void>
   openDoc(path: string): Promise<void>
+  /** Text to select once the editor shows this document (a search result). */
+  reveal: { path: string; text: string; seq: number } | null
+  revealIn(path: string, text: string): Promise<void>
   newDoc(folder?: string): Promise<void>
   newFolder(path: string): Promise<void>
   /** Creates a document holding `text` (e.g. a chat reply) and opens it. */
@@ -55,6 +58,7 @@ export const useWriting = create<WritingState>((set, get) => ({
   editCount: 0,
   historyOpen: false,
   error: null,
+  reveal: null,
 
   async init() {
     set({ folder: await api.getWritingFolder() })
@@ -74,6 +78,11 @@ export const useWriting = create<WritingState>((set, get) => ({
     if (get().open?.path === path) return
     const [open, context] = await Promise.all([api.readDoc(path), api.getDocContext(path)])
     set({ open, context, status: 'saved' })
+  },
+
+  async revealIn(path, text) {
+    await get().openDoc(path)
+    set({ reveal: { path, text, seq: (get().reveal?.seq ?? 0) + 1 } })
   },
 
   async saveContext(context) {
