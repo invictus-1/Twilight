@@ -87,7 +87,7 @@
     "publish": {
       "provider": "github",
       "owner": "invictus-1",
-      "repo": "twilight-releases"
+      "repo": "twilight"
     }
   }
 }

@@ -1,6 +1,6 @@
-// Publishes the built installers to the public releases repo, where Twilight's updater finds
-// them. Run `npm run dist` first. The release notes come from this version's section of
-// CHANGELOG.md; the source repo gets a matching tag.
+// Publishes the built installers as a GitHub release of this repository, where Twilight's
+// updater finds them. Run `npm run dist` first. The release notes come from this version's
+// section of CHANGELOG.md, and the release is tagged on the current commit.
 //
 //   npm run release            publish release/ for the version in package.json
 //   npm run release -- --dry   show what would be published
@@ -10,7 +10,7 @@ const { existsSync, readFileSync, writeFileSync, mkdtempSync } = require('node:f
 const { join } = require('node:path')
 const { tmpdir } = require('node:os')
 
-const REPO = 'invictus-1/twilight-releases'
+const REPO = 'invictus-1/twilight'
 const root = join(__dirname, '..')
 const dry = process.argv.includes('--dry')
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))

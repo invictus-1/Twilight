@@ -1,4 +1,4 @@
-// Updates from the public releases repo (installers only; the source stays private). Twilight
+// Updates from this repository's GitHub releases. Twilight
 // checks GitHub's release list at most once a day when automatic checks are on, or when asked.
 // Nothing else reaches the network. Installing any listed version, newer or older, downloads
 // its installer, checks it against the release's latest.yml hash, backs up the database, and
@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import type { ReleaseInfo, UpdateState } from '@shared/types'
 import * as db from './db'
 
-export const RELEASES_REPO = 'invictus-1/twilight-releases'
+export const RELEASES_REPO = 'invictus-1/twilight'
 const RELEASES_PAGE = `https://github.com/${RELEASES_REPO}/releases`
 const DAY = 24 * 60 * 60 * 1000
 const KEEP_INSTALLERS = 3
