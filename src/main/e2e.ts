@@ -1081,6 +1081,48 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('achievements page shows every achievement', insUi.achievements === ACHIEVEMENTS.length && insUi.unlocked >= 2, insUi)
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-insights.png'), img.toPNG()), () => undefined)
 
+      // 33. Models start hidden once you've chosen any; the Tools menu and its hover help.
+      const mockConfig = providers.getProvider('mock')
+      providers.saveProvider({ ...mockConfig, shownModels: ['mock-a'] })
+      const optIn = await providers.listModels(true)
+      check('only chosen models are shown', optIn.find((m) => m.id === 'mock-a')?.hidden === false && optIn.find((m) => m.id === 'mock-b')?.hidden === true)
+      check('new installs start with every model hidden', providers.getProvider('anthropic').shownModels?.length === 0)
+      providers.saveProvider({ ...mockConfig })
+      await providers.listModels(true)
+      const c8 = chat.create(null).id
+      chat.send(contents, c8, 'Tools test')
+      await idle(c8)
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 700))
+      const toolsUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="chat"]').click()
+        await wait(200)
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.textContent.includes('Tools test'))?.click()
+        await wait(400)
+        const choices = document.querySelector('[aria-label="Choice cards"]')
+        choices.closest('.hint-wrap').dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
+        choices.closest('.hint-wrap').dispatchEvent(new MouseEvent('mouseenter'))
+        await wait(700)
+        const out = { hint: document.querySelector('.hint')?.textContent ?? null }
+        choices.closest('.hint-wrap').dispatchEvent(new MouseEvent('mouseleave'))
+        ;[...document.querySelectorAll('.tools-menu button')].find((b) => b.textContent.includes('Tools'))?.click()
+        await wait(200)
+        out.rows = [...document.querySelectorAll('.tools-row .tools-label')].map((e) => e.textContent)
+        const row = (label) => [...document.querySelectorAll('.tools-row')].find((r) => r.textContent.includes(label))?.querySelector('input')
+        row('Choice cards').click()
+        await wait(300)
+        row('Choice menu tool').click()
+        await wait(300)
+        return out
+      })()`)
+      check('Choices explains itself on hover', /Choice cards/.test(toolsUi.hint ?? '') && /Tools/.test(toolsUi.hint ?? ''), toolsUi.hint)
+      check('Tools menu lists the choice switches', toolsUi.rows.includes('Choice cards') && toolsUi.rows.some((r: string) => r.startsWith('Choice menu tool')), toolsUi.rows)
+      const c8settings = chat.view(c8).settings
+      check('Tools menu turns on the choice tool', c8settings.choiceCards && c8settings.choiceTool, { cards: c8settings.choiceCards, tool: c8settings.choiceTool })
+      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-tools.png'), img.toPNG()), () => undefined)
+
       // 28. Message actions: delete one, delete below, view, restore (also after writing more), edit, tok/s.
       const c5 = chat.create(null).id
       for (const t of ['one', 'two', 'three']) {

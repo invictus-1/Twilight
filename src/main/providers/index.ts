@@ -5,11 +5,23 @@ import { anthropicProvider, describeAnthropicError } from './anthropic'
 import { openaiProvider } from './openai'
 import type { Provider } from './types'
 
+// Models start hidden: you tick the ones you want in the picker (shownModels).
 const DEFAULT_PROVIDERS: ProviderConfig[] = [
-  { id: 'anthropic', kind: 'anthropic', name: 'Anthropic', enabled: true },
-  { id: 'ollama', kind: 'openai', name: 'Ollama', baseUrl: 'http://localhost:11434/v1', enabled: true },
-  { id: 'lmstudio', kind: 'openai', name: 'LM Studio', baseUrl: 'http://localhost:1234/v1', enabled: true }
+  { id: 'anthropic', kind: 'anthropic', name: 'Anthropic', enabled: true, shownModels: [] },
+  { id: 'ollama', kind: 'openai', name: 'Ollama', baseUrl: 'http://localhost:11434/v1', enabled: true, shownModels: [] },
+  { id: 'lmstudio', kind: 'openai', name: 'LM Studio', baseUrl: 'http://localhost:1234/v1', enabled: true, shownModels: [] }
 ]
+
+/**
+ * Once, for providers saved before models started hidden: keep showing only the model in use, so
+ * the picker starts with just that and you add the rest yourself.
+ */
+export function migrateToShownModels(inUse: { providerId: string; modelId: string }): void {
+  if (kvGet<boolean>('providers.shownModels')) return
+  const stored = kvGet<ProviderConfig[]>('providers')
+  if (stored) kvSet('providers', stored.map((p) => (p.shownModels ? p : { ...p, shownModels: p.id === inUse.providerId ? [inUse.modelId] : [] })))
+  kvSet('providers.shownModels', true)
+}
 
 let modelCache: ModelInfo[] | null = null
 /** How the last conversation with each provider went (kept in memory; shown on the Providers page). */
@@ -89,7 +101,9 @@ function personalize(p: ProviderConfig, listed: ModelInfo[]): ModelInfo[] {
     .map((id) => ({ id, providerId: p.id, name: id, local: false, custom: true }))
   return [...listed, ...custom].map((m) => {
     const label = p.labels?.[m.id]
-    return { ...m, name: label || m.name, originalName: label ? m.name : undefined, hidden: p.hiddenModels?.includes(m.id) ?? false }
+    // Hand-added models are shown: adding one is choosing it.
+    const hidden = p.shownModels ? !p.shownModels.includes(m.id) && !m.custom : (p.hiddenModels?.includes(m.id) ?? false)
+    return { ...m, name: label || m.name, originalName: label ? m.name : undefined, hidden }
   })
 }
 

@@ -94,9 +94,9 @@ export function ModelPicker({ placement = 'up', scope = 'chat' }: { placement?: 
             ))}
             {groups.length === 0 && (
               <div className="picker-empty">
-                No models found. Add an Anthropic API key, or start Ollama or LM Studio, in{' '}
-                <button className="link-btn" onClick={() => useStore.getState().setSettingsOpen(true)}>
-                  Settings
+                {models.some((m) => m.hidden) ? 'No models chosen yet. Tick the ones you want in ' : 'No models found. Add an Anthropic API key, or start Ollama or LM Studio, in '}
+                <button className="link-btn" onClick={() => useStore.getState().setSettingsOpen(true, 'providers')}>
+                  Settings → Model providers
                 </button>
                 .
               </div>

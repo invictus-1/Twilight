@@ -271,6 +271,7 @@ app.whenReady().then(() => {
   lockDownNetwork()
   registerIpc()
   updates.recordRunningVersion()
+  providers.migrateToShownModels(chat.getDefaults())
   // Tests never reach GitHub; the e2e run checks against its own mock.
   if (!testDir) {
     updates.startDailyCheck()

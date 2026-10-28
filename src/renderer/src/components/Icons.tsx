@@ -115,5 +115,8 @@ export const ScaleIcon = (p: Props) => (
   <Icon {...p}><path d="M12 4v16M7 20h10M5 8h14M5 8l-3 6a3 3 0 0 0 6 0zM19 8l-3 6a3 3 0 0 0 6 0z" /></Icon>
 )
 export const LockIcon = (p: Props) => <Icon {...p}><rect x="5" y="10" width="14" height="10" rx="2" /><path d="M8 10V7a4 4 0 0 1 8 0v3" /></Icon>
+export const ToolIcon = (p: Props) => (
+  <Icon {...p}><path d="M14.5 6.5a4 4 0 0 0 5 5l-8.5 8.5a2.1 2.1 0 0 1-3-3zM14.5 6.5L17 4l3 3-2.5 2.5" /></Icon>
+)
 export const PulseIcon = (p: Props) => <Icon {...p}><path d="M3 12h4l2-6 4 12 2-6h6" /></Icon>
 export const AlertIcon = (p: Props) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.5" /></Icon>

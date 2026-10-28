@@ -15,7 +15,9 @@ export interface ProviderConfig {
   enabled: boolean
   /** True when an API key is stored (the key itself never leaves the main process). */
   hasKey?: boolean
-  /** Models hidden from the model picker (still listed on the Providers page). */
+  /** The models you chose to show in the picker; anything else the provider lists starts hidden. */
+  shownModels?: string[]
+  /** Older setting (before models started hidden): models hidden from the picker. */
   hiddenModels?: string[]
   /** Your own names for models, by model id. */
   labels?: Record<string, string>

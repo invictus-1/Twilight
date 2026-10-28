@@ -34,6 +34,14 @@ const PRESETS = [
   { name: 'vLLM', baseUrl: 'http://localhost:8000/v1' }
 ]
 
+/** The provider with these models shown or hidden in the picker (converting the older hidden list). */
+function showModels(provider: ProviderConfig, ids: string[], show: boolean): ProviderConfig {
+  const all = useStore.getState().models.filter((m) => m.providerId === provider.id)
+  const shown = new Set(provider.shownModels ?? all.filter((m) => !m.hidden).map((m) => m.id))
+  for (const id of ids) show ? shown.add(id) : shown.delete(id)
+  return { ...provider, shownModels: [...shown], hiddenModels: undefined }
+}
+
 const saveProvider = async (provider: ProviderConfig, apiKey?: string): Promise<void> => {
   useStore.getState().setProviders(await window.twilight.saveProvider(provider, apiKey))
   await useStore.getState().refreshModels(true)
@@ -44,12 +52,7 @@ const saveProvider = async (provider: ProviderConfig, apiKey?: string): Promise<
 
 function ModelRow({ provider, model }: { provider: ProviderConfig; model: ModelInfo }) {
   const [renaming, setRenaming] = useState(false)
-  const toggleHidden = (): void => {
-    const hidden = new Set(provider.hiddenModels ?? [])
-    if (hidden.has(model.id)) hidden.delete(model.id)
-    else hidden.add(model.id)
-    void saveProvider({ ...provider, hiddenModels: [...hidden] })
-  }
+  const toggleHidden = (): void => void saveProvider(showModels(provider, [model.id], model.hidden ?? false))
   return (
     <div className={`model-row ${model.hidden ? 'model-hidden' : ''}`}>
       <label className="check" title={model.hidden ? 'Hidden from the model picker' : 'Shown in the model picker'}>
@@ -251,9 +254,19 @@ function ProviderDetail({ provider, filter }: { provider: ProviderConfig; filter
         <div className="models-head">
           <h4 className="provider-section-title">
             Models <span className="rm-heading-count">{models.length}</span>
-            {hiddenCount > 0 && <span className="field-note">{hiddenCount} hidden from the picker</span>}
+            <span className="field-note">{models.length - hiddenCount} in the picker</span>
           </h4>
-          {models.length > 0 && <input placeholder="Filter models" value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} />}
+          {models.length > 0 && (
+            <span className="models-head-actions">
+              <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => void saveProvider(showModels(provider, shown.map((m) => m.id), true))}>
+                Show all
+              </button>
+              <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => void saveProvider(showModels(provider, shown.map((m) => m.id), false))}>
+                Hide all
+              </button>
+              <input placeholder="Filter models" value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} />
+            </span>
+          )}
         </div>
         {models.length === 0 ? (
           <div className="models-empty">
@@ -270,7 +283,8 @@ function ProviderDetail({ provider, filter }: { provider: ProviderConfig; filter
         ) : (
           <>
             <p className="field-note">
-              What each model can do comes from the provider. Untick a model to keep it out of the picker; the pencil gives it a name of your own.
+              New models start hidden: tick the ones you want in the model picker. What each can do comes from the provider; the pencil gives a model a
+              name of your own.
             </p>
             <div className="model-list">
               {shown.map((m) => (
@@ -363,7 +377,7 @@ function ProvidersSection() {
                   disabled={!name.trim() || !url.trim()}
                   onClick={async () => {
                     const id = `custom-${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-                    await saveProvider({ id, kind: 'openai', name: name.trim(), baseUrl: url.trim(), enabled: true })
+                    await saveProvider({ id, kind: 'openai', name: name.trim(), baseUrl: url.trim(), enabled: true, shownModels: [] })
                     setSelectedId(id)
                     setName('')
                     setUrl('')

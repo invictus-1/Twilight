@@ -4,6 +4,7 @@ import type { Attachment, SendTarget } from '@shared/types'
 import { useStore } from '../store'
 import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from './Icons'
 import { ModelPicker } from './ModelPicker'
+import { Hint, ToolsMenu } from './ToolsMenu'
 
 const MAX_LINES = 12
 const LINE = 22
@@ -100,19 +101,25 @@ export function Composer() {
           <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Attach files" title="Attach files (their full text goes into the message)" onClick={() => void attach()}>
             <PaperclipIcon />
           </button>
+          {currentId && <ToolsMenu />}
           {currentId && (
-            <button
-              className="tw-btn tw-btn-ghost tw-btn-sm tw-toggle"
-              aria-pressed={choiceCards}
-              title="Choice cards: the model offers clickable options when you should decide (adds a short instruction to the system prompt)"
-              onClick={() => {
-                const s = useStore.getState()
-                void s.updateSettings({ choiceCards: !choiceCards }, 'a')
-                if (split) void s.updateSettings({ choiceCards: !choiceCards }, 'b')
-              }}
+            <Hint
+              title={choiceCards ? 'Choice cards: on' : 'Choice cards: off'}
+              text="When the story reaches a decision, the model's options become a card you can click, edit, or answer in your own words. How the options arrive (a tool call, a choices block, or plain numbered text) is set in Tools."
             >
-              Choices
-            </button>
+              <button
+                className="tw-btn tw-btn-ghost tw-btn-sm tw-toggle"
+                aria-pressed={choiceCards}
+                aria-label="Choice cards"
+                onClick={() => {
+                  const s = useStore.getState()
+                  void s.updateSettings({ choiceCards: !choiceCards }, 'a')
+                  if (split) void s.updateSettings({ choiceCards: !choiceCards }, 'b')
+                }}
+              >
+                Choices
+              </button>
+            </Hint>
           )}
           {split && (
             <div className="tw-seg" role="group" aria-label="Send to">
