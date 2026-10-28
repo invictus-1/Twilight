@@ -1,0 +1,41 @@
+<!-- @dsCard group="Compare" height=440 width=900 subtitle="A cloned conversation, side by side" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>SplitCompare</title></head>
+<body style="background:var(--night)">
+<div style="padding:var(--space-3)">
+<div class="tw-split">
+  <section class="tw-pane tw-pane-a" aria-label="Pane A">
+    <header class="tw-pane-head"><span class="tw-pane-tag">A</span><button class="tw-chip"><span class="tw-dot" style="color:var(--success)"></span>Opus 5.5</button><span class="tw-badge">outline.md</span>
+      <span style="margin-left:auto"></span><button class="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Close pane"><svg class="tw-icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+    <div class="tw-pane-body">
+      <div class="tw-msg-user">Rewrite the opening in present tense.</div>
+      <div class="tw-msg-body"><p>The lamps come on one street at a time, as if the town is remembering itself. Wren counts them from the bridge.</p></div>
+    </div>
+    <footer class="tw-pane-foot"><span>temp 0.8</span><span>218 tokens</span><span>2.6s</span></footer>
+  </section>
+  <section class="tw-pane tw-pane-b" aria-label="Pane B">
+    <header class="tw-pane-head"><span class="tw-pane-tag">B</span><button class="tw-chip"><span class="tw-dot" style="color:var(--success)"></span>qwen3-32b<span class="tw-chip-src">Local</span></button><span class="tw-badge">outline.md</span>
+      <span style="margin-left:auto"></span><button class="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Close pane"><svg class="tw-icon" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></header>
+    <div class="tw-pane-body">
+      <div class="tw-msg-user">Rewrite the opening in present tense.</div>
+      <div class="tw-msg-body"><p>Street by street the lamps wake, and the town seems to recall its own shape. From the bridge, Wren watches.</p></div>
+    </div>
+    <footer class="tw-pane-foot"><span>temp 0.8</span><span>196 tokens</span><span>4.9s</span></footer>
+  </section>
+</div>
+<div class="tw-composer tw-split-composer">
+  <textarea rows="1" placeholder="Message both panes"></textarea>
+  <div class="tw-composer-bar">
+    <div class="tw-seg" role="group" aria-label="Send to">
+      <button class="tw-seg-a" aria-pressed="false">A</button>
+      <button class="tw-seg-b" aria-pressed="false">B</button>
+      <button aria-pressed="true">Both</button>
+    </div>
+    <span class="tw-spacer"></span>
+    <button class="tw-send" aria-label="Send to both"><svg class="tw-icon" viewBox="0 0 24 24" style="stroke-width:2"><path d="M12 19V5M5 12l7-7 7 7"/></svg></button>
+  </div>
+</div>
+</div>
+</body>
+</html>

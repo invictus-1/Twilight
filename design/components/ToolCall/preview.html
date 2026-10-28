@@ -1,0 +1,30 @@
+<!-- @dsCard group="Agents" height=340 subtitle="Running, done, awaiting approval, failed" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ToolCall</title></head>
+<body>
+<div class="tw-stack" style="max-width:640px">
+  <div class="tw-tool">
+    <div class="tw-tool-head"><span class="tw-tool-name">read_file</span><span class="tw-tool-arg">chapters/07-lamplighter.md</span>
+      <span class="tw-tool-status" style="color:var(--dusk)"><span class="tw-spin"></span>Running</span></div>
+  </div>
+  <div class="tw-tool">
+    <div class="tw-tool-head"><span class="tw-tool-name">search_notes</span><span class="tw-tool-arg">"Wren" in:characters</span>
+      <span class="tw-tool-status" style="color:var(--success)"><svg class="tw-icon" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M5 12l5 5 9-10"/></svg>Done · 0.4s</span></div>
+    <div class="tw-tool-body">3 matches — characters/wren.md, outline.md, chapters/02.md</div>
+  </div>
+  <div class="tw-tool">
+    <div class="tw-tool-head"><span class="tw-tool-name">write_file</span><span class="tw-tool-arg">chapters/07-lamplighter.md</span>
+      <span class="tw-tool-status" style="color:var(--warning)">Needs approval</span></div>
+    <div class="tw-tool-approve"><span>Overwrite 2,140 words?</span>
+      <button class="tw-btn tw-btn-sm tw-btn-ghost">Show diff</button>
+      <button class="tw-btn tw-btn-sm">Deny</button>
+      <button class="tw-btn tw-btn-sm tw-btn-primary">Allow once</button></div>
+  </div>
+  <div class="tw-tool">
+    <div class="tw-tool-head"><span class="tw-tool-name">fetch_url</span><span class="tw-tool-arg">https://example.com/style-guide</span>
+      <span class="tw-tool-status" style="color:var(--danger)"><svg class="tw-icon" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M6 6l12 12M18 6L6 18"/></svg>Failed · 404</span></div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,49 @@
+<!-- @dsCard height=288 -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Twilight</title>
+<style>
+  html, body { margin:0; height:100%; }
+  body { background:var(--surface); color:var(--ink); font-family:var(--font-sans); overflow:hidden; }
+  .cover { position:relative; height:288px; overflow:hidden; }
+  .art { position:absolute; top:0; left:480px; width:480px; height:288px; overflow:hidden; }
+  .art svg { display:block; width:480px; height:288px; overflow:visible; }
+  .iris { fill:var(--iris); }
+  .dusk { fill:var(--dusk); }
+  .hzn { fill:var(--horizon); }
+  .blk { rx:var(--radius-md); }
+  .ring { fill:none; stroke:var(--surface); stroke-width:var(--space-1); }
+  .words { position:absolute; left:var(--space-8); bottom:var(--space-8); max-width:440px; }
+  .name { margin:0; font-size:88px; line-height:.92; font-weight:600; letter-spacing:-.03em; color:var(--ink); }
+  .tag { margin:var(--space-3) 0 0 4px; font-size:14px; line-height:20px; color:var(--ink-muted); }
+</style>
+</head>
+<body>
+<div class="cover">
+<div class="art" aria-hidden="true">
+<svg viewBox="0 0 480 288" width="480" height="288">
+<!--
+  blocks      iris 96 tall (interaction, the identity hue, largest) · dusk 64 (agents) · horizon 24 (writing, the thin warm line) — three bands bleeding off the right edge, ≈33% of 960×288
+  arrangement a strip of unequal horizontal bands stacked like a sky after sunset, darkest-weight on top, the warm line lowest
+  pattern     literal motif, "the quiet hour after sunset": four concentric half-rings of a setting sun cut through the bands in the surface color, with a horizon half-disc resting on the horizon band
+  scales      band gaps space-4; ring stroke space-1; ring pitch space-8; corners radius-md; sun radius space-6
+-->
+<rect class="iris blk" x="16" y="24" width="480" height="96" rx="10"/>
+<rect class="dusk blk" x="16" y="136" width="480" height="64" rx="10"/>
+<rect class="hzn blk" x="16" y="216" width="480" height="24" rx="10"/>
+<path class="hzn" d="M240 216 A24 24 0 0 1 288 216 Z"/>
+<path class="ring" d="M224 216 A40 40 0 0 1 304 216"/>
+<path class="ring" d="M192 216 A72 72 0 0 1 336 216"/>
+<path class="ring" d="M160 216 A104 104 0 0 1 368 216"/>
+<path class="ring" d="M128 216 A136 136 0 0 1 400 216"/>
+</svg>
+</div>
+<div class="words">
+<h1 class="name">Twilight</h1>
+<p class="tag">Models, agents and writing. Dark, calm, and fast.</p>
+</div>
+</div>
+</body>
+</html>

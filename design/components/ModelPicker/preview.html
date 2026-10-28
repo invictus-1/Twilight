@@ -1,0 +1,21 @@
+<!-- @dsCard group="Models" height=300 subtitle="Model chip and its picker menu" -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ModelPicker</title></head>
+<body>
+<div class="tw-stack" style="align-items:flex-start">
+  <button class="tw-chip" aria-haspopup="listbox" aria-expanded="true">
+    <span class="tw-dot" style="color:var(--success)"></span>Claude Opus 5.5<span class="tw-chip-src">API</span>
+    <svg class="tw-icon" viewBox="0 0 24 24" style="width:14px;height:14px;color:var(--ink-faint)"><path d="M6 9l6 6 6-6"/></svg>
+  </button>
+  <div class="tw-menu" role="listbox">
+    <div class="tw-menu-label">Anthropic · API</div>
+    <div class="tw-menu-item" role="option" aria-selected="true"><svg class="tw-icon" viewBox="0 0 24 24" style="color:var(--ink-muted)"><path d="M7 18a5 5 0 0 1-.5-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg>Claude Opus 5.5<span class="tw-meta"><svg class="tw-icon" viewBox="0 0 24 24" style="color:var(--iris)"><path d="M5 12l5 5 9-10"/></svg></span></div>
+    <div class="tw-menu-item" role="option"><svg class="tw-icon" viewBox="0 0 24 24" style="color:var(--ink-muted)"><path d="M7 18a5 5 0 0 1-.5-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z"/></svg>Claude Sonnet 5.5<span class="tw-meta">200k</span></div>
+    <div class="tw-menu-label">Local · Ollama</div>
+    <div class="tw-menu-item" role="option"><svg class="tw-icon" viewBox="0 0 24 24" style="color:var(--ink-muted)"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>qwen3-32b<span class="tw-meta"><span class="tw-badge"><span class="tw-dot" style="color:var(--success)"></span>Loaded</span></span></div>
+    <div class="tw-menu-item" role="option"><svg class="tw-icon" viewBox="0 0 24 24" style="color:var(--ink-muted)"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>llama-4-scout<span class="tw-meta">Not loaded</span></div>
+  </div>
+</div>
+</body>
+</html>

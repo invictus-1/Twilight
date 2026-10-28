@@ -1,0 +1,25 @@
+{
+  "v": 3,
+  "assetGroups": {},
+  "blobs": {},
+  "createdOnFiles": {
+    "at": "2026-10-28T14:09:24Z",
+    "v": 1
+  },
+  "docs": {
+    "readme": "project/README.md",
+    "sections": []
+  },
+  "groups": [],
+  "lastChange": {
+    "by": "Claude",
+    "at": "2026-10-28T14:25:00Z",
+    "via": "Claude Code",
+    "note": "Dark only; conversations as branch trees; split composer target switch; Alt+Enter accept; keyboard map."
+  },
+  "layout": "files",
+  "libraries": [],
+  "namespace": "Twilight",
+  "sections": {},
+  "title": "Twilight"
+}
