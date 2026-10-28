@@ -189,6 +189,11 @@ async function idle(id: string): Promise<void> {
 export function runE2E(win: BrowserWindow, outDir: string): void {
   const checks: { name: string; pass: boolean; detail?: unknown }[] = []
   // Each check is also appended to progress.log as it happens, so a run that hangs shows where.
+  const consoleErrors: string[] = []
+  win.webContents.on('console-message', (event: unknown) => {
+    const e = event as { level?: string | number; message?: string }
+    if (e.level === 'error' || e.level === 'warning' || (typeof e.level === 'number' && e.level >= 2)) consoleErrors.push(String(e.message).slice(0, 400))
+  })
   const check = (name: string, pass: boolean, detail?: unknown): void => {
     checks.push({ name, pass, detail })
     appendFileSync(join(outDir, 'progress.log'), `${pass ? 'ok  ' : 'FAIL'} ${name}
@@ -619,6 +624,47 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('model settings panel opens', ui2.panel === true, ui2)
       await new Promise((r) => setTimeout(r, 200))
       writeFileSync(join(outDir, 'e2e-settings.png'), (await win.webContents.capturePage()).toPNG())
+      // Close it with its X, and toggle it with the header button: real clicks at the controls'
+      // positions (not element.click()), so anything covering them would show up here.
+      const realClick = async (selector: string, nth = 0): Promise<boolean> => {
+        const box = await win.webContents.executeJavaScript(`(() => {
+          const el = [...document.querySelectorAll(${JSON.stringify(selector)})][${nth}]
+          if (!el) return null
+          const r = el.getBoundingClientRect()
+          return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
+        })()`)
+        if (!box) return false
+        win.webContents.sendInputEvent({ type: 'mouseDown', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+        win.webContents.sendInputEvent({ type: 'mouseUp', x: box.x, y: box.y, button: 'left', clickCount: 1 })
+        await new Promise((r) => setTimeout(r, 300))
+        return true
+      }
+      const panelOpen = (): Promise<boolean> => win.webContents.executeJavaScript(`!!document.querySelector('.settings-panel')`)
+      await realClick('.settings-panel .panel-head [aria-label="Close"]')
+      const afterX = await panelOpen()
+      const headerBtn = '.chat-head button[aria-expanded]'
+      const settingsIndex = await win.webContents.executeJavaScript(`[...document.querySelectorAll('${headerBtn}')].findIndex((b) => b.textContent.includes('Model settings'))`)
+      await realClick(headerBtn, settingsIndex)
+      const afterOpen = await panelOpen()
+      await realClick(headerBtn, settingsIndex)
+      const afterToggle = await panelOpen()
+      // Opening and closing again and again must never leave a panel behind (it once did: two
+      // siblings shared a React key, so each close left the old panel on screen).
+      const cycles = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const btn = () => [...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings'))
+        const counts = []
+        for (let i = 0; i < 3; i++) {
+          btn().click(); await wait(200)
+          counts.push(document.querySelectorAll('.settings-panel').length)
+          btn().click(); await wait(200)
+          counts.push(document.querySelectorAll('.settings-panel').length)
+        }
+        return counts
+      })()`)
+      check('model settings closes with its X', afterX === false, { afterX })
+      check('opening and closing leaves no panels behind', cycles.join() === '1,0,1,0,1,0', cycles)
+      check('the Model settings button opens and closes the panel', afterOpen === true && afterToggle === false, { afterOpen, afterToggle })
 
       // 22. Game Format: paragraphs joined within chunks, dividers kept, code and HTML untouched.
       const sample = 'ofjasdoifjasodif\n\najosdfjasoidfj\n\nasdofjiasodf\n\n---\n\noidsfjsodjfids\n\nsdfjosidjf\n\nsdojfsoidfj'
@@ -1219,6 +1265,41 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-ultraviolet.png'), img.toPNG()), () => undefined)
       await win.webContents.executeJavaScript(`[...document.querySelectorAll('.theme-option')].find((b) => b.textContent.includes('Twilight'))?.click()`)
 
+      // 35. The first-run welcome, replayed from Settings → About: intro, a local model found and
+      // ticked, the writing folder, a look, done.
+      const welcome = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('About'))?.click(); await wait(200)
+        ;[...document.querySelectorAll('button')].find((b) => b.textContent === 'Replay the welcome')?.click(); await wait(400)
+        const out = { open: !!document.querySelector('.welcome'), wordmark: document.querySelector('.wl-wordmark')?.textContent ?? null }
+        document.querySelector('.wl-begin').click(); await wait(300)
+        out.modelTitle = document.querySelector('.wl-title')?.textContent ?? null
+        ;[...document.querySelectorAll('.wl-choice')].find((b) => b.textContent.includes('On this computer'))?.click(); await wait(100)
+        ;[...document.querySelectorAll('.wl-connect button')][0]?.click()
+        for (let i = 0; i < 100 && !document.querySelector('.wl-status'); i++) await wait(50)
+        out.status = document.querySelector('.wl-status')?.textContent ?? null
+        for (let i = 0; i < 60 && !document.querySelector('.wl-model input'); i++) await wait(50)
+        out.models = [...document.querySelectorAll('.wl-model span')].map((e) => e.textContent)
+        const next = () => [...document.querySelectorAll('.wl-foot button')].find((b) => b.textContent === 'Next')?.click()
+        next(); await wait(400)
+        out.folder = document.querySelector('.wl-folder-path')?.textContent ?? null
+        next(); await wait(300)
+        ;[...document.querySelectorAll('.wl-themes .theme-option')].find((b) => b.textContent.includes('Ultraviolet'))?.click(); await wait(100)
+        out.theme = document.documentElement.dataset.theme ?? 'twilight'
+        ;[...document.querySelectorAll('.wl-themes .theme-option')].find((b) => b.textContent.includes('Twilight'))?.click(); await wait(100)
+        next(); await wait(300)
+        out.done = document.querySelector('.wl-title')?.textContent ?? null
+        out.tips = document.querySelectorAll('.wl-tip').length
+        ;[...document.querySelectorAll('.wl-foot button')].find((b) => b.textContent === 'Start writing')?.click(); await wait(300)
+        out.closed = !document.querySelector('.welcome')
+        return out
+      })()`)
+      check('the welcome opens with the intro', welcome.open && welcome.wordmark === 'Twilight', welcome)
+      check('the welcome finds a local model server', welcome.modelTitle === 'Connect a model' && /Found/.test(welcome.status ?? '') && welcome.models.length >= 2, welcome)
+      check('the welcome shows the writing folder and themes', !!welcome.folder && welcome.theme === 'ultraviolet', welcome)
+      check('the welcome finishes with tips and closes', welcome.done === "You're all set" && welcome.tips === 4 && welcome.closed, welcome)
+      check('finishing the welcome remembers it', db.kvGet<boolean>('welcomed') === true)
+
       // 28. Message actions: delete one, delete below, view, restore (also after writing more), edit, tok/s.
       const c5 = chat.create(null).id
       for (const t of ['one', 'two', 'three']) {
@@ -1352,6 +1433,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await new Promise((r) => setTimeout(r, 300))
       // A screenshot is a convenience; a capture hiccup shouldn't fail the run.
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-updates.png'), img.toPNG()), () => undefined)
+      check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {

@@ -34,6 +34,9 @@ interface State {
   mode: Mode
   sidebarOpen: boolean
   settingsOpen: boolean
+  /** The first-run welcome (also replayable from Settings → About). */
+  welcomeOpen: boolean
+  setWelcomeOpen(open: boolean): void
   /** The Settings section to open on. */
   settingsSection: string | null
   updates: UpdateState | null
@@ -114,6 +117,7 @@ export const useStore = create<State>((set, get) => {
     mode: 'chat',
     sidebarOpen: true,
     settingsOpen: false,
+    welcomeOpen: false,
     settingsSection: null,
     updates: null,
     error: null,
@@ -128,6 +132,7 @@ export const useStore = create<State>((set, get) => {
         api.getDefaults()
       ])
       set({ conversations, folders, providers, defaults })
+      if (!(await api.getWelcomed())) set({ welcomeOpen: true })
       window.twilight.onUpdate((updates) => set({ updates }))
       void api.getUpdateState().then((updates) => set({ updates }))
       void get().refreshTrash()
@@ -301,6 +306,10 @@ export const useStore = create<State>((set, get) => {
 
     setProviders: (providers) => set({ providers }),
     toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
+    setWelcomeOpen: (open) => {
+      set({ welcomeOpen: open })
+      if (!open) void api.setWelcomed()
+    },
     setSettingsOpen: (open, section) => set({ settingsOpen: open, settingsSection: section ?? null }),
     setError: (error) => set({ error })
   }

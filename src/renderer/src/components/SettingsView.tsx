@@ -594,6 +594,11 @@ function AboutSection() {
     <div className="settings-card">
       <h3 className="t-heading">Twilight {info?.version}</h3>
       <p className="field-note">Electron {info?.electron}. Local-first: the interface never touches the network; only your configured providers are contacted.</p>
+      <div className="field-inline">
+        <button className="tw-btn tw-btn-sm" onClick={() => useStore.getState().setWelcomeOpen(true)}>
+          Replay the welcome
+        </button>
+      </div>
     </div>
   )
 }

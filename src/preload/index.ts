@@ -77,6 +77,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'openDataFolder',
   'openExternal',
   'setWindowTheme',
+  'getWelcomed',
+  'setWelcomed',
   'getUpdateState',
   'checkForUpdates',
   'setAutoUpdateCheck',

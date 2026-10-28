@@ -56,7 +56,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 0.4** · Core — fixes from real use of Writer insights, the updater and the Tools menu
-- [ ] **Welcome** · Core — an animated first run: the cover's bands slide in, the sun sets, and setup follows (a provider or local server, a writing folder)
 - [ ] **Command menu** · Core — Ctrl+K for everything, Ctrl+/ for the shortcut sheet, rebindable keys
 - [ ] **Search everything** · Core — every chat and document at once (Ctrl+Shift+F)
 - [ ] **Context meter** · Chat — tokens used against the model's window
@@ -74,6 +73,10 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [ ] **Code signing** · Core — a signed installer, so Windows doesn't warn
 
 ## Later
+- [ ] **Sidebar icon rail** · Core — a vertical row of icons with labels for every section, sleeker than tabs
+- [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion
+- [ ] **Custom backgrounds** · Core — your own image or gradient behind the app
+- [ ] **Colour themes** · Core — black and green, purple, and red, alongside Twilight and Ultraviolet
 - [ ] **Tools and MCP** · Chat — web search, web fetch, date and time, image generation, switched on per chat
 - [ ] **Agents and code** · Chat — an agent loop for any model with tool calling, with approvals and diffs
 - [ ] **More themes** · Core — Midnight, Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, and a theme builder

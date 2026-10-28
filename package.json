@@ -75,7 +75,8 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
+      "allowToChangeInstallationDirectory": false,
+      "include": "build/installer.nsh",
       "createDesktopShortcut": true,
       "shortcutName": "Twilight",
       "installerSidebar": "build/installerSidebar.bmp",

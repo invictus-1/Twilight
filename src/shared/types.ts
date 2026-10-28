@@ -388,6 +388,9 @@ export interface TwilightApi {
   openExternal(url: string): Promise<void>
   /** Matches the window frame and title bar to a theme. */
   setWindowTheme(theme: 'twilight' | 'ultraviolet'): Promise<void>
+  /** Whether the first-run welcome has been seen (or skipped). */
+  getWelcomed(): Promise<boolean>
+  setWelcomed(): Promise<void>
 
   getUpdateState(): Promise<UpdateState>
   checkForUpdates(): Promise<UpdateState>

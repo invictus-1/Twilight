@@ -99,8 +99,10 @@ export function ChatView() {
           Model settings
         </button>
       </header>
-      {panel === 'settings' && current && <ChatSettingsPanel key={current.id} onClose={() => setPanel(null)} />}
-      {panel === 'deleted' && current && <DeletedPanel key={current.id} onClose={() => setPanel(null)} />}
+      {/* Keys unique among <main>'s children: the thread below is keyed by the chat id too, and
+          two siblings sharing a key leave stale panels behind when one closes. */}
+      {panel === 'settings' && current && <ChatSettingsPanel key={`settings:${current.id}`} onClose={() => setPanel(null)} />}
+      {panel === 'deleted' && current && <DeletedPanel key={`deleted:${current.id}`} onClose={() => setPanel(null)} />}
       {split ? (
         <SplitView key={current.id} />
       ) : empty ? (

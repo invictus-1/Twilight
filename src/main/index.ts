@@ -283,6 +283,8 @@ function registerIpc(): void {
       win?.setBackgroundColor(frame.night)
       win?.setTitleBarOverlay({ color: frame.night, symbolColor: frame.symbol, height: 40 })
     },
+    getWelcomed: () => db.kvGet<boolean>('welcomed') ?? false,
+    setWelcomed: () => db.kvSet('welcomed', true),
     getUpdateState: (e) => updates.subscribe(e.sender),
     checkForUpdates: () => updates.check(),
     setAutoUpdateCheck: (_e, on: boolean) => updates.setAutoCheck(on),
@@ -299,7 +301,11 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   db.openDatabase(join(app.getPath('userData'), 'twilight.db'))
   // Tests keep their documents in the throwaway profile, never in the real Documents folder.
-  if (testDir) db.kvSet('writingFolder', join(app.getPath('userData'), 'vault'))
+  if (testDir) {
+    db.kvSet('writingFolder', join(app.getPath('userData'), 'vault'))
+    // Tests drive the app directly; the e2e opens the welcome itself when it checks it.
+    db.kvSet('welcomed', true)
+  }
   if (!devUrl) Menu.setApplicationMenu(null)
   lockDownNetwork()
   registerIpc()

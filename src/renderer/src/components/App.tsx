@@ -5,6 +5,7 @@ import { clearStream, handleStreamEvent } from '../stream'
 import { useWriting } from '../writingStore'
 import { useInsights } from '../insightsStore'
 import { InsightsView } from './InsightsView'
+import { Welcome } from './Welcome'
 import { JudgeView } from './JudgeView'
 
 // The editor (CodeMirror) loads the first time Writing opens, so startup only parses the chat.
@@ -19,6 +20,7 @@ export function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const settingsOpen = useStore((s) => s.settingsOpen)
   const settingsSection = useStore((s) => s.settingsSection)
+  const welcomeOpen = useStore((s) => s.welcomeOpen)
   const mode = useStore((s) => s.mode)
   const error = useStore((s) => s.error)
   const undo = useStore((s) => s.undo)
@@ -128,6 +130,7 @@ export function App() {
           <WritingView />
         </Suspense>
       )}
+      {welcomeOpen && <Welcome />}
       {unlocked.length > 0 && !undo && !error && (
         <div className="toast toast-info ach-toast" role="status">
           <TrophyIcon size={16} />
