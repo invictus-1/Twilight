@@ -545,3 +545,15 @@ body.resizing .resize-handle { pointer-events: auto; }
 .release-progress > span { display: block; height: 100%; background: var(--dusk); transition: width 150ms linear; }
 .release-notes summary { cursor: pointer; font-size: 12px; color: var(--ink-muted); }
 .release-notes .md { margin-top: var(--space-2); font-size: 13px; }
+
+/* Choice groups: several decisions in one card, options with details */
+.choice-group { display: flex; flex-direction: column; gap: var(--space-2); }
+.choice-multi .choice-group + .choice-group { border-top: 1px solid var(--line); padding-top: var(--space-3); }
+.choice-intro { font-size: 13px; line-height: 19px; color: var(--ink-muted); padding: 0 var(--space-1); }
+.choice-intro p { margin: 0; }
+.choice-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.choice-details { font-size: 12px; line-height: 17px; color: var(--ink-muted); }
+.choice-details ul, .choice-details ol { margin: 0; padding-left: 16px; }
+.choice-details p { margin: 0; }
+.choice-pick { align-items: flex-start; }
+.choice-send { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); border-top: 1px solid var(--line); padding-top: var(--space-2); }

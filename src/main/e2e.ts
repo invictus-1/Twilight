@@ -113,6 +113,8 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply =
           `### Prose — X ${xGood ? 8 : 5} · Y ${xGood ? 5 : 8}\nX quotes "${x.slice(0, 20)}".\n\n### Verdict\n${xGood ? 'X' : 'Y'} is better.\n\n` +
           '```json\n' + JSON.stringify({ criteria, overall: { X: xGood ? 8 : 5, Y: xGood ? 5 : 8 }, winner: xGood ? 'X' : 'Y', confidence: 'high' }) + '\n```'
+      } else if (lastUser.includes('MULTICHOICE')) {
+        reply = 'The gate creaked.\n\nOUTFIT · Day 2 Morning\nPlace: a cold pier, then a warm cabin.\n1 · PLAIN: \n\n* Pieces: wool coat\n\n2 · BOLD\n\n* Pieces: red scarf\n\n3 · SOMETHING ELSE\n\nChoices (Morning)\n\n1. Head out\n2. Stay in\n3. Something else.'
       } else if (lastUser.includes('PLAINCHOICES')) {
         // Choices the way a system prompt of your own might ask for them: a plain numbered list.
         reply = 'The corridor splits three ways.\n\n**What do you do?**\n\n1. Take the left stair\n2. Follow the draft\n3. Wait for the guard'
@@ -715,7 +717,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
 
       // 26. Choice cards: parsing, the instruction reaching the model, and the card in use.
       const parsedChoices = extractChoices('Story.\n\n```choices\nWhat now?\n1. Go left\n2. Go right\n```')
-      check('choices block parsed', parsedChoices.body === 'Story.' && parsedChoices.choices?.question === 'What now?' && parsedChoices.choices?.options.join() === 'Go left,Go right')
+      check('choices block parsed', parsedChoices.body === 'Story.' && parsedChoices.choices?.groups[0].title === 'What now?' && parsedChoices.choices?.groups[0].options.map((o) => o.label).join() === 'Go left,Go right')
       const partial = extractChoices('Story.\n\n```choices\nWhat now?\n1. Go le')
       check('half-streamed choices stay hidden', partial.body === 'Story.' && partial.choices === null)
       check('plain replies untouched', extractChoices('Just text.').choices === null)
@@ -795,7 +797,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
 
       // 27. Plain-text choices: a numbered list at the end becomes a card when Choices is on.
       const plain = extractChoices('Rain.\n\n*What now?*\n\n**1.** Run\n**2.** Hide\n\n<details>\n<summary>Day</summary>\nx\n</details>', true)
-      check('plain numbered options parsed', plain.choices?.question === 'What now?' && plain.choices?.options.join() === 'Run,Hide' && plain.body.includes('<details>') && !plain.body.includes('Hide'), plain)
+      check('plain numbered options parsed', plain.choices?.groups[0].title === 'What now?' && plain.choices?.groups[0].options.map((o) => o.label).join() === 'Run,Hide' && plain.body.includes('<details>') && !plain.body.includes('Hide'), plain)
       check('plain options ignored with Choices off', extractChoices('Rain.\n\n1. Run\n2. Hide').choices === null)
       check('lists mid-reply are not choices', extractChoices('1. a\n2. b\n\nThe story goes on.', true).choices === null)
       check('lists not numbered from 1 are not choices', extractChoices('Text\n\n2. a\n3. b', true).choices === null)
@@ -820,6 +822,57 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('plain-text options show as a card', plainCard.question === 'What do you do?' && plainCard.options?.join('|') === 'Take the left stair|Follow the draft|Wait for the guard', plainCard)
       check('plain list moves out of the reply', plainCard.listHidden && plainCard.storyShown, plainCard)
+
+      // 27b. Several decisions in one reply, options with details, "Something else" as a write-in,
+      // and ordinary numbered lists left alone.
+      const outfitText = 'OUTFIT · Day 2 Morning\nPlace: a cold pier, then a warm cabin.\n1 · PLAIN: \n\n* Pieces: wool coat\n\n2 · BOLD\n\n* Pieces: red scarf\n\n3 · SOMETHING ELSE'
+      const multi = extractChoices(`The gate creaked.\n\n${outfitText}\n\nChoices (Morning)\n\n1. Head out\n2. Stay in\n3. Something else.`, true)
+      const [g1, g2] = multi.choices?.groups ?? []
+      check('several choice groups parsed in order', multi.choices?.groups.length === 2 && g1?.title === 'OUTFIT · Day 2 Morning' && g2?.title === 'Choices (Morning)', multi.choices)
+      check('options keep their details and intro', g1?.intro === 'Place: a cold pier, then a warm cabin.' && g1?.options.map((o) => o.label).join() === 'PLAIN,BOLD' && g1?.options[0].details === '* Pieces: wool coat', g1)
+      check('"Something else" becomes the write-in', g2?.options.map((o) => o.label).join() === 'Head out,Stay in')
+      check('the story stays in the reply', multi.body === 'The gate creaked.', multi.body)
+      check('a plain list at the end stays a list', extractChoices('Story.\n\nIn the bag:\n\n1. A lamp\n2. A rope', true).choices === null)
+      check('numbered steps stay a list', extractChoices('How to install:\n\n1. Download it.\n2. Run it.', true).choices === null)
+      check('one group per character', extractChoices('Story.\n\nAsh:\n1. Leads\n2. Waits\n3. Something else\n\nRowan:\n1. Follows\n2. Leaves\n3. Something else', true).choices?.groups.map((g) => g.title).join() === 'Ash,Rowan')
+
+      const c6 = chat.create(null).id
+      chat.updateSettings(c6, { choiceCards: true })
+      chat.send(contents, c6, 'MULTICHOICE')
+      await idle(c6)
+      await new Promise((r) => setTimeout(r, 400))
+      const sentBeforeMulti = log.length
+      const multiUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'MULTICHOICE')
+        row?.click()
+        await wait(500)
+        const card = document.querySelector('.choice-card')
+        const groups = [...card.querySelectorAll('.choice-group')]
+        const sendBtn = () => [...card.querySelectorAll('button')].find((b) => b.textContent.includes('Send choices'))
+        const out = { groups: groups.length, details: card.querySelector('.choice-details')?.textContent.trim() ?? null, disabledAtStart: sendBtn()?.disabled }
+        groups[0].querySelectorAll('.choice-pick')[1].click()
+        await wait(150)
+        out.disabledAfterOne = sendBtn()?.disabled
+        groups[1].querySelectorAll('.choice-pick')[1].click()
+        await wait(150)
+        out.disabledAfterBoth = sendBtn()?.disabled
+        out.count = card.querySelector('.choice-send .field-note')?.textContent ?? null
+        sendBtn()?.click()
+        return out
+      })()`)
+      check('multi-group card shows both groups with details', multiUi.groups === 2 && /red scarf|wool coat/.test(multiUi.details ?? ''), multiUi)
+      check('one pick out of two sends nothing', multiUi.disabledAtStart === true && multiUi.disabledAfterOne === true && log.length === sentBeforeMulti, multiUi)
+      check('Send is ready once every group has a pick', multiUi.disabledAfterBoth === false && multiUi.count === '2 of 2 chosen', multiUi)
+      await new Promise((r) => setTimeout(r, 300))
+      await idle(c6)
+      check('both picks sent as one message', chat.view(c6).path.at(-2)?.text === 'OUTFIT · Day 2 Morning: BOLD\nChoices (Morning): Stay in', chat.view(c6).path.at(-2)?.text)
+      await new Promise((r) => setTimeout(r, 400))
+      const multiAnswered = await win.webContents.executeJavaScript(`(() => {
+        const card = document.querySelectorAll('.choice-card')[0]
+        return [...card.querySelectorAll('.choice-picked .choice-text')].map((e) => e.textContent)
+      })()`)
+      check('answered multi-group card shows each pick', multiAnswered.join() === 'BOLD,Stay in', multiAnswered)
 
       // 28. Message actions: delete one, delete below, view, restore (also after writing more), edit, tok/s.
       const c5 = chat.create(null).id

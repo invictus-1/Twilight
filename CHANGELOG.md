@@ -19,7 +19,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
   - Delete a message, or right-click the trash to delete it and everything below it.
   - Undo straight after a delete, or open Recently deleted later to read or restore it. A restore after later messages comes back as another version.
 - Replies show tokens per second.
-- Choice cards from plain text: with Choices on, a numbered list at the end of a reply becomes a card.
+- Choice cards from plain text: with Choices on, numbered options at the end of a reply become a card when they look like a decision, either with a "Something else" option or under a title that asks ("What do you do?", "Choices (Night)"). Other numbered lists stay lists.
+- One reply can hold several decisions, such as an outfit and then what to do, or one per character. You pick in each one, and nothing sends until you press Send choices. Options keep the detail bullets written under them, and "Something else" becomes a box for your own words.
 - You can drag the sidebar edge and the split divider to resize them. Double-click either one to reset it.
 
 ## 0.1.0

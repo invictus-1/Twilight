@@ -27,7 +27,7 @@ What's done, what's next, and ideas we haven't committed to. Updated with every 
 - [x] Workspaces: pinned / workspaces / recent, drag to file, default system prompt + model + color per workspace
 - [x] Full markdown (tables, task lists, footnotes, code blocks with copy and collapse) plus safe HTML: collapsible `<details>` blocks (status cards), with scripts, images and event handlers stripped
 - [x] Game Format: copy a reply for RPG Maker with paragraphs joined, dividers optional, code and HTML blocks untouched
-- [x] Choice cards for text adventures: the model offers numbered options (any model, no tool calling needed); click one, edit it before sending, or write your own; answered cards show the pick; with Choices on, a plain numbered list at the end of a reply (from your own system prompt) becomes a card too
+- [x] Choice cards for text adventures: the model offers numbered options (any model, no tool calling needed); click one, edit it before sending, or write your own; answered cards show the pick; with Choices on, plain-text options from your own system prompt work too (a "Something else" option or a title that asks marks them as a decision; other lists stay lists), including several decisions in one reply with options that carry details
 - [x] **Judge**: two passages scored blind against a rubric by a judge model you choose, run in both orders, with shared context (system prompt, author prompt, reference files) cached across runs; "Judge A vs B" from split compare; a built-in General fiction rubric, your own rubrics (create, copy, import and export as files); reveal who wrote which after scoring
 - [x] 240Hz scrolling on a 350k-token chat (measured with `TWILIGHT_SELFTEST`)
 
@@ -40,6 +40,8 @@ What's done, what's next, and ideas we haven't committed to. Updated with every 
 - [x] Send a chat reply to Writing
 
 ## Next
+- [ ] Releases page: screenshots (demo data only) and a feature tour
+- [ ] A designed roadmap page
 - [ ] **Updates page**: check GitHub for a new release once a day (and on demand), show the installed version and when it was installed, update in one click, and roll back to any of the last 2–3 versions kept on disk. Needs a decision: releases on a public repo (no token) or a read-only GitHub token for the private one
 - [ ] Animated first-run welcome: the cover's bands slide in and the sun sets, flowing into setup (provider key or local server, writing folder, theme)
 - [ ] Choice cards: keyboard picks (1–9), a "suggest more options" button, and per-workspace default for adventure workspaces
