@@ -1,0 +1,64 @@
+/* Twilight — generated from design/tokens.json by scripts/tokens.mjs. Do not edit. */
+:root {
+  --night: #0b0d1c;
+  --surface: #111430;
+  --surface-raised: #191d40;
+  --surface-overlay: #21264f;
+  --surface-hover: #ffffff0d;
+  --line: #272c5a;
+  --line-strong: #6f77bd;
+  --ink: #eceefe;
+  --ink-muted: #a6abd8;
+  --ink-faint: #8a90c4;
+  --iris: #9497ff;
+  --iris-soft: #262b63;
+  --on-iris: #0b0d1c;
+  --dusk: #c4a0ff;
+  --dusk-soft: #2c2160;
+  --horizon: #ffb48a;
+  --horizon-soft: #3a2434;
+  --on-horizon: #0b0d1c;
+  --success: #5fd3a8;
+  --warning: #f5c76a;
+  --danger: #ff8b7e;
+  --danger-soft: #3b1c2c;
+  --on-danger: #0b0d1c;
+  --focus: var(--iris);
+  --pane-a: var(--iris);
+  --pane-b: var(--horizon);
+  --selection: #9497ff47;
+  --shadow-sm: 0 1px 2px #00000066;
+  --shadow-lg: 0 12px 32px -4px #000000b3, 0 0 0 1px #2c3266;
+  --focus-ring: 0 0 0 2px #111430, 0 0 0 4px #9497ff;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-full: 9999px;
+  --control-sm: 28px;
+  --control-md: 32px;
+  --titlebar: 40px;
+  --sidebar: 264px;
+  --thread: 760px;
+  --measure: 680px;
+  --font-sans: "Geist", ui-sans-serif, system-ui, "Segoe UI", sans-serif;
+  --font-serif: "Literata", "Iowan Old Style", Georgia, serif;
+  --font-mono: "Geist Mono", ui-monospace, "Cascadia Code", Menlo, monospace;
+}
+
+.t-display { font-family: var(--font-sans); font-size: 28px; line-height: 34px; font-weight: 600; letter-spacing: -0.02em; }
+.t-title { font-family: var(--font-sans); font-size: 18px; line-height: 26px; font-weight: 600; letter-spacing: -0.01em; }
+.t-heading { font-family: var(--font-sans); font-size: 14px; line-height: 20px; font-weight: 600; }
+.t-body { font-family: var(--font-sans); font-size: 14px; line-height: 22px; font-weight: 400; }
+.t-label { font-family: var(--font-sans); font-size: 13px; line-height: 18px; font-weight: 500; }
+.t-caption { font-family: var(--font-sans); font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: 0.01em; }
+.t-prose { font-family: var(--font-serif); font-size: 17px; line-height: 29px; font-weight: 400; }
+.t-prose-heading { font-family: var(--font-serif); font-size: 22px; line-height: 30px; font-weight: 600; }
+.t-code { font-family: var(--font-mono); font-size: 13px; line-height: 20px; font-weight: 400; }

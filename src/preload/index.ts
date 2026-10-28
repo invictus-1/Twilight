@@ -1,0 +1,36 @@
+import { contextBridge, ipcRenderer } from 'electron'
+import type { StreamEvent, TwilightApi } from '@shared/types'
+
+const invoke =
+  (name: keyof TwilightApi) =>
+  (...args: unknown[]) =>
+    ipcRenderer.invoke(`twilight:${name}`, ...args)
+
+const methods: Exclude<keyof TwilightApi, 'onStream'>[] = [
+  'listConversations',
+  'createConversation',
+  'openConversation',
+  'renameConversation',
+  'deleteConversation',
+  'updateChatSettings',
+  'send',
+  'regenerate',
+  'switchBranch',
+  'stop',
+  'listProviders',
+  'saveProvider',
+  'deleteProvider',
+  'listModels',
+  'getDefaults',
+  'setDefaults',
+  'openExternal'
+]
+
+const api = Object.fromEntries(methods.map((m) => [m, invoke(m)])) as unknown as TwilightApi
+api.onStream = (listener: (event: StreamEvent) => void) => {
+  const handler = (_e: Electron.IpcRendererEvent, event: StreamEvent): void => listener(event)
+  ipcRenderer.on('twilight:stream', handler)
+  return () => ipcRenderer.off('twilight:stream', handler)
+}
+
+contextBridge.exposeInMainWorld('twilight', api)
