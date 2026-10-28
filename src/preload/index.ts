@@ -17,6 +17,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream'>[] = [
   'regenerate',
   'switchBranch',
   'stop',
+  'cloneIntoSplit',
+  'closeSplit',
   'listProviders',
   'saveProvider',
   'deleteProvider',

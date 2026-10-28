@@ -1,5 +1,6 @@
-import type { CacheTtl, Effort } from '@shared/types'
-import { useStore } from '../store'
+import { useState } from 'react'
+import type { CacheTtl, ChatSettings, Effort, Pane } from '@shared/types'
+import { paneOf, useStore } from '../store'
 import { CloseIcon } from './Icons'
 
 const EFFORTS: (Effort | null)[] = [null, 'low', 'medium', 'high', 'xhigh', 'max']
@@ -7,14 +8,27 @@ const EFFORTS: (Effort | null)[] = [null, 'low', 'medium', 'high', 'xhigh', 'max
 export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
   const current = useStore((s) => s.current)!
   const providers = useStore((s) => s.providers)
-  const update = useStore((s) => s.updateSettings)
-  const { settings, started } = current
+  const [pane, setPane] = useState<Pane>('a')
+  const shown: Pane = current.split ? pane : 'a'
+  const { settings } = paneOf(current, shown)
+  const started = current.started
+  const update = (patch: Partial<ChatSettings>): Promise<void> => useStore.getState().updateSettings(patch, shown)
   const isClaude = providers.find((p) => p.id === settings.providerId)?.kind === 'anthropic'
 
   return (
-    <section className="panel" aria-label="Chat settings">
+    <section className="panel" aria-label="Chat settings" key={shown}>
       <div className="panel-head">
         <h2 className="t-heading">Chat settings</h2>
+        {current.split && (
+          <div className="tw-seg" role="group" aria-label="Pane">
+            <button className="tw-seg-a" aria-pressed={shown === 'a'} onClick={() => setPane('a')}>
+              A
+            </button>
+            <button className="tw-seg-b" aria-pressed={shown === 'b'} onClick={() => setPane('b')}>
+              B
+            </button>
+          </div>
+        )}
         <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Close" onClick={onClose}>
           <CloseIcon />
         </button>

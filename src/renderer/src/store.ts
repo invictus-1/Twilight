@@ -1,5 +1,14 @@
 import { create } from 'zustand'
-import type { ChatSettings, ConversationSummary, ConversationView, ModelInfo, NodeView, ProviderConfig } from '@shared/types'
+import type {
+  ChatSettings,
+  ConversationSummary,
+  ConversationView,
+  ModelInfo,
+  NodeView,
+  Pane,
+  ProviderConfig,
+  SendTarget
+} from '@shared/types'
 import { clearStream } from './stream'
 
 const api = window.twilight
@@ -10,6 +19,8 @@ interface State {
   models: ModelInfo[]
   providers: ProviderConfig[]
   defaults: ChatSettings | null
+  /** Where the composer sends while split compare is open. */
+  target: SendTarget
   sidebarOpen: boolean
   settingsOpen: boolean
   error: string | null
@@ -20,10 +31,13 @@ interface State {
   open(id: string): Promise<void>
   newChat(): Promise<void>
   send(text: string): Promise<void>
-  regenerate(nodeId: string): Promise<void>
-  switchBranch(nodeId: string, direction: -1 | 1): Promise<void>
-  stop(): Promise<void>
-  updateSettings(patch: Partial<ChatSettings>): Promise<void>
+  regenerate(nodeId: string, pane: Pane): Promise<void>
+  switchBranch(nodeId: string, direction: -1 | 1, pane: Pane): Promise<void>
+  stop(target?: SendTarget): Promise<void>
+  updateSettings(patch: Partial<ChatSettings>, pane?: Pane): Promise<void>
+  cloneIntoSplit(nodeId?: string): Promise<void>
+  closeSplit(keep: Pane): Promise<void>
+  setTarget(target: SendTarget): void
   deleteChat(id: string): Promise<void>
   renameChat(id: string, title: string): Promise<void>
   applyDone(conversationId: string, node: NodeView): void
@@ -42,133 +56,131 @@ async function guard<T>(set: (s: Partial<State>) => void, fn: () => Promise<T>):
   }
 }
 
-export const useStore = create<State>((set, get) => ({
-  conversations: [],
-  current: null,
-  models: [],
-  providers: [],
-  defaults: null,
-  sidebarOpen: true,
-  settingsOpen: false,
-  error: null,
-
-  async init() {
-    const [conversations, providers, defaults] = await Promise.all([
-      api.listConversations(),
-      api.listProviders(),
-      api.getDefaults()
-    ])
-    set({ conversations, providers, defaults })
-    if (conversations[0]) await get().open(conversations[0].id)
-    void get().refreshModels()
-  },
-
-  async refreshList() {
-    set({ conversations: await api.listConversations() })
-  },
-
-  async refreshModels(refresh = false) {
-    set({ models: await api.listModels(refresh) })
-  },
-
-  async open(id) {
-    const view = await guard(set, () => api.openConversation(id))
-    if (view) set({ current: view })
-  },
-
-  async newChat() {
-    const current = get().current
-    // Reuse an untouched chat instead of piling up empty ones.
-    if (current && current.path.length === 0) return
-    const view = await guard(set, () => api.createConversation())
-    if (!view) return
-    set({ current: view })
-    await get().refreshList()
-  },
-
-  async send(text) {
-    let current = get().current
-    if (!current) {
-      await get().newChat()
-      current = get().current
-      if (!current) return
-    }
-    const view = await guard(set, () => api.send(current.id, text))
-    if (view) set({ current: view })
-    await get().refreshList()
-  },
-
-  async regenerate(nodeId) {
+export const useStore = create<State>((set, get) => {
+  /** Runs a conversation call and shows its result. */
+  const withCurrent = async (fn: (id: string) => Promise<ConversationView>): Promise<void> => {
     const current = get().current
     if (!current) return
-    const view = await guard(set, () => api.regenerate(current.id, nodeId))
-    if (view) set({ current: view })
-  },
-
-  async switchBranch(nodeId, direction) {
-    const current = get().current
-    if (!current) return
-    const view = await guard(set, () => api.switchBranch(current.id, nodeId, direction))
-    if (view) set({ current: view })
-  },
-
-  async stop() {
-    const current = get().current
-    if (current) await api.stop(current.id)
-  },
-
-  async updateSettings(patch) {
-    const current = get().current
-    if (patch.modelId || patch.providerId) {
-      const defaults = await api.setDefaults({
-        ...(patch.modelId ? { modelId: patch.modelId } : {}),
-        ...(patch.providerId ? { providerId: patch.providerId } : {})
-      })
-      set({ defaults })
-    }
-    if (!current) return
-    const view = await guard(set, () => api.updateChatSettings(current.id, patch))
-    if (view) set({ current: view })
-  },
-
-  async deleteChat(id) {
-    await api.deleteConversation(id)
-    const conversations = await api.listConversations()
-    set({ conversations })
-    if (get().current?.id === id) {
-      set({ current: null })
-      if (conversations[0]) await get().open(conversations[0].id)
-    }
-  },
-
-  async renameChat(id, title) {
-    await api.renameConversation(id, title)
-    if (get().current?.id === id) set({ current: { ...get().current!, title } })
-    await get().refreshList()
-  },
-
-  applyDone(conversationId, node) {
-    const current = get().current
-    if (current?.id === conversationId) {
-      set({ current: { ...current, path: current.path.map((n) => (n.id === node.id ? node : n)) } })
-    }
-    clearStream(node.id)
-    void get().refreshList()
-  },
-
-  setProviders(providers) {
-    set({ providers })
-  },
-  toggleSidebar() {
-    set({ sidebarOpen: !get().sidebarOpen })
-  },
-  setSettingsOpen(open) {
-    set({ settingsOpen: open })
-  },
-  setError(error) {
-    set({ error })
+    const view = await guard(set, () => fn(current.id))
+    if (view && get().current?.id === view.id) set({ current: view })
   }
-}))
+
+  return {
+    conversations: [],
+    current: null,
+    models: [],
+    providers: [],
+    defaults: null,
+    target: 'both',
+    sidebarOpen: true,
+    settingsOpen: false,
+    error: null,
+
+    async init() {
+      const [conversations, providers, defaults] = await Promise.all([
+        api.listConversations(),
+        api.listProviders(),
+        api.getDefaults()
+      ])
+      set({ conversations, providers, defaults })
+      if (conversations[0]) await get().open(conversations[0].id)
+      void get().refreshModels()
+    },
+
+    async refreshList() {
+      set({ conversations: await api.listConversations() })
+    },
+
+    async refreshModels(refresh = false) {
+      set({ models: await api.listModels(refresh) })
+    },
+
+    async open(id) {
+      const view = await guard(set, () => api.openConversation(id))
+      if (view) set({ current: view })
+    },
+
+    async newChat() {
+      const current = get().current
+      // Reuse an untouched chat instead of piling up empty ones.
+      if (current && current.path.length === 0 && !current.split) return
+      const view = await guard(set, () => api.createConversation())
+      if (!view) return
+      set({ current: view })
+      await get().refreshList()
+    },
+
+    async send(text) {
+      if (!get().current) {
+        await get().newChat()
+        if (!get().current) return
+      }
+      const target = get().current!.split ? get().target : 'a'
+      await withCurrent((id) => api.send(id, text, target))
+      await get().refreshList()
+    },
+
+    regenerate: (nodeId, pane) => withCurrent((id) => api.regenerate(id, nodeId, pane)),
+    switchBranch: (nodeId, direction, pane) => withCurrent((id) => api.switchBranch(id, nodeId, direction, pane)),
+
+    async stop(target = 'both') {
+      const current = get().current
+      if (current) await api.stop(current.id, target)
+    },
+
+    async updateSettings(patch, pane = 'a') {
+      if (pane === 'a' && (patch.modelId || patch.providerId)) {
+        const defaults = await api.setDefaults({
+          ...(patch.modelId ? { modelId: patch.modelId } : {}),
+          ...(patch.providerId ? { providerId: patch.providerId } : {})
+        })
+        set({ defaults })
+      }
+      await withCurrent((id) => api.updateChatSettings(id, patch, pane))
+    },
+
+    cloneIntoSplit: (nodeId) => withCurrent((id) => api.cloneIntoSplit(id, nodeId)),
+    closeSplit: (keep) => withCurrent((id) => api.closeSplit(id, keep)),
+    setTarget: (target) => set({ target }),
+
+    async deleteChat(id) {
+      await api.deleteConversation(id)
+      const conversations = await api.listConversations()
+      set({ conversations })
+      if (get().current?.id === id) {
+        set({ current: null })
+        if (conversations[0]) await get().open(conversations[0].id)
+      }
+    },
+
+    async renameChat(id, title) {
+      await api.renameConversation(id, title)
+      if (get().current?.id === id) set({ current: { ...get().current!, title } })
+      await get().refreshList()
+    },
+
+    applyDone(conversationId, node) {
+      const current = get().current
+      if (current?.id === conversationId) {
+        const swap = (path: NodeView[]): NodeView[] => path.map((n) => (n.id === node.id ? node : n))
+        set({
+          current: {
+            ...current,
+            path: swap(current.path),
+            split: current.split ? { ...current.split, path: swap(current.split.path) } : null
+          }
+        })
+      }
+      clearStream(node.id)
+      void get().refreshList()
+    },
+
+    setProviders: (providers) => set({ providers }),
+    toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
+    setSettingsOpen: (open) => set({ settingsOpen: open }),
+    setError: (error) => set({ error })
+  }
+})
 
 export function modelName(models: ModelInfo[], id: string | undefined): string {
   if (!id) return 'No model'
@@ -177,4 +189,9 @@ export function modelName(models: ModelInfo[], id: string | undefined): string {
   // Offline or before the model list loads: "claude-opus-5-5" reads as "Claude Opus 5.5".
   const m = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?$/.exec(id)
   return m ? `Claude ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}` : id
+}
+
+/** The path and settings shown in a pane. */
+export function paneOf(current: ConversationView, pane: Pane): { path: NodeView[]; settings: ChatSettings } {
+  return pane === 'b' && current.split ? current.split : { path: current.path, settings: current.settings }
 }

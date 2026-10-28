@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
-import { useStore } from '../store'
+import { usePane } from '../pane'
+import { paneOf, useStore } from '../store'
 import { subscribeStream } from '../stream'
 import { Message } from './Message'
 
@@ -9,7 +10,8 @@ import { Message } from './Message'
 // coming into view lays out alone. Measured with `TWILIGHT_SELFTEST` (src/main/selftest.ts).
 
 export function Thread() {
-  const path = useStore((s) => s.current!.path)
+  const pane = usePane()
+  const path = useStore((s) => paneOf(s.current!, pane).path)
   const scroller = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const sentinel = useRef<HTMLDivElement>(null)

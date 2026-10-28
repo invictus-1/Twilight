@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { modelName, useStore } from '../store'
+import { usePane } from '../pane'
+import { modelName, paneOf, useStore } from '../store'
 import { CheckIcon, ChevronDown, ChipIcon, CloudIcon, RefreshIcon } from './Icons'
 
-export function ModelPicker() {
+/** The model chip and its menu. Opens upward from the composer, downward from a pane header. */
+export function ModelPicker({ placement = 'up' }: { placement?: 'up' | 'down' }) {
+  const pane = usePane()
   const [open, setOpen] = useState(false)
   const [filter, setFilter] = useState('')
   const root = useRef<HTMLDivElement>(null)
   const models = useStore((s) => s.models)
   const providers = useStore((s) => s.providers)
-  const settings = useStore((s) => s.current?.settings ?? s.defaults)
-  const started = useStore((s) => (s.current?.path.length ?? 0) > 0)
+  const settings = useStore((s) => (s.current ? paneOf(s.current, pane).settings : s.defaults))
+  const started = useStore((s) => (s.current ? paneOf(s.current, pane).path.length > 0 : false))
 
   useEffect(() => {
     if (!open) return
@@ -32,7 +35,7 @@ export function ModelPicker() {
   }, [providers, models, filter])
 
   const pick = (providerId: string, modelId: string): void => {
-    void useStore.getState().updateSettings({ providerId, modelId })
+    void useStore.getState().updateSettings({ providerId, modelId }, pane)
     setOpen(false)
   }
 
@@ -43,7 +46,7 @@ export function ModelPicker() {
         <ChevronDown size={14} className="chip-chevron" />
       </button>
       {open && (
-        <div className="tw-menu picker-menu" role="listbox">
+        <div className={`tw-menu picker-menu picker-${placement}`} role="listbox">
           <div className="picker-search">
             <input autoFocus placeholder="Filter models" value={filter} onChange={(e) => setFilter(e.target.value)} />
             <button

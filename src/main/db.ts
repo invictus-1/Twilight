@@ -33,6 +33,8 @@ export interface ConversationRow {
   root_id: string
   settings: string
   started: number
+  /** Split compare: pane B's leaf node and settings (JSON), or null. */
+  split: string | null
 }
 
 let db: Database.Database
@@ -72,6 +74,8 @@ export function openDatabase(file: string): void {
     CREATE INDEX IF NOT EXISTS conversations_updated ON conversations(updated_at DESC);
     CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
   `)
+  const columns = (db.prepare('PRAGMA table_info(conversations)').all() as { name: string }[]).map((c) => c.name)
+  if (!columns.includes('split')) db.exec('ALTER TABLE conversations ADD COLUMN split TEXT')
   // A crash mid-stream leaves "streaming" rows behind; they are stopped, not lost.
   db.prepare(`UPDATE nodes SET status = 'stopped' WHERE status = 'streaming'`).run()
 }
@@ -117,7 +121,10 @@ export function createConversation(settings: ChatSettings): ConversationRow {
   return getConversation(id)
 }
 
-export function updateConversation(id: string, fields: Partial<Pick<ConversationRow, 'title' | 'settings' | 'started'>>): void {
+export function updateConversation(
+  id: string,
+  fields: Partial<Pick<ConversationRow, 'title' | 'settings' | 'started' | 'split'>>
+): void {
   const sets = Object.keys(fields).map((k) => `${k} = @${k}`)
   db.prepare(`UPDATE conversations SET ${[...sets, 'updated_at = @now'].join(', ')} WHERE id = @id`).run({
     ...fields,
@@ -135,14 +142,21 @@ export function loadNodes(conversationId: string): Map<string, NodeRow> {
   return new Map(rows.map((r) => [r.id, r]))
 }
 
-export function insertNode(node: Omit<NodeRow, 'active_child_id' | 'created_at'> & { created_at?: number }): NodeRow {
+/**
+ * Adds a node. By default it becomes its parent's active child (pane A's thread follows it);
+ * pane B passes activate: false so its new branches never redirect pane A.
+ */
+export function insertNode(
+  node: Omit<NodeRow, 'active_child_id' | 'created_at'> & { created_at?: number },
+  { activate = true }: { activate?: boolean } = {}
+): NodeRow {
   const row: NodeRow = { active_child_id: null, created_at: Date.now(), ...node }
   db.transaction(() => {
     db.prepare(
       `INSERT INTO nodes (id, conversation_id, parent_id, role, text, content, thinking, model, provider_id, usage, status, error, active_child_id, created_at)
        VALUES (@id, @conversation_id, @parent_id, @role, @text, @content, @thinking, @model, @provider_id, @usage, @status, @error, @active_child_id, @created_at)`
     ).run(row)
-    if (row.parent_id) setActiveChild(row.parent_id, row.id)
+    if (row.parent_id && activate) setActiveChild(row.parent_id, row.id)
   })()
   return row
 }
@@ -169,6 +183,20 @@ export function activePath(conversation: ConversationRow, nodes: Map<string, Nod
     current = current.active_child_id ? nodes.get(current.active_child_id) : undefined
   }
   return path
+}
+
+/** Root to `leafId`, inclusive. */
+export function ancestors(nodes: Map<string, NodeRow>, leafId: string): NodeRow[] {
+  const path: NodeRow[] = []
+  for (let n = nodes.get(leafId); n; n = n.parent_id ? nodes.get(n.parent_id) : undefined) path.unshift(n)
+  return path
+}
+
+/** Follows active children down from `nodeId` to the most recently used leaf. */
+export function descend(nodes: Map<string, NodeRow>, nodeId: string): string {
+  let current = nodes.get(nodeId)
+  while (current?.active_child_id && nodes.has(current.active_child_id)) current = nodes.get(current.active_child_id)
+  return current?.id ?? nodeId
 }
 
 export function childrenOf(nodes: Map<string, NodeRow>, parentId: string): NodeRow[] {

@@ -1,14 +1,16 @@
 import { app, BrowserWindow, ipcMain, Menu, session, shell } from 'electron'
 import { join } from 'node:path'
-import type { TwilightApi } from '@shared/types'
+import type { Pane, SendTarget, TwilightApi } from '@shared/types'
 import * as chat from './chat'
 import * as db from './db'
 import * as providers from './providers'
+import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
 const selfTestDir = process.env.TWILIGHT_SELFTEST
-if (selfTestDir) prepareSelfTest(selfTestDir)
+const e2eDir = process.env.TWILIGHT_E2E
+if (selfTestDir || e2eDir) prepareSelfTest((selfTestDir ?? e2eDir)!)
 
 function isWebUrl(url: string): boolean {
   return /^https?:\/\//i.test(url)
@@ -73,14 +75,17 @@ function registerIpc(): void {
     openConversation: (_e, id: string) => chat.view(id),
     renameConversation: (_e, id: string, title: string) => db.updateConversation(id, { title }),
     deleteConversation: (_e, id: string) => {
-      chat.stop(id)
+      chat.stop(id, 'both')
       db.deleteConversation(id)
     },
-    updateChatSettings: (_e, id: string, patch) => chat.updateSettings(id, patch),
-    send: (e, id: string, text: string) => chat.send(e.sender, id, text),
-    regenerate: (e, id: string, nodeId: string) => chat.regenerate(e.sender, id, nodeId),
-    switchBranch: (_e, id: string, nodeId: string, direction: -1 | 1) => chat.switchBranch(id, nodeId, direction),
-    stop: (_e, id: string) => chat.stop(id),
+    updateChatSettings: (_e, id: string, patch, pane?: Pane) => chat.updateSettings(id, patch, pane),
+    send: (e, id: string, text: string, target?: SendTarget) => chat.send(e.sender, id, text, target),
+    regenerate: (e, id: string, nodeId: string, pane?: Pane) => chat.regenerate(e.sender, id, nodeId, pane),
+    switchBranch: (_e, id: string, nodeId: string, direction: -1 | 1, pane?: Pane) =>
+      chat.switchBranch(id, nodeId, direction, pane),
+    stop: (_e, id: string, target?: SendTarget) => chat.stop(id, target),
+    cloneIntoSplit: (_e, id: string, nodeId?: string) => chat.cloneIntoSplit(id, nodeId),
+    closeSplit: (_e, id: string, keep: Pane) => chat.closeSplit(id, keep),
     listProviders: () => providers.getProviders(),
     saveProvider: (_e, config, apiKey?: string) => providers.saveProvider(config, apiKey),
     deleteProvider: (_e, id: string) => providers.deleteProvider(id),
@@ -104,6 +109,7 @@ app.whenReady().then(() => {
   if (selfTestDir) seedSelfTest()
   const win = createWindow()
   if (selfTestDir) runSelfTest(win, selfTestDir)
+  if (e2eDir) runE2E(win, e2eDir)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

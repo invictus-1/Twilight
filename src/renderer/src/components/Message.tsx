@@ -2,9 +2,10 @@ import { memo, useState, useSyncExternalStore } from 'react'
 import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import type { NodeView } from '@shared/types'
 import { renderMarkdown, renderMarkdownLive } from '../markdown'
-import { modelName, useStore } from '../store'
+import { usePane } from '../pane'
+import { modelName, paneOf, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
-import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, RefreshIcon } from './Icons'
+import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, RefreshIcon, SplitIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -42,15 +43,16 @@ function UserMessage({ node }: { node: NodeView }) {
 }
 
 function BranchSwitcher({ node }: { node: NodeView }) {
+  const pane = usePane()
   if (node.siblingCount < 2) return null
-  const switchBranch = useStore.getState().switchBranch
+  const switchBranch = (direction: -1 | 1): void => void useStore.getState().switchBranch(node.id, direction, pane)
   return (
     <span className="tw-branch" role="group" aria-label={`Version ${node.siblingIndex + 1} of ${node.siblingCount}`}>
       <button
         className="tw-btn tw-btn-ghost tw-btn-icon"
         aria-label="Previous version"
         disabled={node.siblingIndex === 0}
-        onClick={() => void switchBranch(node.id, -1)}
+        onClick={() => switchBranch(-1)}
       >
         <ChevronLeft size={14} />
       </button>
@@ -59,7 +61,7 @@ function BranchSwitcher({ node }: { node: NodeView }) {
         className="tw-btn tw-btn-ghost tw-btn-icon"
         aria-label="Next version"
         disabled={node.siblingIndex === node.siblingCount - 1}
-        onClick={() => void switchBranch(node.id, 1)}
+        onClick={() => switchBranch(1)}
       >
         <ChevronRight size={14} />
       </button>
@@ -113,7 +115,8 @@ function UsageLine({ node }: { node: NodeView }) {
 
 function AssistantMessage({ node }: { node: NodeView }) {
   const models = useStore((s) => s.models)
-  const showThinking = useStore((s) => s.current?.settings.showThinking ?? false)
+  const pane = usePane()
+  const showThinking = useStore((s) => (s.current ? paneOf(s.current, pane).settings.showThinking : false))
   const streaming = node.status === 'streaming'
   return (
     <div className="msg tw-msg-ai" style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
@@ -159,10 +162,20 @@ function AssistantMessage({ node }: { node: NodeView }) {
               className="tw-btn tw-btn-ghost tw-btn-icon"
               aria-label="Regenerate"
               title="Regenerate (adds a new version)"
-              onClick={() => void useStore.getState().regenerate(node.id)}
+              onClick={() => void useStore.getState().regenerate(node.id, pane)}
             >
               <RefreshIcon />
             </button>
+            {pane === 'a' && (
+              <button
+                className="tw-btn tw-btn-ghost tw-btn-icon"
+                aria-label="Clone into split"
+                title="Clone into split (Ctrl+Shift+S)"
+                onClick={() => void useStore.getState().cloneIntoSplit(node.id)}
+              >
+                <SplitIcon />
+              </button>
+            )}
           </div>
           <UsageLine node={node} />
         </div>

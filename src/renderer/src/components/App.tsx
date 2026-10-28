@@ -32,6 +32,12 @@ export function App() {
       } else if (e.ctrlKey && e.key === ',') {
         e.preventDefault()
         s.setSettingsOpen(true)
+      } else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') {
+        e.preventDefault()
+        if (s.current?.path.length) void (s.current.split ? s.closeSplit('a') : s.cloneIntoSplit())
+      } else if (e.altKey && ['1', '2', '3'].includes(e.key) && s.current?.split) {
+        e.preventDefault()
+        s.setTarget(e.key === '1' ? 'a' : e.key === '2' ? 'b' : 'both')
       } else if (e.key === 'Escape') {
         if (s.settingsOpen) s.setSettingsOpen(false)
         else void s.stop()

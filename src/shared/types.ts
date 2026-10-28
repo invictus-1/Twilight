@@ -73,6 +73,15 @@ export interface ConversationSummary {
   modelId: string
 }
 
+/** Split compare: A is the conversation's main thread, B a second branch of the same tree. */
+export type Pane = 'a' | 'b'
+export type SendTarget = Pane | 'both'
+
+export interface PaneView {
+  settings: ChatSettings
+  path: NodeView[]
+}
+
 export interface ConversationView {
   id: string
   title: string
@@ -80,6 +89,8 @@ export interface ConversationView {
   /** True once the system prompt is frozen into the conversation. */
   started: boolean
   path: NodeView[]
+  /** Pane B while split compare is open. */
+  split: PaneView | null
 }
 
 export type StreamEvent =
@@ -93,11 +104,15 @@ export interface TwilightApi {
   openConversation(id: string): Promise<ConversationView>
   renameConversation(id: string, title: string): Promise<void>
   deleteConversation(id: string): Promise<void>
-  updateChatSettings(id: string, patch: Partial<ChatSettings>): Promise<ConversationView>
-  send(id: string, text: string): Promise<ConversationView>
-  regenerate(id: string, assistantNodeId: string): Promise<ConversationView>
-  switchBranch(id: string, nodeId: string, direction: -1 | 1): Promise<ConversationView>
-  stop(id: string): Promise<void>
+  updateChatSettings(id: string, patch: Partial<ChatSettings>, pane?: Pane): Promise<ConversationView>
+  send(id: string, text: string, target?: SendTarget): Promise<ConversationView>
+  regenerate(id: string, assistantNodeId: string, pane?: Pane): Promise<ConversationView>
+  switchBranch(id: string, nodeId: string, direction: -1 | 1, pane?: Pane): Promise<ConversationView>
+  stop(id: string, target?: SendTarget): Promise<void>
+  /** Opens split compare with pane B as a copy of pane A at `nodeId` (default: A's latest message). */
+  cloneIntoSplit(id: string, nodeId?: string): Promise<ConversationView>
+  /** Closes split compare, continuing on the kept pane's branch. */
+  closeSplit(id: string, keep: Pane): Promise<ConversationView>
   onStream(listener: (event: StreamEvent) => void): () => void
 
   listProviders(): Promise<ProviderConfig[]>
