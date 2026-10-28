@@ -4,11 +4,19 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
-### 0.3.1 · October 2026
+### 0.4.0 · October 2026
+- [x] **Writer insights** · Writing — dashboard, heatmap, word analysis and characters for the whole writing folder, counted as files grow
+- [x] **Achievements** · Writing — 43 of them, earned quietly, one notice at a time
+- [x] **Story analysis** · Writing — content, genres, tags and themes by a model you choose; deep scans never re-bill unchanged text
+- [x] **Focus and Insights** · Writing — things to work on, and what your numbers say about how you write
+- [x] **Reports** · Writing — week, month, year and all-time recaps as single HTML files
+- [x] **Ultraviolet theme** · Core — deep violet with magenta and pink
+- [x] **Tools menu** · Chat — every choice switch in one place, with hover help
+- [x] **Models start hidden** · Core — tick the models you want in the picker
 - [x] **Clearer key errors** · Core — pasted keys cleaned up; a rejected key described by its kind, never shown
 - [x] **Providers, two panes** · Core — a provider list beside the selected provider's connection and model grid
 - [x] **Roadmap page** · Core — this page: a release timeline, cards by area, and ideas
-- [x] **Releases page tour** · Core — screenshots made from demo data and a feature tour
+- [x] **Open source** · Core — source, releases and a feature tour in one public repository
 
 ### 0.3.0 · October 2026
 - [x] **Choices as a tool call** · Chat — the model calls present_choices with the options as data; the pick goes back as the tool result
@@ -42,7 +50,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Installer** · Core — Windows installer and portable zip, with Twilight artwork
 
 ## Next
-- [~] **Your feedback on 0.3** · Core — fixes from real use of the updater, tool-call choices and the new providers page
+- [~] **Your feedback on 0.4** · Core — fixes from real use of Writer insights, the updater and the Tools menu
 - [ ] **Welcome** · Core — an animated first run: the cover's bands slide in, the sun sets, and setup follows (a provider or local server, a writing folder)
 - [ ] **Command menu** · Core — Ctrl+K for everything, Ctrl+/ for the shortcut sheet, rebindable keys
 - [ ] **Search everything** · Core — every chat and document at once (Ctrl+Shift+F)
@@ -63,9 +71,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Later
 - [ ] **Tools and MCP** · Chat — web search, web fetch, date and time, image generation, switched on per chat
 - [ ] **Agents and code** · Chat — an agent loop for any model with tool calling, with approvals and diffs
-- [ ] **Themes** · Core — Midnight, Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, and a theme builder
+- [ ] **More themes** · Core — Midnight, Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, and a theme builder
 - [ ] **Motion** · Core — a startup animation, a retro home screen, transitions between pages
-- [ ] **Stats** · Core — words, tokens, spend, active days and streaks; quiet achievements
+- [ ] **Usage stats** · Core — tokens and spend over time, by model and by chat
 - [ ] **Personas and prompts** · Chat — a library of personas and prompts
 - [ ] **Split differences** · Chat — see what changed between the two panes
 - [ ] **Document library** · Writing — retrieval over very large collections with local embeddings

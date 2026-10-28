@@ -1022,7 +1022,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards > 10 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.3.1,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-roadmap.png'), img.toPNG()), () => undefined)
 
@@ -1054,6 +1054,12 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await insights.scan()
       ins = insights.summary()
       check('writing it back counts again', ins.today === grown + grown - 3, { today: ins.today, grown })
+      const pasteDoc = await docs.createDoc('Pasted chapter')
+      await insights.scan()
+      const beforePaste = insights.summary().today
+      await docs.writeDoc(pasteDoc.path, 'paste '.repeat(21000))
+      await insights.scan()
+      check('pasting a novel into an existing file is not writing', insights.summary().today === beforePaste, { before: beforePaste, after: insights.summary().today })
       await insights.setCharacters([
         { name: 'Wren', aliases: [], color: '' },
         { name: 'Rowan', aliases: ['Ro'], color: '#ffb48a' }

@@ -68,7 +68,13 @@ Markdown documents in any folder you choose (an Obsidian vault works as is). A 1
 
 ### Writer insights
 
+![Writer insights: words written today, this week, month and year, streak, best day, and the last 14 days](docs/screenshots/insights.png)
+
 Your writing folder, seen as numbers: words written today, this week and this year; a heatmap of the days you write; streaks and your best day; sentence length, dialogue share, adverb density and vocabulary; which characters get the most page time and who shares scenes with whom. The first scan of a folder is a baseline, so a finished manuscript isn't counted as one day's writing. Achievements unlock quietly along the way.
+
+![Story analysis: a summary, the content breakdown and genres, read by a model you choose](docs/screenshots/story.png)
+
+With a model you choose, **Story analysis** reads what your story is made of (content, genres, tags, themes); a deep scan never pays twice for text that hasn't changed. **Focus** suggests a few things to work on, with quotes and an exercise, and **Insights** reads your habits from the numbers alone. **Reports** turn a week, month, year or everything into a single HTML recap. And when the dark blue gets old, there's an **Ultraviolet** theme.
 
 ### Your models, your keys
 

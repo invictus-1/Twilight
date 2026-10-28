@@ -6,6 +6,8 @@ import { join } from 'node:path'
 import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
+import * as insights from './insights'
+import * as insightsAi from './insightsAi'
 import * as judge from './judge'
 import * as providers from './providers'
 import * as updates from './updates'
@@ -124,6 +126,62 @@ On the evening the green light came, she had counted to nine boats and stopped, 
 The lamp was lit at six forty-two. The wind came from the north-east. Wren wrote both in the logbook in her careful, slanting hand, and then she looked up, and the sea was looking back.
 `
 
+// Paragraphs for the demo manuscript: shuffled into chapters so the numbers have something to count.
+const DEMO_PARAGRAPHS = [
+  'Wren counted the steps again, though she knew the number. A hundred and twelve. The count was a rope she could hold in the dark.',
+  '"Is it burning?" Grandmother called from the bottom of the stair. "It\'s burning," Wren said, and the old woman went back to her chair.',
+  'Rowan came up the path at dusk with a basket of bread and news from the quay. The tenth boat was late. The eleventh had not been seen since noon.',
+  'The lens turned. The light swept the Teeth, the Molar, the Two Sisters, and out past them the long dark water where the fishing grounds began.',
+  '"You count too much," Rowan said. "Somebody has to," said Wren. Below them the harbour bells answered each other across the water.',
+  'In the morning the sea was flat and grey and innocent, as if it had never stood up in the night and tried to climb the rocks.',
+  'Grandmother kept a ledger of every ship that had passed the point in forty years. Wren read it by lamplight, slowly, the way other children read stories.',
+  'The green light came back on the third night. Wren wrote its bearing in the margin, carefully, and did not tell anyone at all.'
+]
+
+function demoChapter(n: number): string {
+  const out: string[] = [`# Chapter ${n}`]
+  for (let i = 0; i < 70; i++) out.push(DEMO_PARAGRAPHS[(i * (n + 3) + n) % DEMO_PARAGRAPHS.length])
+  return out.join('\n\n') + '\n'
+}
+
+const DEMO_STORY = {
+  breakdown: { Drama: 34, Mystery: 22, 'Slice of Life': 18, Worldbuilding: 14, Adventure: 8, Romance: 4 },
+  genres: { Mystery: 82, Drama: 78, Fantasy: 64, 'Slice of Life': 52, Adventure: 40, 'Coming of age': 36 },
+  tags: [
+    { name: 'The sea', sub: ['Storms', 'Tides', 'Shipwrecks', 'Fishing'] },
+    { name: 'Family', sub: ['Grandparents', 'Absent parents', 'Inheritance'] },
+    { name: 'Mystery', sub: ['Strange lights', 'Secrets', 'Logbooks'] },
+    { name: 'Place', sub: ['Lighthouses', 'Harbour towns', 'Coastal rocks'] }
+  ],
+  themes: [
+    { name: 'Counting as courage', description: 'Wren holds fear at bay by counting what she can. The story asks what happens when something refuses to be counted.' },
+    { name: 'Keeping the light', description: 'Tending the lamp is duty passed between generations. Each keeper inherits the work and the silence that comes with it.' },
+    { name: 'What the sea returns', description: 'Boats, objects and memories come back changed. The harbour measures time by what it gets back.' },
+    { name: 'Secrets kept for others', description: 'Characters hide things to protect someone else. The cost of that kindness grows with every chapter.' }
+  ],
+  tone: 'Hushed, precise and patient, with a cold undertow.',
+  summary: 'An eleven-year-old keeper of a lighthouse counts everything she can, until a green light appears where none should be. As boats go missing, she and her grandmother keep the lamp burning while the harbour town pretends not to notice.'
+}
+
+const DEMO_FOCUS = {
+  strength: 'Your scenes are grounded in specific, physical detail: the count of steps, the bearing in the margin.',
+  areas: [
+    { title: 'Vary how paragraphs open', why: 'Many paragraphs begin with a name followed by a verb. Over a chapter the rhythm flattens.', evidence: ['Wren counted the steps again'], exercise: 'Rewrite five openings so they start with place, sound or time.' },
+    { title: 'Let silences carry the scene', why: 'Dialogue resolves quickly. A beat of quiet before an answer would raise the tension.', evidence: ['"It\'s burning," Wren said'], exercise: 'Add one unspoken beat to each exchange in your next scene.' },
+    { title: 'Name the green light less', why: 'The mystery weakens with every direct mention. Show its effects instead.', evidence: ['The green light came back on the third night'], exercise: 'Cut half its mentions and replace them with what Wren does.' }
+  ]
+}
+
+const DEMO_NOTES = {
+  observations: [
+    { title: 'An evening writer', text: 'Most of your words land between 8 and 11 pm, and your longest sessions start after 9.' },
+    { title: 'Weekends carry the load', text: 'Saturdays and Sundays hold nearly half your words, with shorter, steadier sessions on weekdays.' },
+    { title: 'Wren holds the stage', text: 'Wren is in most scenes. Grandmother and Rowan appear mostly beside her rather than on their own.' },
+    { title: 'Dialogue in short bursts', text: 'A fifth of your prose is spoken, usually in quick two-line exchanges.' }
+  ],
+  nextStep: 'Write one scene this week from Rowan\'s point of view, without Wren in it.'
+}
+
 function json(res: ServerResponse, body: unknown): void {
   res.setHeader('content-type', 'application/json')
   res.end(JSON.stringify(body))
@@ -159,6 +217,12 @@ function startServer(): Promise<Server> {
       let reply: string
       if (system.startsWith('You are a line editor')) {
         reply = 'Wren counted everything. The steps to the lamp room, a hundred and twelve. The boats, eleven when the weather was kind. The gulls on the rail, which changed, which was the trouble with gulls.'
+      } else if (system.startsWith('You analyse a long work')) {
+        reply = JSON.stringify(DEMO_STORY)
+      } else if (system.startsWith('You are a candid, encouraging writing coach')) {
+        reply = JSON.stringify(DEMO_FOCUS)
+      } else if (system.startsWith("You read a writer's own statistics")) {
+        reply = JSON.stringify(DEMO_NOTES)
       } else if (system.startsWith('You are an exacting fiction editor')) {
         reply = judgeReply(system, lastUser)
       } else if (lastUser.includes('storm') && parsed.model === 'demo-editor') {
@@ -296,6 +360,33 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
       const notes = await docs.createDoc('Characters', 'The Lantern Coast')
       await docs.writeDoc(notes.path, '# Characters\n\n- **Wren**, eleven. Counts everything.\n- **Grandmother**, kept the light for forty years.\n')
 
+      // Insights: a few chapters, read once as the baseline, then an invented month of writing.
+      for (let n = 3; n <= 8; n++) {
+        const doc = await docs.createDoc(`Chapter ${n}`, 'The Lantern Coast')
+        await docs.writeDoc(doc.path, demoChapter(n))
+      }
+      await insights.scan()
+      await insights.setCharacters([
+        { name: 'Wren', aliases: [], color: '#c4a0ff' },
+        { name: 'Grandmother', aliases: [], color: '#ffb48a' },
+        { name: 'Rowan', aliases: [], color: '#7dd3fc' }
+      ])
+      const h = db.handle()
+      const today = new Date()
+      for (let i = 34; i >= 0; i--) {
+        if ([3, 9, 10, 17, 24, 25, 31].includes(i)) continue
+        const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - i)
+        const words = Math.round(600 + ((i * 7919) % 2300) + (d.getDay() % 6 === 0 ? 1400 : 0))
+        h.prepare('INSERT OR REPLACE INTO writing_days (day, written, removed) VALUES (?, ?, 0)').run(insights.dayOf(d), words)
+      }
+      db.kvSet('insights.since', insights.dayOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 34)))
+      db.kvSet('insights.hours', [120, 40, 0, 0, 0, 0, 0, 80, 300, 420, 380, 260, 180, 220, 310, 290, 340, 520, 760, 1480, 2210, 2650, 1890, 640])
+      await insights.scan()
+      insightsAi.setConfig({ providerId: 'demo', modelId: 'demo-editor', effort: null })
+      await insightsAi.runStory('quick', '')
+      await insightsAi.runFocus()
+      await insightsAi.runNotes()
+
       win.webContents.reload()
       await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
       await wait(900)
@@ -346,6 +437,14 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
 
       await js(`[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Updates'))?.click()`)
       await shot('updates')
+
+      // Insights pages, with the achievements notice from the invented month dismissed.
+      await js(`document.querySelector('.ach-toast [aria-label="Dismiss"]')?.click(); document.querySelector('[data-mode="insights"]').click(); await wait(600)`)
+      await shot('insights')
+      await js(`[...document.querySelectorAll('.insights-nav-item')].find((b) => b.textContent.startsWith('Story analysis'))?.click(); await wait(700)`)
+      await shot('story')
+      await js(`[...document.querySelectorAll('.insights-nav-item')].find((b) => b.textContent.startsWith('Characters'))?.click(); await wait(500)`)
+      await shot('characters')
       writeFileSync(join(outDir, 'showcase.json'), JSON.stringify({ ok: true }))
     } catch (err) {
       writeFileSync(join(outDir, 'showcase.json'), JSON.stringify({ ok: false, error: String(err) }))

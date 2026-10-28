@@ -2,7 +2,33 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
-## 0.3.1
+## 0.4.0
+
+**Writer insights** (a new tab)
+- Your writing folder seen as numbers:
+  - **Dashboard:** words written today, this week, month and year; your streak and best day; the last 14 days.
+  - **Heatmap:** every day of the year you wrote, plus the hours you write in.
+  - **Word analysis:** sentence length, dialogue share, adverb density, vocabulary, most used words.
+  - **Characters:** screen time, who shares scenes with whom, where each one lives. Names are suggested from your text; aliases count as the same character.
+- Words written are measured as your files grow, so they count wherever you write: in Twilight, Obsidian or anything else.
+  - The first scan is a baseline: a finished manuscript isn't "written today".
+  - A big new file is treated as an import, and cutting text never counts against you.
+- Files are read in the background, and only the ones that changed. Millions of words take seconds.
+- **Achievements:** 43 of them. Ones you'd already earned unlock quietly; new ones share a single notice.
+- **Story analysis** (AI):
+  - A quick sample, or a deep scan of every word, giving content breakdown, genres, tags with subtags, themes and a summary.
+  - The deep scan never pays twice for text that hasn't changed, and you see the cost estimate first.
+- **Focus** (AI): a few concrete things to work on, with quotes from your recent writing and an exercise for each.
+- **Insights** (AI): observations about your habits and rhythms, from your statistics only. No manuscript text is sent.
+- **Reports:** week, month, year and all-time recaps as single HTML files that open in your browser, optionally with your saved AI results.
+
+**Look and feel**
+- New **Ultraviolet** theme (Settings → General → Appearance): deep violet with magenta and pink. The window frame follows.
+- **Tools** menu in the composer: choice cards, the choice-menu tool, how choices are read, and the how-to, all in one place. Choices and Tools explain themselves when you hover.
+- **Model providers, redesigned:** providers on the left; the one you pick fills the right with its connection settings and a grid of its models. A provider without models shows the steps to get some.
+- **Models start hidden:** tick the ones you want in the picker, with Show all and Hide all. After updating, only the model you're using stays ticked.
+- **Roadmap page** in Settings: what has shipped, what's next and what's later, as a timeline and cards.
+- Clicking a tab while Settings is open now closes Settings.
 
 **Clearer API key problems**
 - A pasted key is cleaned up before it's saved: an `ANTHROPIC_API_KEY=` or `x-api-key:` prefix, `Bearer`, quotes, and spaces or line breaks from copying. Keys you already saved are cleaned too.
@@ -12,12 +38,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
   - or a real API key that's been revoked or deleted.
 - An Anthropic endpoint written with `/v1` at the end now works; Twilight no longer doubles it.
 
-**Model providers, redesigned**
-- Providers are listed on the left. The one you pick fills the right side: connection settings side by side, then its models as a grid of cards.
-- A provider without models shows the steps to get them instead of an empty box.
-
-**Roadmap**
-- New Settings → Roadmap page: what has shipped (a timeline of releases), what's next, what's later and the ideas, filterable by area.
+**One repository**
+- Twilight's source, releases and this changelog now live together at github.com/invictus-1/twilight, and updates come from its releases. If you have an earlier version, install this one by hand once.
 
 ## 0.3.0
 

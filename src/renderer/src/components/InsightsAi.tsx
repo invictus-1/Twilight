@@ -241,7 +241,8 @@ function StoryPage({ ai, s }: { ai: AiState; s: InsightsSummary }) {
   const run = (mode: 'quick' | 'deep'): void => {
     void window.twilight.runStory(mode, scope).catch((err) => useStore.getState().setError(errText(err)))
   }
-  const cost = (e: StoryEstimate | null): string => (e?.costUsd != null ? `about ${formatCost(e.costUsd)}` : 'cost unknown for this model')
+  const cost = (e: StoryEstimate | null): string =>
+    e?.costUsd == null ? 'cost unknown for this model' : e.costUsd === 0 ? 'free on a local model' : `about ${formatCost(e.costUsd)}`
   return (
     <>
       <Head title="Story analysis" sub="What your story is made of: content, genres, tags and themes, read by a model you choose" />
@@ -265,7 +266,7 @@ function StoryPage({ ai, s }: { ai: AiState; s: InsightsSummary }) {
           </button>
         </div>
         <p className="field-note">
-          Quick sample: one call reading {estimate.quick ? 'about 25k words of excerpts' : '…'}, {cost(estimate.quick)}. Deep scan:{' '}
+          Quick sample: one call reading {estimate.quick ? `${estimate.quick.words > 25000 ? 'about 25,000 words of excerpts' : `all ${estimate.quick.words.toLocaleString()} words`}` : '…'}, {cost(estimate.quick)}. Deep scan:{' '}
           {estimate.deep ? `${estimate.deep.calls} call${estimate.deep.calls === 1 ? '' : 's'} over ${estimate.deep.words.toLocaleString()} words` : '…'}
           {estimate.deep && estimate.deep.cached > 0 ? ` (${estimate.deep.cached} parts already read, never billed twice)` : ''}, {cost(estimate.deep)}.
         </p>

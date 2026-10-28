@@ -2,7 +2,8 @@
 // (in a worker thread, skipping files that haven't changed) and keeps each file's analysis. Words
 // written are measured as growth between scans and booked to the day and hour they happened:
 //   - the first scan of a folder is a baseline, so a finished manuscript isn't "written today";
-//   - a new file counts as written, unless it's over IMPORT_LIMIT words (an import, not a day's work);
+//   - a new file counts as written, unless it's over IMPORT_LIMIT words (an import, not a day's work),
+//     and so does growth, unless one file jumps by more than that between scans (a paste);
 //   - shrinking a file books removed words, never negative writing.
 // Scans run at launch, when the folder changes on disk (debounced), and on Rescan.
 
@@ -167,8 +168,9 @@ async function runScan(): Promise<void> {
     const row = known.get(d.path)
     if (row) {
       const delta = analysis.words - row.words
-      if (delta > 0) written += delta
-      else removed -= delta
+      // A jump this size between two scans is a paste or an import, not writing.
+      if (delta > 0 && delta <= IMPORT_LIMIT) written += delta
+      else if (delta < 0) removed -= delta
     } else if (!baseline && analysis.words <= IMPORT_LIMIT) written += analysis.words
     upsert.run(d.path, d.mtime, d.size, analysis.words, key, JSON.stringify(analysis))
     if (++done % 4 === 0 || done === todo.length) emitInsights({ kind: 'progress', done, total: todo.length })
