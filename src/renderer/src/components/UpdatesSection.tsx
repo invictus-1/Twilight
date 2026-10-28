@@ -147,7 +147,7 @@ export function UpdatesSection() {
               <ReleaseRow key={r.version} release={r} current={u.current} />
             ))}
           </ul>
-          {!u.canInstall && <p className="field-note">This is a development build: installers download but don’t run.</p>}
+          {!u.canInstall && <p className="field-note updates-dev-note">This is a development build: installers download but don’t run.</p>}
         </div>
       )}
 

@@ -74,7 +74,7 @@ function ModelRow({ provider, model }: { provider: ProviderConfig; model: ModelI
         ) : (
           <div className="model-name">
             {model.name}
-            {model.originalName && <span className="field-note"> ({model.originalName})</span>}
+            {model.originalName && model.originalName !== model.id && <span className="field-note"> ({model.originalName})</span>}
             <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label={`Rename ${model.name}`} title="Rename" onClick={() => setRenaming(true)}>
               <PenIcon size={13} />
             </button>

@@ -26,11 +26,15 @@ import * as providers from './providers'
 import * as updates from './updates'
 import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
+import { runShowcase } from './showcase'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
 const selfTestDir = process.env.TWILIGHT_SELFTEST
 const e2eDir = process.env.TWILIGHT_E2E
-if (selfTestDir || e2eDir) prepareSelfTest((selfTestDir ?? e2eDir)!)
+/** Releases-page screenshots from made-up demo data (see showcase.ts). */
+const showcaseDir = process.env.TWILIGHT_SHOWCASE
+const testDir = selfTestDir ?? e2eDir ?? showcaseDir
+if (testDir) prepareSelfTest(testDir)
 
 function isWebUrl(url: string): boolean {
   return /^https?:\/\//i.test(url)
@@ -75,8 +79,8 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (event) => event.preventDefault())
-  // "#e2e" lets the end-to-end test reach the editor; it does nothing otherwise.
-  const hash = e2eDir ? 'e2e' : undefined
+  // "#e2e" lets the end-to-end test (and the showcase) reach the editor; it does nothing otherwise.
+  const hash = e2eDir || showcaseDir ? 'e2e' : undefined
   if (devUrl) void win.loadURL(hash ? `${devUrl}#${hash}` : devUrl)
   else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash })
   return win
@@ -247,17 +251,18 @@ function registerIpc(): void {
 app.whenReady().then(() => {
   db.openDatabase(join(app.getPath('userData'), 'twilight.db'))
   // Tests keep their documents in the throwaway profile, never in the real Documents folder.
-  if (selfTestDir || e2eDir) db.kvSet('writingFolder', join(app.getPath('userData'), 'vault'))
+  if (testDir) db.kvSet('writingFolder', join(app.getPath('userData'), 'vault'))
   if (!devUrl) Menu.setApplicationMenu(null)
   lockDownNetwork()
   registerIpc()
   updates.recordRunningVersion()
   // Tests never reach GitHub; the e2e run checks against its own mock.
-  if (!selfTestDir && !e2eDir) updates.startDailyCheck()
+  if (!testDir) updates.startDailyCheck()
   if (selfTestDir) seedSelfTest()
   const win = createWindow()
   if (selfTestDir) runSelfTest(win, selfTestDir)
   if (e2eDir) runE2E(win, e2eDir)
+  if (showcaseDir) runShowcase(win, showcaseDir)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })

@@ -8,6 +8,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Clearer key errors** · Core — pasted keys cleaned up; a rejected key described by its kind, never shown
 - [x] **Providers, two panes** · Core — a provider list beside the selected provider's connection and model grid
 - [x] **Roadmap page** · Core — this page: a release timeline, cards by area, and ideas
+- [x] **Releases page tour** · Core — screenshots made from demo data and a feature tour
 
 ### 0.3.0 · October 2026
 - [x] **Choices as a tool call** · Chat — the model calls present_choices with the options as data; the pick goes back as the tool result
@@ -41,7 +42,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Installer** · Core — Windows installer and portable zip, with Twilight artwork
 
 ## Next
-- [~] **Releases page tour** · Core — screenshots made from demo data and a feature tour
+- [~] **Your feedback on 0.3** · Core — fixes from real use of the updater, tool-call choices and the new providers page
 - [ ] **Welcome** · Core — an animated first run: the cover's bands slide in, the sun sets, and setup follows (a provider or local server, a writing folder)
 - [ ] **Command menu** · Core — Ctrl+K for everything, Ctrl+/ for the shortcut sheet, rebindable keys
 - [ ] **Search everything** · Core — every chat and document at once (Ctrl+Shift+F)
