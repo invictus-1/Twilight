@@ -11,4 +11,8 @@ declare module 'markdown-it-task-lists' {
 }
 
 declare module '*.css'
+declare module '*?raw' {
+  const text: string
+  export default text
+}
 declare module '@fontsource-variable/*'

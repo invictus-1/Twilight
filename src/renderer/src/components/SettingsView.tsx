@@ -4,13 +4,14 @@ import { readGameFormat, writeGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
 import { useWriting } from '../writingStore'
 import { readHidden, writeHidden } from './ChatSettingsPanel'
+import { RoadmapSection } from './RoadmapSection'
 import { UpdatesSection } from './UpdatesSection'
-import { ChevronDown, ChevronRight, ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIcon } from './Icons'
+import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIcon } from './Icons'
 
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'general' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'about'
+type Section = 'providers' | 'general' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
 
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
   { id: 'general', group: 'App', label: 'General', description: 'How chats behave and look: the cache status line, Game Format, and the safety net.' },
@@ -19,6 +20,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows.' },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
   { id: 'updates', group: 'About', label: 'Updates', description: 'Your version, new releases, and rolling back to an earlier one. The daily check is the only request Twilight makes on its own.' },
+  { id: 'roadmap', group: 'About', label: 'Roadmap', description: 'What has shipped, what comes next, and the ideas further out.' },
   { id: 'about', group: 'About', label: 'About', description: 'Version and where Twilight lives.' }
 ]
 
@@ -110,9 +112,34 @@ function ModelRow({ provider, model }: { provider: ProviderConfig; model: ModelI
   )
 }
 
-function ProviderCard({ provider, filter }: { provider: ProviderConfig; filter: string }) {
+const providerIcon = (provider: ProviderConfig): React.ReactElement =>
+  provider.kind === 'anthropic' || !/localhost|127\.0\.0\.1/.test(provider.baseUrl ?? '') ? <CloudIcon className="muted" /> : <ChipIcon className="muted" />
+
+/** A provider in the list on the left: name, kind, how it's doing, and its on/off switch. */
+function ProviderListItem({ provider, selected, onSelect }: { provider: ProviderConfig; selected: boolean; onSelect: () => void }) {
+  const count = useStore((s) => s.models.filter((m) => m.providerId === provider.id).length)
+  const status = provider.status
+  return (
+    <div className={`provider-item ${selected ? 'selected' : ''} ${provider.enabled ? '' : 'off'}`} role="button" tabIndex={0} aria-current={selected || undefined} onClick={onSelect} onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onSelect())}>
+      <span className="provider-item-icon">{providerIcon(provider)}</span>
+      <span className="provider-item-text">
+        <span className="provider-name">{provider.name}</span>
+        <span className="provider-item-meta">
+          <span className={`provider-dot ${status ? (status.ok ? 'ok' : 'bad') : ''}`} />
+          {provider.enabled ? `${count} model${count === 1 ? '' : 's'}` : 'Off'}
+        </span>
+      </span>
+      <label className="switch" onClick={(e) => e.stopPropagation()} title={provider.enabled ? 'On' : 'Off'}>
+        <input type="checkbox" checked={provider.enabled} aria-label={`${provider.name} on`} onChange={(e) => void saveProvider({ ...provider, enabled: e.target.checked })} />
+        <span className="switch-track" />
+      </label>
+    </div>
+  )
+}
+
+/** The selected provider: connection on top, then its models as a grid. */
+function ProviderDetail({ provider, filter }: { provider: ProviderConfig; filter: string }) {
   const models = useStore((s) => s.models).filter((m) => m.providerId === provider.id)
-  const [open, setOpen] = useState(false)
   const [key, setKey] = useState('')
   const [url, setUrl] = useState(provider.baseUrl ?? '')
   const [testing, setTesting] = useState(false)
@@ -121,6 +148,7 @@ function ProviderCard({ provider, filter }: { provider: ProviderConfig; filter: 
   const status = provider.status
   const shown = models.filter((m) => `${m.name} ${m.id}`.toLowerCase().includes((modelFilter || filter).toLowerCase()))
   const hiddenCount = models.filter((m) => m.hidden).length
+  const anthropic = provider.kind === 'anthropic'
 
   const test = async (): Promise<void> => {
     setTesting(true)
@@ -131,30 +159,34 @@ function ProviderCard({ provider, filter }: { provider: ProviderConfig; filter: 
   }
 
   return (
-    <section className={`provider-card ${open ? 'open' : ''}`}>
-      <header className="provider-card-head" onClick={() => setOpen((o) => !o)}>
-        {open ? <ChevronDown size={16} className="folder-chevron" /> : <ChevronRight size={16} className="folder-chevron" />}
-        {provider.kind === 'anthropic' || !/localhost|127\.0\.0\.1/.test(provider.baseUrl ?? '') ? <CloudIcon className="muted" /> : <ChipIcon className="muted" />}
-        <span className="provider-name">{provider.name}</span>
-        <span className="provider-kind">{provider.kind === 'anthropic' ? 'Claude API' : 'OpenAI-compatible'}</span>
+    <div className="provider-detail">
+      <header className="provider-detail-head">
+        <span className="provider-detail-icon">{providerIcon(provider)}</span>
+        <div className="provider-detail-title">
+          <h3 className="t-heading">{provider.name}</h3>
+          <span className="provider-kind-inline">{anthropic ? 'Claude API' : 'OpenAI-compatible'}{provider.baseUrl ? ` · ${provider.baseUrl}` : ''}</span>
+        </div>
         <span className="tw-spacer" />
         {status && (
-          <span className={`provider-status ${status.ok ? 'ok' : 'bad'}`} title={status.message}>
-            <span className="cache-dot" /> {status.ok ? 'Connected' : 'Problem'}
+          <span className={`provider-pill ${status.ok ? 'ok' : 'bad'}`} title={status.message}>
+            <span className="provider-dot" /> {status.ok ? 'Connected' : 'Problem'}
           </span>
         )}
-        <span className="provider-count">
-          {models.length} model{models.length === 1 ? '' : 's'}
-          {hiddenCount ? ` · ${hiddenCount} hidden` : ''}
-        </span>
-        <label className="switch" onClick={(e) => e.stopPropagation()} title={provider.enabled ? 'On' : 'Off'}>
-          <input type="checkbox" checked={provider.enabled} onChange={(e) => void saveProvider({ ...provider, enabled: e.target.checked })} />
+        <label className="switch" title={provider.enabled ? 'On' : 'Off'}>
+          <input type="checkbox" checked={provider.enabled} aria-label={`${provider.name} on`} onChange={(e) => void saveProvider({ ...provider, enabled: e.target.checked })} />
           <span className="switch-track" />
         </label>
       </header>
-      {open && (
-        <div className="provider-card-body">
-          {status && !status.ok && <div className="tw-msg-error"><strong>{provider.name} says:</strong> {status.message}</div>}
+
+      {status && !status.ok && (
+        <div className="tw-msg-error">
+          <strong>{provider.name} says:</strong> {status.message}
+        </div>
+      )}
+
+      <section className="settings-card">
+        <h4 className="provider-section-title">Connection</h4>
+        <div className="connection-grid">
           <form
             className="field"
             onSubmit={(e) => {
@@ -163,86 +195,107 @@ function ProviderCard({ provider, filter }: { provider: ProviderConfig; filter: 
               setKey('')
             }}
           >
-            <span className="field-label">API key {provider.kind === 'openai' && '(optional for local servers)'}</span>
+            <span className="field-label">API key {!anthropic && '(optional for local servers)'}</span>
             <div className="field-inline">
               <input
                 type="password"
                 value={key}
                 autoComplete="off"
-                placeholder={provider.hasKey ? 'Saved (encrypted) — paste to replace' : 'Paste key'}
+                placeholder={provider.hasKey ? 'Saved (encrypted). Paste to replace' : anthropic ? 'sk-ant-api…' : 'Paste key'}
                 onChange={(e) => setKey(e.target.value)}
               />
               <button className="tw-btn tw-btn-sm" type="submit" disabled={!key.trim()}>
-                Save key
+                Save
               </button>
               {provider.hasKey && (
                 <button className="tw-btn tw-btn-sm tw-btn-ghost" type="button" onClick={() => void saveProvider(provider, '')}>
-                  Remove key
+                  Remove
                 </button>
               )}
             </div>
+            {anthropic && <span className="field-note">An API key from console.anthropic.com → API keys. A Claude subscription can't be used here.</span>}
           </form>
           <label className="field">
-            <span className="field-label">{provider.kind === 'anthropic' ? 'Endpoint (leave empty for api.anthropic.com)' : 'Server address'}</span>
+            <span className="field-label">{anthropic ? 'Endpoint' : 'Server address'}</span>
             <input
               value={url}
-              placeholder={provider.kind === 'anthropic' ? 'https://api.anthropic.com' : 'http://localhost:11434/v1'}
+              placeholder={anthropic ? 'https://api.anthropic.com' : 'http://localhost:11434/v1'}
               onChange={(e) => setUrl(e.target.value)}
               onBlur={() => url !== (provider.baseUrl ?? '') && void saveProvider({ ...provider, baseUrl: url.trim() || undefined })}
             />
+            <span className="field-note">{anthropic ? 'Leave empty for api.anthropic.com. No /v1 needed; Twilight adds it.' : 'Most servers end in /v1.'}</span>
           </label>
-          <div className="field-inline">
-            <button className="tw-btn tw-btn-sm" disabled={testing} onClick={() => void test()}>
-              <RefreshIcon size={14} />
-              {testing ? 'Testing…' : 'Test connection'}
-            </button>
-            {status && <span className={`field-note ${status.ok ? '' : 'danger-text'}`}>{status.message}</span>}
-            <span className="tw-spacer" />
-            {!BUILT_IN.has(provider.id) && (
-              <button
-                className="tw-btn tw-btn-sm tw-btn-ghost danger-text"
-                onClick={async () => {
-                  useStore.getState().setProviders(await window.twilight.deleteProvider(provider.id))
-                  void useStore.getState().refreshModels(true)
-                }}
-              >
-                Remove provider
-              </button>
-            )}
-          </div>
-
-          <div className="models-head">
-            <h3 className="t-heading">Models</h3>
-            <input placeholder="Filter models" value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} />
-          </div>
-          <p className="field-note">
-            Abilities come from the provider: Anthropic reports each model's capabilities and effort levels; OpenRouter reports supported parameters.
-            Untick a model to keep it out of the picker.
-          </p>
-          <div className="model-list">
-            {shown.map((m) => (
-              <ModelRow key={m.id} provider={provider} model={m} />
-            ))}
-            {models.length === 0 && <p className="field-note">No models yet. Save a key or start the server, then Test connection.</p>}
-          </div>
-          <form
-            className="field-inline"
-            onSubmit={(e) => {
-              e.preventDefault()
-              if (!newModel.trim()) return
-              void saveProvider({ ...provider, customModels: [...new Set([...(provider.customModels ?? []), newModel.trim()])] })
-              setNewModel('')
-            }}
-          >
-            <input placeholder="Add a model id by hand, e.g. claude-opus-5-5" value={newModel} onChange={(e) => setNewModel(e.target.value)} />
-            <button className="tw-btn tw-btn-sm" type="submit" disabled={!newModel.trim()}>
-              <PlusIcon size={14} />
-              Add model
-            </button>
-          </form>
         </div>
-      )}
-    </section>
+        <div className="field-inline">
+          <button className="tw-btn tw-btn-sm" disabled={testing} onClick={() => void test()}>
+            <RefreshIcon size={14} className={testing ? 'spinning' : ''} />
+            {testing ? 'Testing…' : 'Test connection'}
+          </button>
+          {status && <span className={`field-note ${status.ok ? '' : 'danger-text'}`}>{status.ok ? status.message : 'See the message above.'}</span>}
+          <span className="tw-spacer" />
+          {!BUILT_IN.has(provider.id) && (
+            <button
+              className="tw-btn tw-btn-sm tw-btn-ghost danger-text"
+              onClick={async () => {
+                useStore.getState().setProviders(await window.twilight.deleteProvider(provider.id))
+                void useStore.getState().refreshModels(true)
+              }}
+            >
+              Remove provider
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="settings-card">
+        <div className="models-head">
+          <h4 className="provider-section-title">
+            Models <span className="rm-heading-count">{models.length}</span>
+            {hiddenCount > 0 && <span className="field-note">{hiddenCount} hidden from the picker</span>}
+          </h4>
+          {models.length > 0 && <input placeholder="Filter models" value={modelFilter} onChange={(e) => setModelFilter(e.target.value)} />}
+        </div>
+        {models.length === 0 ? (
+          <div className="models-empty">
+            <span className="models-empty-icon">{providerIcon(provider)}</span>
+            <div>
+              <div className="t-label">No models yet</div>
+              <ol className="models-empty-steps">
+                {anthropic ? <li>Paste an API key above and press Save.</li> : <li>Start {provider.name} on this computer, or check the server address.</li>}
+                <li>Press Test connection. The models and what each can do appear here.</li>
+                <li>Or add a model id by hand below.</li>
+              </ol>
+            </div>
+          </div>
+        ) : (
+          <>
+            <p className="field-note">
+              What each model can do comes from the provider. Untick a model to keep it out of the picker; the pencil gives it a name of your own.
+            </p>
+            <div className="model-list">
+              {shown.map((m) => (
+                <ModelRow key={m.id} provider={provider} model={m} />
+              ))}
+            </div>
+          </>
+        )}
+        <form
+          className="field-inline"
+          onSubmit={(e) => {
+            e.preventDefault()
+            if (!newModel.trim()) return
+            void saveProvider({ ...provider, customModels: [...new Set([...(provider.customModels ?? []), newModel.trim()])] })
+            setNewModel('')
+          }}
+        >
+          <input placeholder={`Add a model id by hand, e.g. ${anthropic ? 'claude-opus-5-5' : 'llama3.3'}`} value={newModel} onChange={(e) => setNewModel(e.target.value)} />
+          <button className="tw-btn tw-btn-sm" type="submit" disabled={!newModel.trim()}>
+            <PlusIcon size={14} />
+            Add model
+          </button>
+        </form>
+      </section>
+    </div>
   )
 }
 
@@ -254,6 +307,7 @@ function ProvidersSection() {
   const [name, setName] = useState('')
   const [url, setUrl] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
   const visible = useMemo(
     () =>
       providers.filter(
@@ -264,6 +318,7 @@ function ProvidersSection() {
       ),
     [providers, models, filter]
   )
+  const selected = visible.find((p) => p.id === selectedId) ?? visible[0]
 
   return (
     <>
@@ -281,52 +336,57 @@ function ProvidersSection() {
             setRefreshing(false)
           }}
         >
-          <RefreshIcon />
-        </button>
-        <button className="tw-btn tw-btn-primary" onClick={() => setAdding((a) => !a)}>
-          <PlusIcon />
-          Add provider
+          <RefreshIcon className={refreshing ? 'spinning' : ''} />
         </button>
       </div>
-      {adding && (
-        <section className="provider-card open add-provider">
-          <div className="provider-card-body">
-            <span className="t-label">Add an OpenAI-compatible provider</span>
-            <div className="preset-chips">
-              {PRESETS.map((p) => (
-                <button key={p.name} className="tw-btn tw-btn-sm" onClick={() => (setName(p.name), setUrl(p.baseUrl))}>
-                  {p.name}
-                </button>
-              ))}
-            </div>
-            <div className="field-inline">
+      <div className="providers-layout">
+        <nav className="provider-list" aria-label="Providers">
+          {visible.map((p) => (
+            <ProviderListItem key={p.id} provider={p} selected={p.id === selected?.id} onSelect={() => setSelectedId(p.id)} />
+          ))}
+          {visible.length === 0 && <p className="field-note">Nothing matches “{filter}”.</p>}
+          {adding ? (
+            <div className="add-provider">
+              <span className="t-label">Add an OpenAI-compatible provider</span>
+              <div className="preset-chips">
+                {PRESETS.map((p) => (
+                  <button key={p.name} className="tw-btn tw-btn-sm" onClick={() => (setName(p.name), setUrl(p.baseUrl))}>
+                    {p.name}
+                  </button>
+                ))}
+              </div>
               <input placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} />
               <input placeholder="https://host/v1" value={url} onChange={(e) => setUrl(e.target.value)} />
-              <button
-                className="tw-btn tw-btn-sm tw-btn-primary"
-                disabled={!name.trim() || !url.trim()}
-                onClick={async () => {
-                  const id = `custom-${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
-                  await saveProvider({ id, kind: 'openai', name: name.trim(), baseUrl: url.trim(), enabled: true })
-                  setName('')
-                  setUrl('')
-                  setAdding(false)
-                }}
-              >
-                Add
-              </button>
-              <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Cancel" onClick={() => setAdding(false)}>
-                <CloseIcon />
-              </button>
+              <div className="field-inline">
+                <button
+                  className="tw-btn tw-btn-sm tw-btn-primary"
+                  disabled={!name.trim() || !url.trim()}
+                  onClick={async () => {
+                    const id = `custom-${name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+                    await saveProvider({ id, kind: 'openai', name: name.trim(), baseUrl: url.trim(), enabled: true })
+                    setSelectedId(id)
+                    setName('')
+                    setUrl('')
+                    setAdding(false)
+                  }}
+                >
+                  Add
+                </button>
+                <button className="tw-btn tw-btn-sm tw-btn-ghost" onClick={() => setAdding(false)}>
+                  Cancel
+                </button>
+              </div>
             </div>
-            <p className="field-note">Then open it below to add an API key if it needs one.</p>
-          </div>
-        </section>
-      )}
-      {visible.map((p) => (
-        <ProviderCard key={p.id} provider={p} filter={filter} />
-      ))}
-      <p className="field-note">Keys are encrypted with Windows' own credential protection and only ever sent to their provider.</p>
+          ) : (
+            <button className="provider-add" onClick={() => setAdding(true)}>
+              <PlusIcon size={14} />
+              Add provider
+            </button>
+          )}
+          <p className="field-note provider-list-note">Keys are encrypted with Windows' own credential protection and only ever sent to their provider.</p>
+        </nav>
+        {selected ? <ProviderDetail key={selected.id} provider={selected} filter={filter} /> : <div className="provider-detail" />}
+      </div>
     </>
   )
 }
@@ -536,6 +596,7 @@ export function SettingsView() {
           {section === 'data' && <DataSection />}
           {section === 'shortcuts' && <ShortcutsSection />}
           {section === 'updates' && <UpdatesSection />}
+          {section === 'roadmap' && <RoadmapSection />}
           {section === 'about' && <AboutSection />}
         </div>
       </div>

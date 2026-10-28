@@ -12,7 +12,7 @@ import { extractChoices } from '@shared/choices'
 import { gameFormat } from '@shared/gameFormat'
 import { computeVerdict } from '@shared/judge'
 import * as judge from './judge'
-import { anthropicOptions, toMessages } from './providers/anthropic'
+import { anthropicOptions, keyShape, toMessages } from './providers/anthropic'
 import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
 import * as providers from './providers'
@@ -956,6 +956,61 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('attached documents follow the tool_result', answerTurn?.[1]?.text?.startsWith('<document name=') === true && answerTurn.length === 2)
       check('thinking and tool_use replayed unchanged', (claudeMsgs[1]?.content as { type: string }[]).map((b) => b.type).join() === 'thinking,text,tool_use')
       check("another provider's tool calls aren't replayed to Claude", (claudeMsgs[3]?.content as { type: string }[]).map((b) => b.type).join() === 'text')
+
+      // 30. API keys: what comes along with a pasted key is cleaned off, and a rejected key is
+      // described by its shape only (never its characters).
+      const keySample = 'sk-ant-api03-SECRETPART'
+      const pasted = ['ANTHROPIC_API_KEY=' + keySample, 'export ANTHROPIC_API_KEY="' + keySample + '"', '$env:ANTHROPIC_API_KEY = "' + keySample + '"', 'x-api-key: ' + keySample, 'Bearer ' + keySample, ' ' + keySample.slice(0, 10) + '\n' + keySample.slice(10) + ' ']
+      check('pasted keys are cleaned', pasted.every((k) => providers.cleanApiKey(k) === keySample), pasted.map((k) => providers.cleanApiKey(k)))
+      const oat = keyShape('sk-ant-oat01-SECRETPART')
+      check('a subscription token is called out', /subscription sign-in token/.test(oat) && /console\.anthropic\.com/.test(oat))
+      check('a key from elsewhere is called out', /isn't an Anthropic API key/.test(keyShape('sk-proj-SECRETPART')))
+      check('a key is never shown in the hint', ![oat, keyShape(keySample), keyShape('sk-proj-SECRETPART')].some((h) => h.includes('SECRETPART')))
+
+      // The providers page: a list on the left, the selected provider's connection and models on the right.
+      const provUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('.sidebar-foot .tw-btn').click()
+        await wait(300)
+        ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Model providers'))?.click()
+        await wait(300)
+        const items = [...document.querySelectorAll('.provider-item .provider-name')].map((e) => e.textContent)
+        const out = { items, emptyState: !!document.querySelector('.models-empty'), firstTitle: document.querySelector('.provider-detail-head .t-heading')?.textContent }
+        ;[...document.querySelectorAll('.provider-item')].find((r) => r.textContent.includes('Mock'))?.click()
+        await wait(300)
+        out.mockTitle = document.querySelector('.provider-detail-head .t-heading')?.textContent
+        out.modelCards = document.querySelectorAll('.provider-detail .model-row').length
+        out.grid = getComputedStyle(document.querySelector('.provider-detail .model-list')).display
+        return out
+      })()`)
+      check('providers listed on the left', ['Anthropic', 'Ollama', 'LM Studio', 'Mock'].every((n) => provUi.items.includes(n)), provUi.items)
+      check('a provider without models shows how to get them', provUi.firstTitle === 'Anthropic' && provUi.emptyState === true, provUi)
+      check('selecting a provider shows its models as a grid', provUi.mockTitle === 'Mock' && provUi.modelCards === 2 && provUi.grid === 'grid', provUi)
+      await new Promise((r) => setTimeout(r, 200))
+      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-providers.png'), img.toPNG()), () => undefined)
+
+      // 31. The Roadmap page draws ROADMAP.md: planned cards, ideas, and the shipped timeline.
+      const roadmapUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Roadmap'))?.click()
+        await wait(1500)
+        const out = {
+          cards: document.querySelectorAll('.rm-card').length,
+          releases: [...document.querySelectorAll('.rm-version')].map((e) => e.textContent),
+          ideas: document.querySelectorAll('.rm-idea').length,
+          doing: document.querySelectorAll('.rm-card.is-doing').length
+        }
+        ;[...document.querySelectorAll('.rm-chip')].find((b) => b.textContent.startsWith('Writing'))?.click()
+        await wait(200)
+        out.writingCards = [...document.querySelectorAll('.rm-card .rm-area')].map((e) => e.textContent)
+        ;[...document.querySelectorAll('.rm-chip')].find((b) => b.textContent.startsWith('Everything'))?.click()
+        await wait(600)
+        return out
+      })()`)
+      check('roadmap shows planned work as cards', roadmapUi.cards > 10 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
+      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-roadmap.png'), img.toPNG()), () => undefined)
 
       // 28. Message actions: delete one, delete below, view, restore (also after writing more), edit, tok/s.
       const c5 = chat.create(null).id

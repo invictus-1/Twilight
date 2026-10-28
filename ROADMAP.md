@@ -1,85 +1,77 @@
 # Twilight roadmap
 
-What's done, what's next, and ideas we haven't committed to. Updated with every change; tick a box when it ships.
+What's shipped, what's next, and ideas not yet committed to. Twilight shows this file as its Roadmap page (Settings → Roadmap), so keep the shape: `- [x]` shipped, `- [~]` in progress, `- [ ]` planned, each as `**Title** · Area — what it does`.
 
-## Done
+## Shipped
 
-### Core
-- [x] Electron + React + TypeScript app, fully local interface (bundled fonts, renderer network blocked, keys encrypted with Windows DPAPI)
-- [x] Providers: Anthropic (streaming, adaptive thinking, refusal fallback) and any OpenAI-compatible server (Ollama, LM Studio, llama.cpp, OpenRouter)
-- [x] Model list cached on disk so it works offline
-- [x] Per-reply cost, tokens and cache hit rate
-- [x] Request logs (daily JSONL) and a Trash for deleted chats
-- [x] Windows installer and portable build (`npm run dist`), with Twilight artwork on the installer pages
-- [x] Settings page with sections (General, Writing, Data, Shortcuts, Model providers, About), each described
-- [x] Model providers page: per-provider status, model count, on/off, Test connection; models with capabilities, context and output size read from the provider; rename, hide, or add models by hand
-- [x] Draggable sidebar edge and split divider (double-click resets)
+### 0.3.0 · October 2026
+- [x] **Choices as a tool call** · Chat — the model calls present_choices with the options as data; the pick goes back as the tool result
+- [x] **A switch for each way of offering choices** · Chat — tool call, choices blocks and plain numbered options, in any combination
 
-### Chat
-- [x] Conversations as trees: regenerate adds a version, ‹ 2 / 3 › switcher
-- [x] Message actions: copy, regenerate, edit (as a new version), delete; right-click delete for "this and everything below"; undo toast; Recently deleted panel to read or restore (a restore after later messages comes back as another version); tokens per second
-- [x] Split compare with A / B / Both, per-pane model, settings and system prompt; Keep A / Keep B
-- [x] Prompt caching built append-only; same-model split sends stagger so B reads A's cache
-- [x] Cache status bar (hit / written / off), dismissable
-- [x] Model settings: presets, editable system prompt, recent message limit (cache-friendly steps), temperature, max output tokens, thinking effort in the provider's own names, thinking display, caching on/off + TTL, extra request JSON
-- [x] Effort levels read from the Anthropic Models API per model; OpenRouter parameters read from its model list
-- [x] Attach text files to a message (full text injected)
-- [x] Workspaces: pinned / workspaces / recent, drag to file, default system prompt + model + color per workspace
-- [x] Full markdown (tables, task lists, footnotes, code blocks with copy and collapse) plus safe HTML: collapsible `<details>` blocks (status cards), with scripts, images and event handlers stripped
-- [x] Game Format: copy a reply for RPG Maker with paragraphs joined, dividers optional, code and HTML blocks untouched
-- [x] Choice cards for text adventures: the model offers numbered options (any model, no tool calling needed); click one, edit it before sending, or write your own; answered cards show the pick; with Choices on, plain-text options from your own system prompt work too (a "Something else" option or a title that asks marks them as a decision; other lists stay lists), including several decisions in one reply with options that carry details; or offered by a present_choices tool call, with the pick returned as the tool result
-- [x] **Judge**: two passages scored blind against a rubric by a judge model you choose, run in both orders, with shared context (system prompt, author prompt, reference files) cached across runs; "Judge A vs B" from split compare; a built-in General fiction rubric, your own rubrics (create, copy, import and export as files); reveal who wrote which after scoring
-- [x] 240Hz scrolling on a 350k-token chat (measured with `TWILIGHT_SELFTEST`)
+### 0.2.0 · October 2026
+- [x] **Updates page** · Core — daily check of the releases page, one-click update, roll back to any of the last three versions, a database backup before every switch
+- [x] **Settings page** · Core — sections for General, Writing, Data, Shortcuts, Model providers, Updates and About, each described
+- [x] **Model providers page** · Core — status, model count, on/off and Test connection per provider; capabilities, context and output size per model; rename, hide or add models
+- [x] **Message actions** · Chat — copy, regenerate, edit as a new version, delete one or everything below, undo, Recently deleted, tokens per second
+- [x] **Choice cards from plain text** · Chat — numbered options under a title that asks or with "Something else"; several decisions in one reply; options with details
+- [x] **Resizable layout** · Core — drag the sidebar edge and the split divider; double-click to reset
+- [x] **Rubrics as files** · Judge — import and export your own rubrics; only the general one ships
 
-### Writing
-- [x] Markdown documents in a chosen folder (Obsidian vaults work as is), real subfolders, drag to move
-- [x] CodeMirror editor: 115k words open in ~35ms, atomic autosave, picks up outside edits
-- [x] Forge-style tools on a selection: Ask, Rewrite, Tighten, Expand, Tone, plus formatting and undo/redo
-- [x] Suggestions shown as an in-place word diff; Accept / Reject; every accepted edit revertable
-- [x] Per-document context: instructions, reference docs, optional whole manuscript (cached)
-- [x] Send a chat reply to Writing
+### 0.1.0 · October 2026
+- [x] **Fully local app** · Core — bundled fonts, no network from the interface, keys encrypted with Windows DPAPI, model list cached for offline use
+- [x] **Claude and any OpenAI-compatible server** · Core — Anthropic with adaptive thinking and refusal fallback; Ollama, LM Studio, llama.cpp, vLLM and OpenRouter
+- [x] **Conversations as trees** · Chat — regenerate adds a version, ‹ 2 / 3 › to switch between them
+- [x] **Split compare** · Chat — two branches side by side, A / B / Both, each pane with its own model, settings and system prompt
+- [x] **Cache-first requests** · Chat — prompts built append-only, a cache status line, and same-model split sends staggered so B reads A's cache
+- [x] **Model settings** · Chat — presets, editable system prompt, message limit in cache-friendly steps, effort in the provider's own names, max output, extra request JSON
+- [x] **Workspaces** · Chat — pinned, workspaces and recent; drag to file; a default system prompt, model and color per workspace
+- [x] **Markdown and safe HTML** · Chat — tables, footnotes, code blocks, collapsible details blocks, scripts and handlers stripped
+- [x] **Game Format** · Chat — copy a reply for RPG Maker with paragraphs joined and code untouched
+- [x] **Choice cards** · Chat — click an option, edit it first, or write your own
+- [x] **The Judge** · Judge — two passages scored blind against a rubric, in both orders, with shared context cached
+- [x] **Writing editor** · Writing — markdown documents in any folder (Obsidian vaults too); 115k words open in about 35 ms
+- [x] **Forge-style tools** · Writing — Ask, Rewrite, Tighten, Expand and Tone on a selection, shown as an in-place diff you accept or reject
+- [x] **Document context** · Writing — instructions, reference documents and the whole manuscript, cached
+- [x] **240 Hz scrolling** · Core — measured on a 350k-token chat
+- [x] **Installer** · Core — Windows installer and portable zip, with Twilight artwork
 
 ## Next
-- [ ] Releases page: screenshots (demo data only) and a feature tour
-- [ ] A designed roadmap page
-- [ ] **Updates page**: check GitHub for a new release once a day (and on demand), show the installed version and when it was installed, update in one click, and roll back to any of the last 2–3 versions kept on disk. Needs a decision: releases on a public repo (no token) or a read-only GitHub token for the private one
-- [ ] Animated first-run welcome: the cover's bands slide in and the sun sets, flowing into setup (provider key or local server, writing folder, theme)
-- [ ] Choice cards: keyboard picks (1–9), a "suggest more options" button, and per-workspace default for adventure workspaces
-- [ ] Code signing when Twilight is shared (Azure Trusted Signing or an OV certificate)
-- [ ] Judge follow-ups: a personal leaderboard across judgments; judge more than two passages
-- [ ] Game Format in the Writing editor too, and a "copy as game format" for a whole chat
-- [ ] Undo toast for more destructive actions (chat delete, moves)
-- [ ] Command menu (Ctrl+K) and the full shortcut sheet (Ctrl+/), rebindable shortcuts
-- [ ] Search across all chats and documents (Ctrl+Shift+F)
-- [ ] Branch from any message into a new chat
-- [ ] Context meter: tokens used vs the model's window
-- [ ] Code blocks: syntax highlighting
-- [ ] Attach PDFs and images (Claude reads them natively); drag files onto the composer
-- [ ] Attach documents from the writing folder in a picker
-- [ ] Rename and delete document folders inside Twilight
-- [ ] Mid-conversation instruction changes without breaking the cache (Claude system messages)
-- [ ] Editable price list for cost (and OpenRouter's reported cost)
+- [~] **Releases page tour** · Core — screenshots made from demo data and a feature tour
+- [ ] **Welcome** · Core — an animated first run: the cover's bands slide in, the sun sets, and setup follows (a provider or local server, a writing folder)
+- [ ] **Command menu** · Core — Ctrl+K for everything, Ctrl+/ for the shortcut sheet, rebindable keys
+- [ ] **Search everything** · Core — every chat and document at once (Ctrl+Shift+F)
+- [ ] **Context meter** · Chat — tokens used against the model's window
+- [ ] **PDFs and images** · Chat — attach them (Claude reads them natively) and drop files on the composer
+- [ ] **Choice card keys** · Chat — pick with 1–9, ask for more options, and a default for adventure workspaces
+- [ ] **Branch into a new chat** · Chat — start a new chat from any message
+- [ ] **Instruction changes mid-chat** · Chat — change the instructions without breaking the cache
+- [ ] **Syntax highlighting** · Chat — for code blocks
+- [ ] **Your own prices** · Chat — an editable price list, and OpenRouter's reported cost
+- [ ] **Game Format everywhere** · Writing — in the editor too, and for a whole chat
+- [ ] **Document picker** · Writing — attach documents from the writing folder
+- [ ] **Folder management** · Writing — rename and delete document folders in Twilight
+- [ ] **More undo** · Core — undo for deleting chats and moving things
+- [ ] **Judge leaderboard** · Judge — a running tally across judgments, and more than two passages at once
+- [ ] **Code signing** · Core — a signed installer, so Windows doesn't warn
 
 ## Later
-- [ ] Tools and MCP: web search, web fetch, date/time (as a tool, so the cache holds), image generation; toggles like OpenRouter's server tools
-- [ ] Agents and a coding workspace for any model with tool calling (own agent loop; MCP tools; approvals and diffs)
-- [ ] Fusion (to design together)
-- [ ] Personas and a prompt library
-- [ ] Difference view between split panes
-- [ ] Judge / shadow persona that compares or merges A and B
-- [ ] Document library with optional retrieval for very large collections (local embeddings)
-- [ ] Stats page: words typed, tokens in/out, spend, active days, streaks; achievements (quiet, no pop-ups)
-- [ ] Themes: fine-tuned Twilight, Midnight (OLED), Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, theme builder
-- [ ] Startup animation from the cover, animated retro home screen, view transitions between pages
-- [ ] Bundled spellcheck dictionaries (offline)
-- [ ] Choose where app data lives; backups
+- [ ] **Tools and MCP** · Chat — web search, web fetch, date and time, image generation, switched on per chat
+- [ ] **Agents and code** · Chat — an agent loop for any model with tool calling, with approvals and diffs
+- [ ] **Themes** · Core — Midnight, Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, and a theme builder
+- [ ] **Motion** · Core — a startup animation, a retro home screen, transitions between pages
+- [ ] **Stats** · Core — words, tokens, spend, active days and streaks; quiet achievements
+- [ ] **Personas and prompts** · Chat — a library of personas and prompts
+- [ ] **Split differences** · Chat — see what changed between the two panes
+- [ ] **Document library** · Writing — retrieval over very large collections with local embeddings
+- [ ] **Offline spellcheck** · Writing — bundled dictionaries
+- [ ] **Your data, your place** · Core — choose where app data lives, scheduled backups
 
-## Ideas (not committed)
-- Story bible: extract characters, places and facts from a manuscript; a continuity watcher flags contradictions
-- Ghost-text autocomplete in the editor from a small local model
-- Multiverse drafts: several continuations at once, kept as branches
-- Blind arena: split compare with hidden model names and a personal leaderboard
-- Branch map: the whole conversation tree, visually
-- Local-model power tools: confidence heatmap from logprobs, click a word to branch from an alternative; min-p / DRY / XTC samplers
-- Offline voice: Whisper dictation, Piper/Kokoro read-aloud
-- Cache savings meter
+## Ideas
+- **Story bible** · Writing — characters, places and facts pulled from a manuscript, with a continuity watcher
+- **Ghost text** · Writing — autocomplete in the editor from a small local model
+- **Multiverse drafts** · Chat — several continuations at once, kept as branches
+- **Blind arena** · Judge — split compare with hidden names and a personal leaderboard
+- **Branch map** · Chat — the whole conversation tree, drawn
+- **Local-model power tools** · Chat — a confidence heatmap from logprobs, branching from any word, more samplers
+- **Offline voice** · Core — dictation and read-aloud without the cloud
+- **Cache savings meter** · Chat — what prompt caching saved you

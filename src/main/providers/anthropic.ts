@@ -116,112 +116,139 @@ function capabilityLabels(caps: Capabilities | undefined): string[] {
 }
 
 export const anthropicProvider: Provider = {
-  async listModels(config: ProviderConfig, apiKey?: string): Promise<ModelInfo[]> {
-    if (!apiKey) return []
-    const client = anthropicClient(config, apiKey)
-    const models: ModelInfo[] = []
-    for await (const m of client.models.list({ limit: 100 })) {
-      const extra = m as unknown as { max_input_tokens?: number; max_tokens?: number; capabilities?: Capabilities }
-      models.push({
-        id: m.id,
-        providerId: config.id,
-        name: m.display_name,
-        local: false,
-        contextWindow: extra.max_input_tokens,
-        options: anthropicOptions(m.id, extra.capabilities, extra.max_tokens),
-        capabilities: capabilityLabels(extra.capabilities)
-      })
-    }
-    return models
-  },
+  listModels: (config, apiKey) => explainKey(apiKey, () => listAnthropicModels(config, apiKey)),
+  generate: (req) => explainKey(req.apiKey, () => generateAnthropic(req))
+}
 
-  async generate(req: GenerateRequest): Promise<GenerateResult> {
-    if (!req.apiKey) throw new Error('Add an Anthropic API key in Settings → Providers.')
-    const client = anthropicClient(req.config, req.apiKey)
-    const { settings } = req
-    const model = settings.modelId
-    const options = req.options ?? anthropicOptions(model, undefined)
-    const ttl = settings.cacheTtl
-    const cache = settings.caching ? { cache_control: { type: 'ephemeral', ttl } } : {}
-    const started = Date.now()
+/**
+ * What a rejected key looks like, without showing it: only its public prefix and length. Claude
+ * subscription sign-in tokens (sk-ant-oat…) are the usual mix-up; the API takes Console keys only.
+ */
+export function keyShape(key: string | undefined): string {
+  if (!key) return 'No key is saved.'
+  const size = `${key.length} characters`
+  if (key.startsWith('sk-ant-oat'))
+    return `The saved key is a Claude subscription sign-in token (it starts with sk-ant-oat, ${size}), which the API doesn't accept. Create an API key at console.anthropic.com → API keys and paste that instead.`
+  if (!key.startsWith('sk-ant-'))
+    return `The saved key doesn't start with sk-ant-, so it isn't an Anthropic API key (${size}). It may be from another service.`
+  return `The saved key has the right shape (sk-ant-…, ${size}) but Anthropic doesn't recognise it: it may have been revoked or deleted, or be from a disabled workspace. Make a new one at console.anthropic.com → API keys.`
+}
 
-    const body: Record<string, unknown> = {
-      model,
-      // Claude needs max_tokens; "model default" means the model's maximum, capped at 64k.
-      max_tokens: Math.min(settings.maxTokens ?? 64000, options.maxOutput ?? 128000),
-      messages: toMessages(req.history),
-      ...cache
-    }
-    if (req.system) body.system = [{ type: 'text', text: req.system, ...cache }]
-    if (options.adaptiveThinking) body.thinking = { type: 'adaptive', display: settings.thinkingDisplay }
-    // Only levels this model lists; a level from another model would be rejected.
-    if (settings.effort && options.efforts.includes(settings.effort)) body.output_config = { effort: settings.effort }
-    // Tools sit at the very start of the cached prefix, so the choice tool is sent on every turn
-    // while the mode is on. Its input is a few short labels: the API's default buffering (which
-    // validates the JSON before streaming it) is worth more here than eager input streaming.
-    if (wantsChoiceTool(settings)) body.tools = [CHOICES_TOOL]
-    const betas: string[] = []
-    if (SUPPORTS_FALLBACK.test(model)) {
-      betas.push('server-side-fallback-2026-07-01')
-      body.fallbacks = 'default'
-    }
-    mergeExtraParams(body, settings.extraParams ?? '')
+/** Attaches the key's shape to an authentication error, for describeAnthropicError. */
+async function explainKey<T>(apiKey: string | undefined, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run()
+  } catch (err) {
+    if (err instanceof Anthropic.AuthenticationError) Object.assign(err, { keyHint: keyShape(apiKey) })
+    throw err
+  }
+}
 
-    const stream = client.beta.messages.stream(
-      { ...body, betas } as unknown as Parameters<typeof client.beta.messages.stream>[0],
-      { signal: req.signal }
-    )
+async function listAnthropicModels(config: ProviderConfig, apiKey?: string): Promise<ModelInfo[]> {
+  if (!apiKey) return []
+  const client = anthropicClient(config, apiKey)
+  const models: ModelInfo[] = []
+  for await (const m of client.models.list({ limit: 100 })) {
+    const extra = m as unknown as { max_input_tokens?: number; max_tokens?: number; capabilities?: Capabilities }
+    models.push({
+      id: m.id,
+      providerId: config.id,
+      name: m.display_name,
+      local: false,
+      contextWindow: extra.max_input_tokens,
+      options: anthropicOptions(m.id, extra.capabilities, extra.max_tokens),
+      capabilities: capabilityLabels(extra.capabilities)
+    })
+  }
+  return models
+}
 
-    let text = ''
-    let thinking = ''
-    try {
-      for await (const event of stream) {
-        if (event.type !== 'content_block_delta') continue
-        if (event.delta.type === 'text_delta') {
-          text += event.delta.text
-          req.onText(event.delta.text)
-        } else if (event.delta.type === 'thinking_delta') {
-          thinking += event.delta.thinking
-          req.onThinking(event.delta.thinking)
-        }
+async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> {
+  if (!req.apiKey) throw new Error('Add an Anthropic API key in Settings → Providers.')
+  const client = anthropicClient(req.config, req.apiKey)
+  const { settings } = req
+  const model = settings.modelId
+  const options = req.options ?? anthropicOptions(model, undefined)
+  const ttl = settings.cacheTtl
+  const cache = settings.caching ? { cache_control: { type: 'ephemeral', ttl } } : {}
+  const started = Date.now()
+
+  const body: Record<string, unknown> = {
+    model,
+    // Claude needs max_tokens; "model default" means the model's maximum, capped at 64k.
+    max_tokens: Math.min(settings.maxTokens ?? 64000, options.maxOutput ?? 128000),
+    messages: toMessages(req.history),
+    ...cache
+  }
+  if (req.system) body.system = [{ type: 'text', text: req.system, ...cache }]
+  if (options.adaptiveThinking) body.thinking = { type: 'adaptive', display: settings.thinkingDisplay }
+  // Only levels this model lists; a level from another model would be rejected.
+  if (settings.effort && options.efforts.includes(settings.effort)) body.output_config = { effort: settings.effort }
+  // Tools sit at the very start of the cached prefix, so the choice tool is sent on every turn
+  // while the mode is on. Its input is a few short labels: the API's default buffering (which
+  // validates the JSON before streaming it) is worth more here than eager input streaming.
+  if (wantsChoiceTool(settings)) body.tools = [CHOICES_TOOL]
+  const betas: string[] = []
+  if (SUPPORTS_FALLBACK.test(model)) {
+    betas.push('server-side-fallback-2026-07-01')
+    body.fallbacks = 'default'
+  }
+  mergeExtraParams(body, settings.extraParams ?? '')
+
+  const stream = client.beta.messages.stream(
+    { ...body, betas } as unknown as Parameters<typeof client.beta.messages.stream>[0],
+    { signal: req.signal }
+  )
+
+  let text = ''
+  let thinking = ''
+  try {
+    for await (const event of stream) {
+      if (event.type !== 'content_block_delta') continue
+      if (event.delta.type === 'text_delta') {
+        text += event.delta.text
+        req.onText(event.delta.text)
+      } else if (event.delta.type === 'thinking_delta') {
+        thinking += event.delta.thinking
+        req.onThinking(event.delta.thinking)
       }
-    } catch (err) {
-      if (req.signal.aborted) {
-        return {
-          text,
-          thinking: thinking || undefined,
-          content: text ? [{ type: 'text', text }] : null,
-          usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: Date.now() - started },
-          modelId: model
-        }
+    }
+  } catch (err) {
+    if (req.signal.aborted) {
+      return {
+        text,
+        thinking: thinking || undefined,
+        content: text ? [{ type: 'text', text }] : null,
+        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: Date.now() - started },
+        modelId: model
       }
-      throw err
     }
+    throw err
+  }
 
-    const final = await stream.finalMessage()
-    const finalText = final.content
-      .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-    const finalThinking = final.content
-      .filter((b): b is Extract<typeof b, { type: 'thinking' }> => b.type === 'thinking')
-      .map((b) => b.thinking)
-      .join('\n\n')
-    const usage = final.usage
-    return {
-      text: finalText,
-      thinking: finalThinking || undefined,
-      content: final.content,
-      modelId: final.model,
-      usage: {
-        input: usage.input_tokens,
-        output: usage.output_tokens,
-        cacheRead: usage.cache_read_input_tokens ?? 0,
-        cacheWrite: usage.cache_creation_input_tokens ?? 0,
-        ms: Date.now() - started
-      },
-      error: final.stop_reason === 'refusal' ? 'The model declined this request.' : undefined
-    }
+  const final = await stream.finalMessage()
+  const finalText = final.content
+    .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
+    .map((b) => b.text)
+    .join('')
+  const finalThinking = final.content
+    .filter((b): b is Extract<typeof b, { type: 'thinking' }> => b.type === 'thinking')
+    .map((b) => b.thinking)
+    .join('\n\n')
+  const usage = final.usage
+  return {
+    text: finalText,
+    thinking: finalThinking || undefined,
+    content: final.content,
+    modelId: final.model,
+    usage: {
+      input: usage.input_tokens,
+      output: usage.output_tokens,
+      cacheRead: usage.cache_read_input_tokens ?? 0,
+      cacheWrite: usage.cache_creation_input_tokens ?? 0,
+      ms: Date.now() - started
+    },
+    error: final.stop_reason === 'refusal' ? 'The model declined this request.' : undefined
   }
 }
 
@@ -233,12 +260,16 @@ export const ANTHROPIC_DEFAULT_URL = 'https://api.anthropic.com'
  * among them) set for themselves; inherited, they'd send Twilight's key to the wrong place.
  */
 export function anthropicClient(config: ProviderConfig, apiKey: string): Anthropic {
-  return new Anthropic({ apiKey, authToken: null, baseURL: config.baseUrl?.trim() || ANTHROPIC_DEFAULT_URL })
+  // The SDK adds /v1 itself; an endpoint written with it would become /v1/v1.
+  const base = config.baseUrl?.trim().replace(/\/+$/, '').replace(/\/v1$/, '')
+  return new Anthropic({ apiKey, authToken: null, baseURL: base || ANTHROPIC_DEFAULT_URL })
 }
 
 export function describeAnthropicError(err: unknown): string | undefined {
-  if (err instanceof Anthropic.AuthenticationError)
-    return `The Anthropic API key was rejected (${err.status}: ${err.message}). Check it in Settings → Providers, where "Test connection" shows what Anthropic says.`
+  if (err instanceof Anthropic.AuthenticationError) {
+    const hint = (err as { keyHint?: string }).keyHint
+    return `Anthropic rejected the API key (${err.status}). ${hint ?? 'Check it in Settings → Model providers.'}`
+  }
   if (err instanceof Anthropic.RateLimitError) return 'Rate limited by Anthropic. Wait a moment and regenerate.'
   if (err instanceof Anthropic.BadRequestError) return `Anthropic rejected the request: ${err.message}`
   if (err instanceof Anthropic.APIConnectionError) return "Couldn't reach Anthropic. Check your connection."

@@ -33,8 +33,25 @@ export function getProvider(id: string): ProviderConfig {
   return p
 }
 
+/**
+ * A key as pasted, minus what tends to come along with it: an "ANTHROPIC_API_KEY=" or
+ * "x-api-key:" prefix (with export, set or $env: before it), "Bearer", quotes, and spaces or
+ * line breaks from copying across lines.
+ */
+export function cleanApiKey(raw: string): string {
+  return raw
+    .trim()
+    .replace(/^(?:export\s+|set\s+|\$env:)/i, '')
+    .replace(/^[A-Za-z0-9_-]+\s*[=:]\s*/, '')
+    .replace(/^bearer\s+/i, '')
+    .replace(/^["'`]+|["'`]+$/g, '')
+    .replace(/\s+/g, '')
+}
+
+// Cleaned on the way out too, so a key saved before cleaning existed works without re-pasting.
 export function getApiKey(id: string): string | undefined {
-  return getSecret(`provider:${id}`)
+  const key = getSecret(`provider:${id}`)
+  return key === undefined ? undefined : cleanApiKey(key)
 }
 
 export function saveProvider(config: ProviderConfig, apiKey?: string): ProviderConfig[] {
@@ -42,7 +59,7 @@ export function saveProvider(config: ProviderConfig, apiKey?: string): ProviderC
   list.push(strip(config))
   kvSet('providers', list)
   if (apiKey !== undefined) {
-    if (apiKey.trim()) setSecret(`provider:${config.id}`, apiKey.trim())
+    if (cleanApiKey(apiKey)) setSecret(`provider:${config.id}`, cleanApiKey(apiKey))
     else deleteSecret(`provider:${config.id}`)
     statuses.delete(config.id)
   }
