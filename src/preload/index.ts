@@ -1,12 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { StreamEvent, TwilightApi, UpdateState } from '@shared/types'
+import type { InsightsEvent, StreamEvent, TwilightApi, UpdateState } from '@shared/types'
 
 const invoke =
   (name: keyof TwilightApi) =>
   (...args: unknown[]) =>
     ipcRenderer.invoke(`twilight:${name}`, ...args)
 
-const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate'>[] = [
+const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'>[] = [
   'listRubrics',
   'saveRubric',
   'deleteRubric',
@@ -80,7 +80,10 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate'>[] = [
   'checkForUpdates',
   'setAutoUpdateCheck',
   'installVersion',
-  'openBackupsFolder'
+  'openBackupsFolder',
+  'getInsights',
+  'rescanInsights',
+  'setCharacters'
 ]
 
 const api = Object.fromEntries(methods.map((m) => [m, invoke(m)])) as unknown as TwilightApi
@@ -94,6 +97,12 @@ api.onUpdate = (listener: (state: UpdateState) => void) => {
   const handler = (_e: Electron.IpcRendererEvent, state: UpdateState): void => listener(state)
   ipcRenderer.on('twilight:update', handler)
   return () => ipcRenderer.off('twilight:update', handler)
+}
+
+api.onInsights = (listener: (event: InsightsEvent) => void) => {
+  const handler = (_e: Electron.IpcRendererEvent, event: InsightsEvent): void => listener(event)
+  ipcRenderer.on('twilight:insights', handler)
+  return () => ipcRenderer.off('twilight:insights', handler)
 }
 
 contextBridge.exposeInMainWorld('twilight', api)

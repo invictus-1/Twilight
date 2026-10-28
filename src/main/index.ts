@@ -21,8 +21,10 @@ import * as judge from './judge'
 import * as logs from './logs'
 import * as workspaces from './workspaces'
 import type { JudgeInput, Rubric } from '@shared/judge'
+import type { TrackedCharacter } from '@shared/insights'
 import * as writing from './writing'
 import * as providers from './providers'
+import * as insights from './insights'
 import * as updates from './updates'
 import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
@@ -216,7 +218,20 @@ function registerIpc(): void {
     stopJudge: (_e, id: string) => judge.stopJudge(id),
     deleteJudgment: (_e, id: string) => judge.deleteJudgment(id),
     getWritingFolder: () => docs.writingFolder(),
-    chooseWritingFolder: (e) => docs.chooseWritingFolder(BrowserWindow.fromWebContents(e.sender)),
+    chooseWritingFolder: async (e) => {
+      const folder = await docs.chooseWritingFolder(BrowserWindow.fromWebContents(e.sender))
+      if (folder) {
+        insights.watchFolder()
+        void insights.scan()
+      }
+      return folder
+    },
+    getInsights: (e) => insights.subscribe(e.sender),
+    rescanInsights: async () => {
+      await insights.scan()
+      return insights.summary()
+    },
+    setCharacters: (_e, list: TrackedCharacter[]) => insights.setCharacters(list),
     listDocs: () => docs.listDocs(),
     listDocFolders: () => docs.listDocFolders(),
     createDocFolder: (_e, path: string) => docs.createDocFolder(path),
@@ -257,7 +272,10 @@ app.whenReady().then(() => {
   registerIpc()
   updates.recordRunningVersion()
   // Tests never reach GitHub; the e2e run checks against its own mock.
-  if (!testDir) updates.startDailyCheck()
+  if (!testDir) {
+    updates.startDailyCheck()
+    insights.start()
+  }
   if (selfTestDir) seedSelfTest()
   const win = createWindow()
   if (selfTestDir) runSelfTest(win, selfTestDir)

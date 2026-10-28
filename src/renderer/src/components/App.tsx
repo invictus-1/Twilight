@@ -3,12 +3,14 @@ import { useStore } from '../store'
 import { useJudge } from '../judgeStore'
 import { clearStream, handleStreamEvent } from '../stream'
 import { useWriting } from '../writingStore'
+import { useInsights } from '../insightsStore'
+import { InsightsView } from './InsightsView'
 import { JudgeView } from './JudgeView'
 
 // The editor (CodeMirror) loads the first time Writing opens, so startup only parses the chat.
 const WritingView = lazy(() => import('./WritingView').then((m) => ({ default: m.WritingView })))
 import { ChatView } from './ChatView'
-import { CloseIcon } from './Icons'
+import { CloseIcon, TrophyIcon } from './Icons'
 import { SettingsView } from './SettingsView'
 import { useDragResize, usePersistentNumber } from '../resize'
 import { Sidebar } from './Sidebar'
@@ -21,6 +23,8 @@ export function App() {
   const error = useStore((s) => s.error)
   const undo = useStore((s) => s.undo)
   const latestUpdate = useStore((s) => s.updates?.latest ?? null)
+  const unlocked = useInsights((s) => s.unlocked)
+  useEffect(() => void useInsights.getState().init(), [])
   const [noticed, setNoticed] = useState(() => {
     try {
       return localStorage.getItem('twilight.updateNoticed')
@@ -114,12 +118,36 @@ export function App() {
         <ChatView />
       ) : mode === 'judge' ? (
         <JudgeView />
+      ) : mode === 'insights' ? (
+        <InsightsView />
       ) : (
         <Suspense fallback={<main className="chat" />}>
           <WritingView />
         </Suspense>
       )}
-      {latestUpdate && latestUpdate !== noticed && !settingsOpen && !undo && !error && (
+      {unlocked.length > 0 && !undo && !error && (
+        <div className="toast toast-info ach-toast" role="status">
+          <TrophyIcon size={16} />
+          <span>
+            {unlocked.length === 1 ? `Achievement unlocked: ${unlocked[0]}` : `${unlocked.length} achievements unlocked: ${unlocked.slice(0, 3).join(', ')}${unlocked.length > 3 ? '…' : ''}`}
+          </span>
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-sm"
+            onClick={() => {
+              useInsights.getState().dismissUnlocked()
+              useInsights.getState().setPage('achievements')
+              useStore.getState().setSettingsOpen(false)
+              useStore.getState().setMode('insights')
+            }}
+          >
+            View
+          </button>
+          <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Dismiss" onClick={() => useInsights.getState().dismissUnlocked()}>
+            <CloseIcon />
+          </button>
+        </div>
+      )}
+      {latestUpdate && latestUpdate !== noticed && !settingsOpen && !undo && !error && !unlocked.length && (
         <div className="toast toast-info update-toast" role="status">
           <span className="update-dot" />
           <span>Twilight {latestUpdate} is available</span>

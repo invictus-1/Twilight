@@ -17,7 +17,7 @@ import type {
 } from '@shared/types'
 import { clearStream } from './stream'
 
-export type Mode = 'chat' | 'write' | 'judge'
+export type Mode = 'chat' | 'write' | 'judge' | 'insights'
 
 const api = window.twilight
 
@@ -244,7 +244,8 @@ export const useStore = create<State>((set, get) => {
     cloneIntoSplit: (nodeId) => withCurrent((id) => api.cloneIntoSplit(id, nodeId)),
     closeSplit: (keep) => withCurrent((id) => api.closeSplit(id, keep)),
     setTarget: (target) => set({ target }),
-    setMode: (mode) => set({ mode }),
+    // Switching tabs leaves Settings, so the tab you picked is what you see.
+    setMode: (mode) => set({ mode, settingsOpen: false }),
     async setDefaultModel(providerId, modelId) {
       set({ defaults: await api.setDefaults({ providerId, modelId }) })
     },

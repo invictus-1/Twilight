@@ -1,6 +1,7 @@
 // Types shared by the main process, the preload bridge and the renderer.
 
 import type { ChoiceSet } from './choices'
+import type { InsightsSummary, TrackedCharacter } from './insights'
 import type { JudgeInput, Judgment, JudgmentSummary, Rubric } from './judge'
 
 export type ProviderKind = 'anthropic' | 'openai'
@@ -245,6 +246,11 @@ export interface UpdateState {
   releasesPage: string
 }
 
+export type InsightsEvent =
+  | { kind: 'progress'; done: number; total: number }
+  | { kind: 'updated' }
+  | { kind: 'unlocked'; names: string[] }
+
 export type StreamEvent =
   | { kind: 'text'; conversationId: string; nodeId: string; delta: string }
   | { kind: 'thinking'; conversationId: string; nodeId: string; delta: string }
@@ -384,5 +390,10 @@ export interface TwilightApi {
   /** Installs any listed version, newer or older; Twilight closes and the installer takes over. */
   installVersion(version: string): Promise<UpdateState>
   openBackupsFolder(): Promise<void>
+
+  getInsights(): Promise<InsightsSummary>
+  rescanInsights(): Promise<InsightsSummary>
+  setCharacters(list: TrackedCharacter[]): Promise<InsightsSummary>
+  onInsights(listener: (event: InsightsEvent) => void): () => void
   onUpdate(listener: (state: UpdateState) => void): () => void
 }

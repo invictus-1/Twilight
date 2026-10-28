@@ -1,13 +1,79 @@
 import { memo, useState, type DragEvent, type ReactNode } from 'react'
 import type { ChatFolder, ConversationSummary, DocEntry } from '@shared/types'
 import { modelName, useStore } from '../store'
+import { useInsights, type InsightsPage } from '../insightsStore'
 import { useJudge } from '../judgeStore'
 import { useWriting } from '../writingStore'
-import { ChevronDown, ChevronRight, FolderIcon, FolderPlusIcon, PinIcon, PlusIcon, SettingsIcon, SlidersIcon, TrashIcon } from './Icons'
+import {
+  BookIcon,
+  BulbIcon,
+  CalendarIcon,
+  ChevronDown,
+  ChevronRight,
+  ExportIcon,
+  FolderIcon,
+  FolderPlusIcon,
+  GridIcon,
+  PeopleIcon,
+  PinIcon,
+  PlusIcon,
+  RefreshIcon,
+  SettingsIcon,
+  SlidersIcon,
+  SparkIcon,
+  TargetIcon,
+  TrashIcon,
+  TrophyIcon
+} from './Icons'
 import { WorkspaceDialog } from './WorkspaceDialog'
 
 const CHAT_MIME = 'application/x-twilight-chat'
 const DOC_MIME = 'application/x-twilight-doc'
+
+const INSIGHT_PAGES: { id: InsightsPage; label: string; icon: React.ReactElement; ai?: boolean }[] = [
+  { id: 'dashboard', label: 'Dashboard', icon: <GridIcon /> },
+  { id: 'heatmap', label: 'Heatmap', icon: <CalendarIcon /> },
+  { id: 'words', label: 'Word analysis', icon: <BookIcon /> },
+  { id: 'characters', label: 'Characters', icon: <PeopleIcon /> },
+  { id: 'story', label: 'Story analysis', icon: <SparkIcon />, ai: true },
+  { id: 'focus', label: 'Focus', icon: <TargetIcon />, ai: true },
+  { id: 'insights', label: 'Insights', icon: <BulbIcon />, ai: true },
+  { id: 'achievements', label: 'Achievements', icon: <TrophyIcon /> },
+  { id: 'reports', label: 'Reports', icon: <ExportIcon /> }
+]
+
+/** The Insights pages, and the rescan button with its progress. */
+function InsightsNav() {
+  const page = useInsights((s) => s.page)
+  const setPage = useInsights((s) => s.setPage)
+  const scanning = useInsights((s) => s.summary?.scanning ?? false)
+  const progress = useInsights((s) => s.progress)
+  const scannedAt = useInsights((s) => s.summary?.scannedAt ?? null)
+  return (
+    <>
+      <div className="sidebar-list insights-nav" role="tablist" aria-label="Insights pages">
+        {INSIGHT_PAGES.map((p) => (
+          <button key={p.id} role="tab" aria-selected={page === p.id} className="insights-nav-item" onClick={() => setPage(p.id)}>
+            {p.icon}
+            <span>{p.label}</span>
+            {p.ai && (
+              <span className="ai-badge" title="Uses a model you choose; runs only when you ask">
+                AI
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+      <div className="insights-rescan">
+        <button className="tw-btn tw-btn-primary rescan-btn" disabled={scanning} onClick={() => void useInsights.getState().rescan()}>
+          <RefreshIcon className={scanning ? 'spinning' : ''} />
+          {scanning ? (progress ? `Reading ${progress.done} of ${progress.total}` : 'Reading…') : 'Rescan now'}
+        </button>
+        {scannedAt && !scanning && <span className="field-note">Last read {relativeTime(scannedAt)}</span>}
+      </div>
+    </>
+  )
+}
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts
@@ -473,7 +539,7 @@ export function Sidebar() {
     <nav className="sidebar" aria-label={mode === 'chat' ? 'Conversations' : 'Documents'}>
       <div className="sidebar-head drag">
         <span className="brand">Twilight</span>
-        <span className="head-actions">
+        <span className="head-actions" hidden={mode === 'insights'}>
           <button
             className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
             aria-label={mode === 'chat' ? 'New workspace' : 'New folder'}
@@ -530,11 +596,25 @@ export function Sidebar() {
         >
           Judge
         </button>
+        <button
+          role="tab"
+          data-mode="insights"
+          aria-selected={mode === 'insights'}
+          onClick={() => {
+            setCreating(false)
+            setMode('insights')
+            void useInsights.getState().init()
+          }}
+        >
+          Insights
+        </button>
       </div>
       {mode === 'chat' ? (
         <ChatList creating={creating} onCreated={() => setCreating(false)} />
       ) : mode === 'write' ? (
         <DocList creating={creating} onCreated={() => setCreating(false)} />
+      ) : mode === 'insights' ? (
+        <InsightsNav />
       ) : (
         <JudgeList />
       )}

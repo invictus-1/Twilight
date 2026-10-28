@@ -17,6 +17,8 @@ import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
 import * as providers from './providers'
 import * as updates from './updates'
+import * as insights from './insights'
+import { ACHIEVEMENTS, analyzeText } from '@shared/insights'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 
@@ -1011,6 +1013,73 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.3.1,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-roadmap.png'), img.toPNG()), () => undefined)
+
+      // 32. Writer insights: the first scan is a baseline; growth after it is written today; imports
+      // and shrinking aren't writing; characters, pairs and achievements follow.
+      await insights.scan()
+      let ins = insights.summary()
+      check('first scan is a baseline, not writing', ins.written === 0 && ins.today === 0 && ins.storyTotal > 100000 && ins.trackingSince !== null, { written: ins.written, total: ins.storyTotal })
+      check('existing manuscripts unlock quietly', ins.achievements.some((a) => a.def.id === 'magnum-opus-2' && a.unlockedAt), ins.achievements.filter((a) => a.unlockedAt).map((a) => a.def.id))
+      const growth = Array.from({ length: 60 }, (_, i) => `Wren and Rowan climbed the stair ${i}. "Again?" Rowan asked quietly.`).join('\n\n')
+      const tracked = await docs.createDoc('Insights test')
+      await docs.writeDoc(tracked.path, 'Wren started here.\n')
+      await insights.scan()
+      ins = insights.summary()
+      check('a new small file counts as written', ins.today === 3, ins.today)
+      await docs.writeDoc(tracked.path, `Wren started here.\n\n${growth}\n`)
+      await insights.scan()
+      ins = insights.summary()
+      const grown = 3 + analyzeText(growth).words
+      check('growth is booked to today', ins.today === grown && ins.written === grown && ins.activeDays === 1 && ins.streak === 1, { today: ins.today, expected: grown })
+      check('the hour of writing is recorded', ins.hours[new Date().getHours()] === grown)
+      const importedDoc = await docs.createDoc('Imported novel')
+      await docs.writeDoc(importedDoc.path, 'word '.repeat(25000))
+      await docs.writeDoc(tracked.path, 'Wren started here.\n')
+      await insights.scan()
+      ins = insights.summary()
+      check('a big new file is an import, and cutting text is not writing', ins.today === grown, ins.today)
+      await docs.writeDoc(tracked.path, `Wren started here.\n\n${growth}\n`)
+      await insights.scan()
+      ins = insights.summary()
+      check('writing it back counts again', ins.today === grown + grown - 3, { today: ins.today, grown })
+      await insights.setCharacters([
+        { name: 'Wren', aliases: [], color: '' },
+        { name: 'Rowan', aliases: ['Ro'], color: '#ffb48a' }
+      ])
+      ins = insights.summary()
+      const wren = ins.characters.find((c) => c.name === 'Wren')
+      check('tracked characters are counted', (wren?.mentions ?? 0) >= 60 && ins.characters.find((c) => c.name === 'Rowan')?.mentions === 120 && !!wren?.color, ins.characters)
+      check('characters sharing paragraphs are paired', ins.pairs[0]?.a === 'Rowan' && ins.pairs[0]?.b === 'Wren' && ins.pairs[0].scenes >= 60, ins.pairs[0])
+      check('writing the same day after a baseline unlocks quietly-earned and new achievements', ins.achievements.some((a) => a.def.id === 'big-day-1' && a.unlockedAt), ins.achievements.filter((a) => a.unlockedAt).map((a) => a.def.id))
+      check('style numbers are filled in', ins.style.avgSentence > 0 && ins.style.dialoguePercent > 0 && ins.style.vocabulary > 10 && ins.style.topWords.length > 0)
+      check('last 14 days end today', ins.last14.length === 14 && ins.last14.at(-1)?.words === ins.today)
+
+      const insUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="insights"]').click()
+        await wait(500)
+        const page = (label) => [...document.querySelectorAll('.insights-nav-item')].find((b) => b.textContent.startsWith(label))?.click()
+        const out = { tabs: document.querySelectorAll('.insights-nav-item').length, stats: [...document.querySelectorAll('.ins-stat-label')].map((e) => e.textContent), bars: document.querySelectorAll('.ins-bar').length }
+        page('Heatmap'); await wait(300)
+        out.heatCells = document.querySelectorAll('.heatmap-cell.l4, .heatmap-cell.l3, .heatmap-cell.l2, .heatmap-cell.l1').length - 4
+        page('Word analysis'); await wait(300)
+        out.topWords = document.querySelectorAll('.word-bars li').length
+        page('Characters'); await wait(300)
+        out.characters = [...document.querySelectorAll('.char-name')].map((e) => e.textContent)
+        out.pairs = document.querySelectorAll('.pair-list li').length
+        page('Achievements'); await wait(300)
+        out.achievements = document.querySelectorAll('.ach').length
+        out.unlocked = document.querySelectorAll('.ach-on').length
+        page('Dashboard'); await wait(500)
+        return out
+      })()`)
+      check('insights pages listed', insUi.tabs === 9, insUi.tabs)
+      check('dashboard shows the stat cards and 14 bars', insUi.stats.includes('Today') && insUi.stats.includes('Best day') && insUi.bars === 14, insUi)
+      check('heatmap marks today', insUi.heatCells >= 1, insUi.heatCells)
+      check('word analysis lists words', insUi.topWords > 0, insUi.topWords)
+      check('characters page shows screen time and pairs', insUi.characters.join() === 'Rowan,Wren' && insUi.pairs >= 1, insUi)
+      check('achievements page shows every achievement', insUi.achievements === ACHIEVEMENTS.length && insUi.unlocked >= 2, insUi)
+      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-insights.png'), img.toPNG()), () => undefined)
 
       // 28. Message actions: delete one, delete below, view, restore (also after writing more), edit, tok/s.
       const c5 = chat.create(null).id

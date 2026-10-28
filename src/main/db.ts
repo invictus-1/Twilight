@@ -122,6 +122,20 @@ export function openDatabase(file: string): void {
     CREATE INDEX IF NOT EXISTS nodes_conversation ON nodes(conversation_id);
     CREATE INDEX IF NOT EXISTS conversations_updated ON conversations(updated_at DESC);
     CREATE TABLE IF NOT EXISTS kv (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+    -- Writer insights: each document's last analysis, and words written per day.
+    CREATE TABLE IF NOT EXISTS doc_stats (
+      path TEXT PRIMARY KEY,
+      mtime REAL NOT NULL,
+      size INTEGER NOT NULL,
+      words INTEGER NOT NULL,
+      chars_key TEXT NOT NULL,
+      analysis TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS writing_days (
+      day TEXT PRIMARY KEY,
+      written INTEGER NOT NULL DEFAULT 0,
+      removed INTEGER NOT NULL DEFAULT 0
+    );
   `)
   const columns = (db.prepare('PRAGMA table_info(conversations)').all() as { name: string }[]).map((c) => c.name)
   if (!columns.includes('split')) db.exec('ALTER TABLE conversations ADD COLUMN split TEXT')
@@ -154,6 +168,11 @@ export function openDatabase(file: string): void {
   `)
   // A crash mid-stream leaves "streaming" rows behind; they are stopped, not lost.
   db.prepare(`UPDATE nodes SET status = 'stopped' WHERE status = 'streaming'`).run()
+}
+
+/** For modules that keep their own tables (insights). */
+export function handle(): Database.Database {
+  return db
 }
 
 /** A consistent copy of the whole database, taken while it stays open. */
