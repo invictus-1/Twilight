@@ -36,9 +36,24 @@ h1, h2, h3 { margin: 0; }
 
 /* Layout */
 .app { display: grid; grid-template-columns: var(--sidebar) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); height: 100%; overflow: hidden; position: relative; }
-.app.sidebar-closed { grid-template-columns: 0 minmax(0, 1fr); }
+.app.sidebar-closed { grid-template-columns: 68px 0 minmax(0, 1fr); }
 .app.sidebar-closed .sidebar { visibility: hidden; }
 
+/* The rail: sections down the left edge, an icon over its name. */
+.rail { background: var(--night); border-right: 1px solid var(--line); display: flex; flex-direction: column; align-items: center; padding-bottom: var(--space-2); min-width: 0; }
+.rail-head { height: var(--titlebar); width: 100%; display: grid; place-items: center; flex: none; }
+.rail-mark { width: 26px; height: 26px; }
+.rail-items { display: flex; flex-direction: column; gap: 4px; width: 100%; padding: var(--space-1) 6px 0; }
+.rail-item { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 6px 0 5px; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-faint); cursor: pointer; font: inherit; transition: color 120ms ease, background 120ms ease; }
+.rail-item:hover { color: var(--ink); background: var(--surface-hover); }
+.rail-icon { position: relative; display: grid; place-items: center; width: 40px; height: 28px; border-radius: var(--radius-full); transition: background 160ms ease, color 160ms ease; }
+.rail-label { font-size: 11px; line-height: 14px; font-weight: 500; letter-spacing: .01em; }
+.rail-item[aria-selected='true'] { color: var(--ink); }
+.rail-item[aria-selected='true'] .rail-icon { background: var(--iris-soft); color: var(--iris); }
+.rail-item[aria-selected='true']::before { content: ''; position: absolute; left: -6px; top: 10px; height: 20px; width: 3px; border-radius: 0 3px 3px 0; background: var(--iris); }
+.rail-item:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.rail-badge { position: absolute; top: 2px; right: 7px; width: 8px; height: 8px; border-radius: 50%; background: var(--success); box-shadow: 0 0 0 2px var(--night); }
+@media (prefers-reduced-motion: reduce) { .rail-item, .rail-icon { transition: none; } }
 .sidebar { background: var(--night); display: flex; flex-direction: column; min-width: 0; overflow: hidden; }
 .sidebar-head { height: var(--titlebar); display: flex; align-items: center; justify-content: space-between; padding: 0 var(--space-2) 0 var(--space-4); flex: none; }
 .brand { font-weight: 600; font-size: 13px; letter-spacing: 0.01em; color: var(--ink-muted); }

@@ -1,5 +1,7 @@
 import { useSyncExternalStore } from 'react'
-import { useStore } from './store'
+import { useInsights } from './insightsStore'
+import { useJudge } from './judgeStore'
+import { useStore, type Mode } from './store'
 import { THEMES } from '@shared/themes'
 import { setTheme } from './theme'
 import { chatInGameFormat } from './gameCopy'
@@ -22,7 +24,15 @@ export interface Command {
 }
 
 const s = (): ReturnType<typeof useStore.getState> => useStore.getState()
-const go = (mode: 'chat' | 'write' | 'judge' | 'insights'): void => s().setMode(mode)
+
+/** Opens a section, refreshing what it lists. */
+export function openMode(mode: Mode): void {
+  s().setMode(mode)
+  if (mode === 'write') void useWriting.getState().refresh()
+  else if (mode === 'judge') void useJudge.getState().refresh()
+  else if (mode === 'insights') void useInsights.getState().init()
+}
+const go = openMode
 const settings = (section?: string): void => s().setSettingsOpen(true, section)
 const split = (): boolean => !!s().current?.split
 

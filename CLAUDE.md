@@ -35,10 +35,10 @@ Also run the e2e suite against the packaged build after `npm run dist`: `TWILIGH
 
 ## Map
 
-- `src/main/` — Electron main process. `chat.ts` (conversation trees, generate, delete/restore/edit), `db.ts` (SQLite: conversations, nodes, kv, deletions, doc_stats, writing_days), `providers/` (Anthropic and OpenAI-compatible, model lists, keys), `judge.ts`, `writing.ts` (editor tools), `docs.ts` (writing folder), `insights.ts` + `insights.worker.ts` (Writer insights tracker), `updates.ts` (GitHub releases updater), `e2e.ts`, `selftest.ts`, `showcase.ts`.
-- `src/shared/` — types and logic used on both sides: `types.ts` (the IPC API), `choices.ts` (choice-card parsing and the present_choices tool), `insights.ts` (text analysis, achievements), `judge.ts`, `roadmap.ts`, `gameFormat.ts`, `pricing.ts`.
+- `src/main/` — Electron main process. `chat.ts` (conversation trees, generate, delete/restore/edit), `db.ts` (SQLite: conversations, nodes, kv, deletions, doc_stats, writing_days), `providers/` (Anthropic and OpenAI-compatible, model lists, keys), `judge.ts`, `writing.ts` (editor tools), `docs.ts` (writing folder), `insights.ts` + `insights.worker.ts` (Writer insights tracker), `updates.ts` (GitHub releases updater), `search.ts` (search everything), `e2e.ts`, `selftest.ts`, `showcase.ts`.
+- `src/shared/` — types and logic used on both sides: `types.ts` (the IPC API), `choices.ts` (choice-card parsing and the present_choices tool), `insights.ts` (text analysis, achievements), `judge.ts`, `roadmap.ts`, `gameFormat.ts`, `pricing.ts`, `attachments.ts` (what can be attached, and limits), `themes.ts` (the theme list).
 - `src/preload/index.ts` — the `window.twilight` bridge; every API method is listed there.
-- `src/renderer/src/` — React UI. `store.ts` (zustand), `components/` (one file per surface), `styles/tokens.css` + `styles/app.css`.
+- `src/renderer/src/` — React UI. `store.ts` (zustand), `commands.ts` (every command, its shortcut and rebinding; the command menu, shortcut sheet and rail read it), `highlight.ts` (code highlighting), `components/` (one file per surface), `styles/tokens.css` + `styles/app.css` + `styles/themes.css`.
 - `design/` — the design system: tokens, component guidelines and previews. Follow it for anything visual.
 
 ## How things are built

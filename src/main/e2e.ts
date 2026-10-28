@@ -1042,7 +1042,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // The providers page: a list on the left, the selected provider's connection and models on the right.
       const provUi = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        document.querySelector('.sidebar-foot .tw-btn').click()
+        document.querySelector('.rail [data-rail="settings"]').click()
         await wait(300)
         ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Model providers'))?.click()
         await wait(300)
@@ -1259,7 +1259,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         out.notes = document.querySelectorAll('.theme-card').length
         page('Reports'); await wait(300)
         out.reports = document.querySelectorAll('.report-card').length
-        document.querySelector('.sidebar-foot .tw-btn').click(); await wait(300)
+        document.querySelector('.rail [data-rail="settings"]').click(); await wait(300)
         ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('General'))?.click(); await wait(200)
         ;[...document.querySelectorAll('.theme-option')].find((b) => b.textContent.includes('Ultraviolet'))?.click(); await wait(300)
         out.theme = document.documentElement.dataset.theme ?? 'twilight'
@@ -1774,6 +1774,31 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('Phosphor, Nightshade and Ember apply their colours', themesUi.nights.phosphor === '#030604' && themesUi.nights.nightshade === '#07050b' && themesUi.nights.ember === '#0a0505', themesUi.nights)
       check('the window frame follows the theme', frameTheme === 'ember', frameTheme)
       await key('Escape')
+
+      // 34. The rail: every section with its name; the current one hides and shows the sidebar.
+      const railUi = await js<{ labels: string[]; selected: string | null; closed: boolean; railStill: boolean; reopened: boolean; head: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('.rail [data-mode="write"]').click()
+        await wait(200)
+        const out = {
+          labels: [...document.querySelectorAll('.rail .rail-label')].map((e) => e.textContent),
+          selected: document.querySelector('.rail [aria-selected="true"] .rail-label')?.textContent ?? null,
+          head: document.querySelector('.sidebar .brand')?.textContent ?? ''
+        }
+        document.querySelector('.rail [data-mode="write"]').click()
+        await wait(200)
+        out.closed = !!document.querySelector('.app.sidebar-closed')
+        out.railStill = document.querySelector('.rail')?.getBoundingClientRect().width > 40
+        document.querySelector('.rail [data-mode="write"]').click()
+        await wait(200)
+        out.reopened = !document.querySelector('.app.sidebar-closed')
+        document.querySelector('.rail [data-mode="chat"]').click()
+        await wait(200)
+        return out
+      })()`)
+      check('the rail lists every section by name', railUi.labels.join() === 'Chats,Writing,Judge,Insights,Search,Settings' && railUi.selected === 'Writing' && railUi.head === 'Writing', railUi)
+      check('the current section on the rail hides and shows the sidebar, and the rail stays', railUi.closed && railUi.railStill && railUi.reopened, railUi)
+      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-rail.png'), img.toPNG()), () => undefined)
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

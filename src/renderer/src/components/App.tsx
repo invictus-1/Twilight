@@ -15,6 +15,7 @@ import { CloseIcon, TrophyIcon } from './Icons'
 import { SettingsView } from './SettingsView'
 import { useDragResize, usePersistentNumber } from '../resize'
 import { Sidebar } from './Sidebar'
+import { Rail } from './Rail'
 import { commandFor } from '../commands'
 import { recordingKeys } from './ShortcutsSection'
 import { CommandMenu, ShortcutSheet } from './CommandMenu'
@@ -53,11 +54,12 @@ export function App() {
     return () => clearTimeout(t)
   }, [undo])
   const [savedSidebarWidth, setSidebarWidth] = usePersistentNumber('twilight.sidebarWidth', 264)
-  // Narrower than this and the four tabs (Chats, Writing, Judge, Insights) no longer fit.
-  const SIDEBAR_MIN = 236
+  // The rail holds the sections now, so the sidebar can go narrower than the old tabs allowed.
+  const SIDEBAR_MIN = 200
+  const RAIL = 68
   const sidebarWidth = Math.max(SIDEBAR_MIN, savedSidebarWidth)
   const sidebarDrag = useDragResize({
-    onMove: (x) => setSidebarWidth(Math.round(Math.min(560, Math.max(SIDEBAR_MIN, x)))),
+    onMove: (x) => setSidebarWidth(Math.round(Math.min(560, Math.max(SIDEBAR_MIN, x - RAIL)))),
     onReset: () => setSidebarWidth(264)
   })
 
@@ -98,12 +100,13 @@ export function App() {
   }, [])
 
   return (
-    <div className={`app ${sidebarOpen ? '' : 'sidebar-closed'}`} style={sidebarOpen ? { gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr)` } : undefined}>
+    <div className={`app ${sidebarOpen ? '' : 'sidebar-closed'}`} style={{ gridTemplateColumns: `${RAIL}px ${sidebarOpen ? sidebarWidth : 0}px minmax(0, 1fr)` }}>
+      <Rail />
       <Sidebar />
       {sidebarOpen && (
         <div
           className="resize-handle sidebar-handle"
-          style={{ left: sidebarWidth - 3 }}
+          style={{ left: RAIL + sidebarWidth - 3 }}
           role="separator"
           aria-orientation="vertical"
           aria-label="Resize the sidebar (double-click to reset)"

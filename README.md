@@ -74,7 +74,7 @@ Your writing folder, seen as numbers: words written today, this week and this ye
 
 ![Story analysis: a summary, the content breakdown and genres, read by a model you choose](docs/screenshots/story.png)
 
-With a model you choose, **Story analysis** reads what your story is made of (content, genres, tags, themes); a deep scan never pays twice for text that hasn't changed. **Focus** suggests a few things to work on, with quotes and an exercise, and **Insights** reads your habits from the numbers alone. **Reports** turn a week, month, year or everything into a single HTML recap. And when the dark blue gets old, there's an **Ultraviolet** theme.
+With a model you choose, **Story analysis** reads what your story is made of (content, genres, tags, themes); a deep scan never pays twice for text that hasn't changed. **Focus** suggests a few things to work on, with quotes and an exercise, and **Insights** reads your habits from the numbers alone. **Reports** turn a week, month, year or everything into a single HTML recap. And when the dark blue gets old, there are four more themes: **Ultraviolet**, **Phosphor** (black and green), **Nightshade** (purple) and **Ember** (red).
 
 ### Your models, your keys
 

@@ -427,7 +427,7 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
       `)
       await shot('writing')
 
-      await js(`document.querySelector('[data-mode="chat"]').click(); await wait(200); document.querySelector('.sidebar-foot .tw-btn').click(); await wait(300);
+      await js(`document.querySelector('[data-mode="chat"]').click(); await wait(200); document.querySelector('.rail [data-rail="settings"]').click(); await wait(300);
         [...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Model providers'))?.click(); await wait(300);
         [...document.querySelectorAll('.provider-item')].find((r) => r.textContent.includes('demo'))?.click()`)
       await shot('providers')

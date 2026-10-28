@@ -21,6 +21,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 - **Syntax highlighting** in code blocks, in each theme's own colours, for the languages models write most. Twilight's own highlighter, so it adds no weight and keeps up while a reply streams.
 
 **Look and feel**
+- **Section rail:** Chats, Writing, Judge and Insights moved from tabs to a rail down the left edge, each an icon with its name, with Search and Settings at the bottom. It stays when the sidebar is hidden; click the section you're in to hide or show the sidebar. The sidebar can now go narrower.
 - **Three new themes:** Phosphor (black and green, like an old terminal), Nightshade (black with royal purple) and Ember (black and red, with orange and gold). Pick one in Settings → General, in the welcome, or from the command menu. Every theme keeps text readable to the same contrast standard.
 
 **Writing**

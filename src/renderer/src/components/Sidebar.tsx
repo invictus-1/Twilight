@@ -1,4 +1,4 @@
-import { memo, useState, type DragEvent, type ReactNode } from 'react'
+import { memo, useEffect, useState, type DragEvent, type ReactNode } from 'react'
 import type { ChatFolder, ConversationSummary, DocEntry } from '@shared/types'
 import { modelName, useStore } from '../store'
 import { useInsights, type InsightsPage } from '../insightsStore'
@@ -19,7 +19,6 @@ import {
   PinIcon,
   PlusIcon,
   RefreshIcon,
-  SettingsIcon,
   SlidersIcon,
   SparkIcon,
   TargetIcon,
@@ -585,18 +584,21 @@ function JudgeList() {
   )
 }
 
+const SECTION_NAMES = { chat: 'Chats', write: 'Writing', judge: 'Judge', insights: 'Insights' } as const
+
 export function Sidebar() {
   const mode = useStore((s) => s.mode)
-  const setMode = useStore((s) => s.setMode)
   const newChat = useStore((s) => s.newChat)
   const setSettingsOpen = useStore((s) => s.setSettingsOpen)
   const latestUpdate = useStore((s) => s.updates?.latest)
   const [creating, setCreating] = useState(false)
+  // Switching sections drops a half-typed new folder name.
+  useEffect(() => setCreating(false), [mode])
 
   return (
     <nav className="sidebar" aria-label={mode === 'chat' ? 'Conversations' : 'Documents'}>
       <div className="sidebar-head drag">
-        <span className="brand">Twilight</span>
+        <span className="brand">{SECTION_NAMES[mode]}</span>
         <span className="head-actions" hidden={mode === 'insights'}>
           <button
             className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
@@ -618,55 +620,6 @@ export function Sidebar() {
           </button>
         </span>
       </div>
-      <div className="mode-tabs" role="tablist">
-        <button
-          role="tab"
-          data-mode="chat"
-          aria-selected={mode === 'chat'}
-          onClick={() => {
-            setCreating(false)
-            setMode('chat')
-          }}
-        >
-          Chats
-        </button>
-        <button
-          role="tab"
-          data-mode="write"
-          aria-selected={mode === 'write'}
-          onClick={() => {
-            setCreating(false)
-            setMode('write')
-            void useWriting.getState().refresh()
-          }}
-        >
-          Writing
-        </button>
-        <button
-          role="tab"
-          data-mode="judge"
-          aria-selected={mode === 'judge'}
-          onClick={() => {
-            setCreating(false)
-            setMode('judge')
-            void useJudge.getState().refresh()
-          }}
-        >
-          Judge
-        </button>
-        <button
-          role="tab"
-          data-mode="insights"
-          aria-selected={mode === 'insights'}
-          onClick={() => {
-            setCreating(false)
-            setMode('insights')
-            void useInsights.getState().init()
-          }}
-        >
-          Insights
-        </button>
-      </div>
       {mode === 'chat' ? (
         <ChatList creating={creating} onCreated={() => setCreating(false)} />
       ) : mode === 'write' ? (
@@ -676,18 +629,14 @@ export function Sidebar() {
       ) : (
         <JudgeList />
       )}
-      <div className="sidebar-foot">
-        <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setSettingsOpen(true)}>
-          <SettingsIcon />
-          Settings
-        </button>
-        {latestUpdate && (
+      {latestUpdate && (
+        <div className="sidebar-foot">
           <button className="tw-btn tw-btn-ghost tw-btn-sm update-chip" title="Open Settings > Updates" onClick={() => setSettingsOpen(true, 'updates')}>
             <span className="update-dot" />
             Update {latestUpdate}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </nav>
   )
 }

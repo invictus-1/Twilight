@@ -16,6 +16,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Folder management** · Writing — rename and remove documents and folders in Twilight
 - [x] **Game Format everywhere** · Writing — in the editor too, and for a whole chat
 - [x] **More undo** · Core — undo for trashing chats, moving, renaming and deleting workspaces
+- [x] **Section rail** · Core — a vertical row of icons with names for every section, sleeker than tabs
 - [x] **Colour themes** · Core — Phosphor (black and green), Nightshade (purple) and Ember (red), alongside Twilight and Ultraviolet
 - [x] **Earlier results** · Writing — every AI page keeps its past results to read again
 - [x] **Parallel deep scans** · Writing — 1 to 10 calls at once, finished by the same model
@@ -74,7 +75,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [ ] **Code signing** · Core — a signed installer, so Windows doesn't warn
 
 ## Later
-- [ ] **Sidebar icon rail** · Core — a vertical row of icons with labels for every section, sleeker than tabs
 - [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion
 - [ ] **Custom backgrounds** · Core — your own image or gradient behind the app
 - [ ] **Tools and MCP** · Chat — web search, web fetch, date and time, image generation, switched on per chat
