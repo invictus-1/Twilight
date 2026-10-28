@@ -4,6 +4,11 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 0.3.1 · October 2026
+- [x] **Clearer key errors** · Core — pasted keys cleaned up; a rejected key described by its kind, never shown
+- [x] **Providers, two panes** · Core — a provider list beside the selected provider's connection and model grid
+- [x] **Roadmap page** · Core — this page: a release timeline, cards by area, and ideas
+
 ### 0.3.0 · October 2026
 - [x] **Choices as a tool call** · Chat — the model calls present_choices with the options as data; the pick goes back as the tool result
 - [x] **A switch for each way of offering choices** · Chat — tool call, choices blocks and plain numbered options, in any combination

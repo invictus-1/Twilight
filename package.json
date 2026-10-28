@@ -1,7 +1,7 @@
 {
   "name": "twilight",
   "productName": "Twilight",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A fast, local-first desktop front end for language models, agents and writing.",
   "private": true,
   "main": "out/main/index.js",

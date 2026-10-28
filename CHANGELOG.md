@@ -2,6 +2,23 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## 0.3.1
+
+**Clearer API key problems**
+- A pasted key is cleaned up before it's saved: an `ANTHROPIC_API_KEY=` or `x-api-key:` prefix, `Bearer`, quotes, and spaces or line breaks from copying. Keys you already saved are cleaned too.
+- When Anthropic rejects a key, Twilight says what kind of key it is (never the key itself):
+  - a Claude subscription sign-in token (`sk-ant-oat…`), which the API doesn't accept;
+  - a key from another service;
+  - or a real API key that's been revoked or deleted.
+- An Anthropic endpoint written with `/v1` at the end now works; Twilight no longer doubles it.
+
+**Model providers, redesigned**
+- Providers are listed on the left. The one you pick fills the right side: connection settings side by side, then its models as a grid of cards.
+- A provider without models shows the steps to get them instead of an empty box.
+
+**Roadmap**
+- New Settings → Roadmap page: what has shipped (a timeline of releases), what's next, what's later and the ideas, filterable by area.
+
 ## 0.3.0
 
 **Choices as a tool call**
