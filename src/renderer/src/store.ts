@@ -1,7 +1,10 @@
 import { create } from 'zustand'
 import type {
+  Attachment,
   ChatFolder,
   ChatSettings,
+  ModelOptions,
+  WorkspacePatch,
   ConversationSummary,
   ConversationView,
   ModelInfo,
@@ -40,7 +43,8 @@ interface State {
   deleteFolder(id: string): Promise<void>
   moveChat(id: string, folderId: string | null): Promise<void>
   pinChat(id: string, pinned: boolean): Promise<void>
-  send(text: string): Promise<void>
+  send(text: string, attachments?: Attachment[]): Promise<void>
+  updateWorkspace(id: string, patch: WorkspacePatch): Promise<void>
   regenerate(nodeId: string, pane: Pane): Promise<void>
   switchBranch(nodeId: string, direction: -1 | 1, pane: Pane): Promise<void>
   stop(target?: SendTarget): Promise<void>
@@ -158,14 +162,18 @@ export const useStore = create<State>((set, get) => {
       await get().refreshList()
     },
 
-    async send(text) {
+    async send(text, attachments = []) {
       if (!get().current) {
         await get().newChat()
         if (!get().current) return
       }
       const target = get().current!.split ? get().target : 'a'
-      await withCurrent((id) => api.send(id, text, target))
+      await withCurrent((id) => api.send(id, text, target, attachments))
       await get().refreshList()
+    },
+
+    async updateWorkspace(id, patch) {
+      set({ folders: await api.updateWorkspace(id, patch) })
     },
 
     regenerate: (nodeId, pane) => withCurrent((id) => api.regenerate(id, nodeId, pane)),
@@ -258,6 +266,16 @@ export function modelName(models: ModelInfo[], id: string | undefined): string {
   // Offline or before the model list loads: "claude-opus-5-5" reads as "Claude Opus 5.5".
   const m = /^claude-([a-z]+)-(\d+)(?:-(\d{1,2}))?$/.exec(id)
   return m ? `Claude ${m[1][0].toUpperCase()}${m[1].slice(1)} ${m[2]}${m[3] ? `.${m[3]}` : ''}` : id
+}
+
+/** What the selected model accepts; falls back to the provider's conventions before the list loads. */
+export function optionsFor(models: ModelInfo[], providers: ProviderConfig[], providerId: string, modelId: string): ModelOptions {
+  const known = models.find((m) => m.providerId === providerId && m.id === modelId)?.options
+  if (known) return known
+  const claude = providers.find((p) => p.id === providerId)?.kind === 'anthropic'
+  return claude
+    ? { efforts: ['low', 'medium', 'high', 'xhigh', 'max'], effortParam: 'anthropic', effortsFromProvider: false, adaptiveThinking: true, temperature: false, caching: true }
+    : { efforts: ['low', 'medium', 'high'], effortParam: 'reasoning_effort', effortsFromProvider: false, adaptiveThinking: false, temperature: true, caching: false }
 }
 
 /** The path and settings shown in a pane. */

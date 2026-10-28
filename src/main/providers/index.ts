@@ -1,4 +1,4 @@
-import type { ModelInfo, ProviderConfig } from '@shared/types'
+import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
 import { kvGet, kvSet } from '../db'
 import { deleteSecret, getSecret, hasSecret, setSecret } from '../secrets'
 import { anthropicProvider } from './anthropic'
@@ -55,6 +55,12 @@ export function deleteProvider(id: string): ProviderConfig[] {
   deleteSecret(`provider:${id}`)
   modelCache = null
   return getProviders()
+}
+
+/** A model's options from the last fetched list (kept on disk, so it works offline). */
+export function modelOptions(providerId: string, modelId: string): ModelOptions | undefined {
+  const list = modelCache ?? kvGet<ModelInfo[]>(`models:${providerId}`) ?? []
+  return list.find((m) => m.providerId === providerId && m.id === modelId)?.options
 }
 
 /** Every enabled provider's models. A provider that can't be reached falls back to its last known list. */

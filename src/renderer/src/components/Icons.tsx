@@ -1,11 +1,11 @@
 // Line icons, 16px on a 24px grid, 1.5px stroke, drawn in currentColor (see the design system's
 // Iconography section). Placeholders until we adopt a full icon set.
 
-type Props = { size?: number; className?: string }
+type Props = { size?: number; className?: string; style?: React.CSSProperties }
 
-function Icon({ size = 16, className, children }: Props & { children: React.ReactNode }) {
+function Icon({ size = 16, className, style, children }: Props & { children: React.ReactNode }) {
   return (
-    <svg className={`tw-icon ${className ?? ''}`} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+    <svg className={`tw-icon ${className ?? ''}`} style={style} width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
       {children}
     </svg>
   )
@@ -37,7 +37,10 @@ export const SettingsIcon = (p: Props) => (
 export const SlidersIcon = (p: Props) => (
   <Icon {...p}><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></Icon>
 )
-export const PenIcon = (p: Props) => <Icon {...p}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4" /></Icon>
+export const PaperclipIcon = (p: Props) => (
+  <Icon {...p}><path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7" /></Icon>
+)
+export const PenIcon =(p: Props) => <Icon {...p}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4" /></Icon>
 export const UndoIcon =(p: Props) => <Icon {...p}><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3" /></Icon>
 export const RedoIcon = (p: Props) => <Icon {...p}><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3" /></Icon>
 export const FolderIcon = (p: Props) => (

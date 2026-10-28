@@ -1,4 +1,4 @@
-import type { ChatSettings, ModelInfo, ProviderConfig, Usage } from '@shared/types'
+import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig, Usage } from '@shared/types'
 import type { NodeRow } from '../db'
 
 export interface GenerateRequest {
@@ -9,6 +9,8 @@ export interface GenerateRequest {
   /** The active path below the root, oldest first, ending with the user turn to answer. */
   history: NodeRow[]
   settings: ChatSettings
+  /** What the model accepts, when known. */
+  options?: ModelOptions
   signal: AbortSignal
   onText(delta: string): void
   onThinking(delta: string): void
@@ -28,6 +30,27 @@ export interface GenerateResult {
 export interface Provider {
   listModels(config: ProviderConfig, apiKey?: string): Promise<ModelInfo[]>
   generate(request: GenerateRequest): Promise<GenerateResult>
+}
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
+
+/** Merges the user's extra-parameters JSON into a request body: objects merge, everything else replaces. */
+export function mergeExtraParams(body: Record<string, unknown>, extra: string): void {
+  if (!extra.trim()) return
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(extra)
+  } catch {
+    throw new Error("The extra request parameters aren't valid JSON. Fix them in Model settings.")
+  }
+  if (!isPlainObject(parsed)) throw new Error('The extra request parameters must be a JSON object, like {"top_k": 40}.')
+  const merge = (target: Record<string, unknown>, source: Record<string, unknown>): void => {
+    for (const [key, value] of Object.entries(source)) {
+      if (isPlainObject(value) && isPlainObject(target[key])) merge(target[key] as Record<string, unknown>, value)
+      else target[key] = value
+    }
+  }
+  merge(body, parsed)
 }
 
 /** Text blocks stored for a user turn, or for assistant turns from other providers. */

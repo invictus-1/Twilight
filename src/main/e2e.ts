@@ -8,6 +8,8 @@ import { join } from 'node:path'
 import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
+import { anthropicOptions } from './providers/anthropic'
+import * as workspaces from './workspaces'
 import * as providers from './providers'
 
 // Dev-only end-to-end check, run with TWILIGHT_E2E=<output folder> (and a throwaway profile, see
@@ -18,6 +20,7 @@ import * as providers from './providers'
 interface LoggedRequest {
   model: string
   messages: { role: string; content: string }[]
+  body: Record<string, unknown>
   startedAt: number
   firstTokenAt?: number
 }
@@ -33,7 +36,7 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
     req.on('data', (c) => (body += c))
     req.on('end', async () => {
       const parsed = JSON.parse(body) as { model: string; messages: { role: string; content: string }[] }
-      const entry: LoggedRequest = { model: parsed.model, messages: parsed.messages, startedAt: Date.now() }
+      const entry: LoggedRequest = { model: parsed.model, messages: parsed.messages, body: parsed, startedAt: Date.now() }
       log.push(entry)
       const lastUser = [...parsed.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
       // Writing tools get a plausible edit of the passage; chats get an echo.
@@ -392,6 +395,104 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('reply sent to Writing as a document', !!sentDoc && (await docs.readDoc(sentDoc.path)).text.includes('replying to'), [sent, sentDoc?.path])
       await new Promise((r) => setTimeout(r, 300))
       writeFileSync(join(outDir, 'e2e-forge.png'), (await win.webContents.capturePage()).toPNG())
+
+      // 15. System prompt can change after the chat starts, separately per split pane.
+      const c2 = chat.create(null).id
+      chat.send(contents, c2, 'First')
+      await idle(c2)
+      chat.updateSettings(c2, { systemPrompt: 'You are a test v2.' })
+      chat.cloneIntoSplit(c2)
+      chat.updateSettings(c2, { systemPrompt: 'You are pane B.' }, 'b')
+      const before15 = log.length
+      chat.send(contents, c2, 'Second', 'both')
+      await idle(c2)
+      const systems = log.slice(before15).map((r) => r.messages[0]?.content).sort()
+      check('edited system prompt is sent', systems.includes('You are a test v2.'), systems)
+      check('pane B has its own system prompt', systems.includes('You are pane B.'), systems)
+      chat.closeSplit(c2, 'a')
+
+      // 16. Workspace defaults: new chats take the workspace's system prompt and model.
+      workspaces.updateWorkspace(rpg.id, {
+        description: 'A game about lamps.',
+        systemPrompt: 'Answer as the game master.',
+        includeContext: true,
+        providerId: 'mock',
+        modelId: 'mock-b'
+      })
+      const wsChat = chat.create(rpg.id)
+      check(
+        'workspace system prompt applied',
+        wsChat.settings.systemPrompt === 'Workspace: RPG Maker\nA game about lamps.\n\nAnswer as the game master.',
+        wsChat.settings.systemPrompt
+      )
+      check('workspace model applied', wsChat.settings.modelId === 'mock-b')
+
+      // 17. Request options land in the provider's own format.
+      chat.updateSettings(c2, { effort: 'high', temperature: 0.4, maxTokens: 1000, extraParams: '{"top_k": 40, "min_p": 0.05}' })
+      const before17 = log.length
+      chat.send(contents, c2, 'Options please')
+      await idle(c2)
+      const body = log[before17]?.body ?? {}
+      check('effort sent as reasoning_effort', body.reasoning_effort === 'high', body.reasoning_effort)
+      check('temperature and max tokens sent', body.temperature === 0.4 && body.max_tokens === 1000, [body.temperature, body.max_tokens])
+      check('extra JSON merged into the request', body.top_k === 40 && body.min_p === 0.05, [body.top_k, body.min_p])
+      chat.updateSettings(c2, { extraParams: '{ not json' })
+      chat.send(contents, c2, 'Broken params')
+      await idle(c2)
+      const broken = chat.view(c2).path.at(-1)
+      check('bad extra JSON gives a clear error', broken?.status === 'error' && /valid JSON/.test(broken.error ?? ''), broken?.error)
+      chat.updateSettings(c2, { extraParams: '' })
+
+      // 18. Attachments are injected in full into the message.
+      const before18 = log.length
+      chat.send(contents, c2, 'What does the note say?', 'a', [{ name: 'notes.md', text: 'The bridge has nine lamps.' }])
+      await idle(c2)
+      const lastUser = log[before18]?.messages.at(-1)?.content ?? ''
+      check('attachment text sent in the message', lastUser.includes('<document name="notes.md">\nThe bridge has nine lamps.\n</document>'), lastUser.slice(0, 200))
+      const userView = chat.view(c2).path.at(-2)
+      check('attachment shown on the message', userView?.attachments?.[0]?.name === 'notes.md' && userView.text === 'What does the note say?')
+
+      // 19. Recent message limit trims in steps, so the cached prefix holds between cuts.
+      const msgs = Array.from({ length: 40 }, (_, i) => ({ role: i % 2 ? 'assistant' : 'user', i }))
+      const cuts = [30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40].map((n) => chat.trimHistory(msgs.slice(0, n), 20)[0]?.i ?? -1)
+      check('trim keeps at most the limit', chat.trimHistory(msgs, 20).length <= 20)
+      check('trim starts on a user message', cuts.every((c) => c % 2 === 0), cuts)
+      check('trim cut moves in steps, not every turn', new Set(cuts).size <= 3, cuts)
+
+      // 20. Anthropic effort levels come from the Models API capability tree, in its own names.
+      const opts = anthropicOptions(
+        'claude-opus-5-5',
+        {
+          effort: { supported: true, low: { supported: true }, medium: { supported: true }, high: { supported: true }, xhigh: { supported: true }, max: { supported: true } },
+          thinking: { supported: true, types: { adaptive: { supported: true }, enabled: { supported: false } } }
+        } as never,
+        128000
+      )
+      check('effort levels read from capabilities', opts.efforts.join() === 'low,medium,high,xhigh,max' && opts.effortsFromProvider, opts)
+      check('Opus 5.5 default effort is medium', opts.defaultEffort === 'medium')
+      const haiku45 = anthropicOptions('claude-haiku-4-5', { effort: { supported: false }, thinking: { supported: true, types: { adaptive: { supported: false } } } } as never)
+      check('models without effort get none', haiku45.efforts.length === 0 && !haiku45.adaptiveThinking)
+
+      // 21. The interface: cache status bar and the model settings panel.
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 700))
+      const ui2 = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'First')
+        row?.click()
+        await wait(400)
+        const bar = document.querySelector('.cache-bar')?.textContent ?? null
+        const btn = [...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings'))
+        btn?.click()
+        await wait(300)
+        const panel = document.querySelector('.settings-panel')
+        return { bar, panel: !!panel, efforts: [...(panel?.querySelectorAll('select') ?? [])].map((s) => [...s.options].map((o) => o.textContent)) }
+      })()`)
+      check('cache status bar shown', typeof ui2.bar === 'string' && ui2.bar.length > 0, ui2.bar)
+      check('model settings panel opens', ui2.panel === true, ui2)
+      await new Promise((r) => setTimeout(r, 200))
+      writeFileSync(join(outDir, 'e2e-settings.png'), (await win.webContents.capturePage()).toPNG())
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {

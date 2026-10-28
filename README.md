@@ -13,7 +13,15 @@ npm run dist       # Windows installer (.exe) and portable .zip in release/
 npm run typecheck
 ```
 
-Add an Anthropic API key, or start Ollama / LM Studio, under **Settings → Providers**.
+Add an Anthropic API key, or start Ollama / LM Studio, under **Settings → Providers**. What's done and what's next: [ROADMAP.md](ROADMAP.md).
+
+`npm run dist` writes `release/Twilight-Setup-<version>.exe` (installer) and `release/Twilight-<version>-x64.zip` (portable). The builds are unsigned, so Windows SmartScreen asks once ("More info" → "Run anyway"). `npx electron scripts/make-icon.cjs` regenerates the app icon.
+
+### Model settings and workspaces
+
+Each chat (and each split pane) has its own model settings: an editable system prompt (sent with every message; a change restarts the prompt cache), recent message limit, temperature where the model accepts it, max output tokens, thinking effort, thinking display, caching on/off with its lifetime, and extra request JSON merged in last. Effort levels are read per model from the Anthropic Models API, in Anthropic's own names; OpenAI-compatible servers get the standard `reasoning_effort` names (OpenRouter's `reasoning.effort`). Settings can be saved as presets. A status line under the chat says whether the last reply hit the prompt cache.
+
+Workspaces group chats and carry defaults: new chats in a workspace start with its system prompt (optionally headed by its name and description) and model. Attach text files to a message with the paperclip; their full text goes into that message.
 
 ## How it's built
 
@@ -25,7 +33,7 @@ Add an Anthropic API key, or start Ollama / LM Studio, under **Settings → Prov
 
 ### Conversations are trees
 
-Each chat is a tree of messages under a hidden root that holds the system prompt. Regenerating adds a sibling instead of overwriting, and the thread is the path of "active" children. That keeps every request append-only.
+Each chat is a tree of messages under a hidden root. Regenerating adds a sibling instead of overwriting, and the thread is the path of "active" children. That keeps every request append-only.
 
 ### Split compare
 
@@ -68,4 +76,4 @@ Messages render with `content-visibility: auto` and an estimated height so huge 
 After `npm run build`, both run in a throwaway profile and never touch your real data:
 
 - `TWILIGHT_SELFTEST=<folder> npx electron .` seeds a ~350k-token chat, scrolls it top to bottom one step per frame, and writes `selftest.json` (frame timings) and `selftest.png`.
-- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (56 checks) and screenshots.
+- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (74 checks) and screenshots.

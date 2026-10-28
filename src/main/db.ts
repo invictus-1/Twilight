@@ -23,6 +23,8 @@ export interface NodeRow {
   error: string | null
   active_child_id: string | null
   created_at: number
+  /** Attached files on a user message (JSON [{name, chars}]); their text is in `content`. */
+  attachments?: string | null
 }
 
 export interface ConversationRow {
@@ -46,6 +48,8 @@ export interface FolderRow {
   name: string
   created_at: number
   collapsed: number
+  /** Workspace defaults (JSON): description, color, systemPrompt, providerId, modelId, includeContext. */
+  config: string | null
 }
 
 export function listFolders(): FolderRow[] {
@@ -53,12 +57,16 @@ export function listFolders(): FolderRow[] {
 }
 
 export function createFolder(name: string): FolderRow {
-  const row: FolderRow = { id: randomUUID(), name, created_at: Date.now(), collapsed: 0 }
-  db.prepare('INSERT INTO folders (id, name, created_at, collapsed) VALUES (@id, @name, @created_at, @collapsed)').run(row)
+  const row: FolderRow = { id: randomUUID(), name, created_at: Date.now(), collapsed: 0, config: null }
+  db.prepare('INSERT INTO folders (id, name, created_at, collapsed, config) VALUES (@id, @name, @created_at, @collapsed, @config)').run(row)
   return row
 }
 
-export function updateFolder(id: string, fields: Partial<Pick<FolderRow, 'name' | 'collapsed'>>): void {
+export function getFolder(id: string): FolderRow | undefined {
+  return db.prepare('SELECT * FROM folders WHERE id = ?').get(id) as FolderRow | undefined
+}
+
+export function updateFolder(id: string, fields: Partial<Pick<FolderRow, 'name' | 'collapsed' | 'config'>>): void {
   const sets = Object.keys(fields).map((k) => `${k} = @${k}`)
   if (sets.length) db.prepare(`UPDATE folders SET ${sets.join(', ')} WHERE id = @id`).run({ ...fields, id })
 }
@@ -127,6 +135,10 @@ export function openDatabase(file: string): void {
       collapsed INTEGER NOT NULL DEFAULT 0
     );
   `)
+  const folderColumns = (db.prepare('PRAGMA table_info(folders)').all() as { name: string }[]).map((c) => c.name)
+  if (!folderColumns.includes('config')) db.exec('ALTER TABLE folders ADD COLUMN config TEXT')
+  const nodeColumns = (db.prepare('PRAGMA table_info(nodes)').all() as { name: string }[]).map((c) => c.name)
+  if (!nodeColumns.includes('attachments')) db.exec('ALTER TABLE nodes ADD COLUMN attachments TEXT')
   // A crash mid-stream leaves "streaming" rows behind; they are stopped, not lost.
   db.prepare(`UPDATE nodes SET status = 'stopped' WHERE status = 'streaming'`).run()
 }
@@ -215,11 +227,11 @@ export function insertNode(
   node: Omit<NodeRow, 'active_child_id' | 'created_at'> & { created_at?: number },
   { activate = true }: { activate?: boolean } = {}
 ): NodeRow {
-  const row: NodeRow = { active_child_id: null, created_at: Date.now(), ...node }
+  const row: NodeRow = { active_child_id: null, created_at: Date.now(), attachments: null, ...node }
   db.transaction(() => {
     db.prepare(
-      `INSERT INTO nodes (id, conversation_id, parent_id, role, text, content, thinking, model, provider_id, usage, status, error, active_child_id, created_at)
-       VALUES (@id, @conversation_id, @parent_id, @role, @text, @content, @thinking, @model, @provider_id, @usage, @status, @error, @active_child_id, @created_at)`
+      `INSERT INTO nodes (id, conversation_id, parent_id, role, text, content, thinking, model, provider_id, usage, status, error, active_child_id, created_at, attachments)
+       VALUES (@id, @conversation_id, @parent_id, @role, @text, @content, @thinking, @model, @provider_id, @usage, @status, @error, @active_child_id, @created_at, @attachments)`
     ).run(row)
     if (row.parent_id && activate) setActiveChild(row.parent_id, row.id)
   })()
@@ -285,6 +297,7 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
     error: node.error ?? undefined,
     createdAt: node.created_at,
     siblingIndex: siblings.findIndex((s) => s.id === node.id),
-    siblingCount: siblings.length
+    siblingCount: siblings.length,
+    attachments: node.attachments ? JSON.parse(node.attachments) : undefined
   }
 }

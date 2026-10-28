@@ -6,7 +6,7 @@ import { usePane } from '../pane'
 import { modelName, paneOf, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
 import { useWriting } from '../writingStore'
-import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, PenIcon, RefreshIcon, SplitIcon } from './Icons'
+import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -32,6 +32,16 @@ function UserMessage({ node }: { node: NodeView }) {
     >
       <BranchSwitcher node={node} />
       <div className="tw-msg-user">
+        {node.attachments && node.attachments.length > 0 && (
+          <div className="msg-attachments">
+            {node.attachments.map((a, i) => (
+              <span key={`${a.name}-${i}`} className="tw-badge attach-chip" title={`${a.chars.toLocaleString()} characters, sent in full`}>
+                <PaperclipIcon size={13} />
+                {a.name}
+              </span>
+            ))}
+          </div>
+        )}
         {long && !expanded ? `${node.text.slice(0, 1200)}…` : node.text}
         {long && (
           <button className="msg-expand" onClick={() => setExpanded((e) => !e)}>

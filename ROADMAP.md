@@ -1,0 +1,76 @@
+# Twilight roadmap
+
+What's done, what's next, and ideas we haven't committed to. Updated with every change; tick a box when it ships.
+
+## Done
+
+### Core
+- [x] Electron + React + TypeScript app, fully local interface (bundled fonts, renderer network blocked, keys encrypted with Windows DPAPI)
+- [x] Providers: Anthropic (streaming, adaptive thinking, refusal fallback) and any OpenAI-compatible server (Ollama, LM Studio, llama.cpp, OpenRouter)
+- [x] Model list cached on disk so it works offline
+- [x] Per-reply cost, tokens and cache hit rate
+- [x] Request logs (daily JSONL) and a Trash for deleted chats
+- [x] Windows installer and portable build (`npm run dist`)
+
+### Chat
+- [x] Conversations as trees: regenerate adds a version, ‹ 2 / 3 › switcher
+- [x] Split compare with A / B / Both, per-pane model, settings and system prompt; Keep A / Keep B
+- [x] Prompt caching built append-only; same-model split sends stagger so B reads A's cache
+- [x] Cache status bar (hit / written / off), dismissable
+- [x] Model settings: presets, editable system prompt, recent message limit (cache-friendly steps), temperature, max output tokens, thinking effort in the provider's own names, thinking display, caching on/off + TTL, extra request JSON
+- [x] Effort levels read from the Anthropic Models API per model; OpenRouter parameters read from its model list
+- [x] Attach text files to a message (full text injected)
+- [x] Workspaces: pinned / workspaces / recent, drag to file, default system prompt + model + color per workspace
+- [x] Full markdown (tables, task lists, footnotes, code blocks with copy)
+- [x] 240Hz scrolling on a 350k-token chat (measured with `TWILIGHT_SELFTEST`)
+
+### Writing
+- [x] Markdown documents in a chosen folder (Obsidian vaults work as is), real subfolders, drag to move
+- [x] CodeMirror editor: 115k words open in ~35ms, atomic autosave, picks up outside edits
+- [x] Forge-style tools on a selection: Ask, Rewrite, Tighten, Expand, Tone, plus formatting and undo/redo
+- [x] Suggestions shown as an in-place word diff; Accept / Reject; every accepted edit revertable
+- [x] Per-document context: instructions, reference docs, optional whole manuscript (cached)
+- [x] Send a chat reply to Writing
+
+## Next
+- [ ] **Judge**: compare two passages' writing quality with a judge model you choose
+  - Inputs: passage A and passage B (paste, attach a file, or "Judge A vs B" straight from split compare), plus shared context for the judge: the writing system prompt both models had, the prompt, character docs
+  - A real rubric, not a one-line ask: per-criterion scores with evidence quoted from the text (prose, dialogue, character fidelity, language, following the system prompt, content handling, pacing, and more), then pros and cons and an overall verdict
+  - Your own rubric too, built from your writing system prompt (send it over); rubrics saved and reusable
+  - Fairer verdicts: passages shown blind as X and Y, and judged twice with the order swapped, since judges favour whichever comes first
+  - Results saved, with which model wrote what revealed only after scoring; over time, a personal leaderboard
+- [ ] Undo toast for destructive actions (delete, move)
+- [ ] Command menu (Ctrl+K) and the full shortcut sheet (Ctrl+/), rebindable shortcuts
+- [ ] Search across all chats and documents (Ctrl+Shift+F)
+- [ ] Edit a sent message (as a new branch) and branch from any message
+- [ ] Context meter: tokens used vs the model's window
+- [ ] Code blocks: syntax highlighting
+- [ ] Attach PDFs and images (Claude reads them natively); drag files onto the composer
+- [ ] Attach documents from the writing folder in a picker
+- [ ] Rename and delete document folders inside Twilight
+- [ ] Mid-conversation instruction changes without breaking the cache (Claude system messages)
+- [ ] Editable price list for cost (and OpenRouter's reported cost)
+
+## Later
+- [ ] Tools and MCP: web search, web fetch, date/time (as a tool, so the cache holds), image generation; toggles like OpenRouter's server tools
+- [ ] Agents and a coding workspace for any model with tool calling (own agent loop; MCP tools; approvals and diffs)
+- [ ] Fusion (to design together)
+- [ ] Personas and a prompt library
+- [ ] Difference view between split panes
+- [ ] Judge / shadow persona that compares or merges A and B
+- [ ] Document library with optional retrieval for very large collections (local embeddings)
+- [ ] Stats page: words typed, tokens in/out, spend, active days, streaks; achievements (quiet, no pop-ups)
+- [ ] Themes: fine-tuned Twilight, Midnight (OLED), Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, theme builder
+- [ ] Startup animation from the cover, animated retro home screen, view transitions between pages
+- [ ] Bundled spellcheck dictionaries (offline)
+- [ ] Choose where app data lives; backups
+
+## Ideas (not committed)
+- Story bible: extract characters, places and facts from a manuscript; a continuity watcher flags contradictions
+- Ghost-text autocomplete in the editor from a small local model
+- Multiverse drafts: several continuations at once, kept as branches
+- Blind arena: split compare with hidden model names and a personal leaderboard
+- Branch map: the whole conversation tree, visually
+- Local-model power tools: confidence heatmap from logprobs, click a word to branch from an alternative; min-p / DRY / XTC samplers
+- Offline voice: Whisper dictation, Piper/Kokoro read-aloud
+- Cache savings meter

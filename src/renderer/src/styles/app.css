@@ -192,6 +192,46 @@ h1, h2, h3 { margin: 0; }
 .composer-split .tw-composer { max-width: none; }
 .composer-split .tw-composer textarea { min-height: 22px; }
 
+/* Model settings panel */
+.settings-panel { width: 460px; max-height: calc(100% - 64px); overflow-y: auto; }
+.settings-section { margin: var(--space-2) 0 0; font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); }
+.preset-row { display: flex; gap: var(--space-2); align-items: center; }
+.preset-row select { flex: 1; min-width: 0; }
+.preset-row input { width: 130px; }
+.preset-row select, .preset-row input, .field select { height: var(--control-md); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0 var(--space-2); outline: none; color: var(--ink); }
+.num-setting { background: var(--surface-raised); border-radius: var(--radius-md); padding: var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.num-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.num-input { width: 96px; height: var(--control-sm); text-align: right; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0 var(--space-2); outline: none; font-variant-numeric: tabular-nums; }
+.num-range { width: 100%; accent-color: var(--iris); }
+.num-off .t-label, .num-off .num-input { color: var(--ink-faint); }
+.code-input { font-family: var(--font-mono); font-size: 12px; }
+
+/* Prompt cache status */
+.cache-bar { flex: none; display: flex; align-items: center; gap: var(--space-2); max-width: var(--thread); width: calc(100% - 2 * var(--space-6)); margin: 0 auto var(--space-2); padding: 2px var(--space-1) 2px var(--space-3); font-size: 12px; line-height: 16px; color: var(--ink-muted); background: var(--surface-raised); border-radius: var(--radius-sm); }
+.cache-text { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.cache-bar .tw-btn-icon { width: 22px; height: 22px; }
+.cache-dot { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--ink-faint); flex: none; vertical-align: 0; }
+.cache-hit .cache-dot { background: var(--success); }
+.cache-write .cache-dot, .cache-miss .cache-dot { background: var(--warning); }
+.cache-off .cache-dot { background: var(--danger); }
+
+/* Attachments */
+.attach-chip { gap: 6px; max-width: 280px; }
+.attach-chip > :not(svg):not(button) { overflow: hidden; text-overflow: ellipsis; }
+.attach-size { color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.attach-remove { display: inline-flex; background: none; border: 0; padding: 0; color: var(--ink-faint); cursor: pointer; }
+.attach-remove:hover { color: var(--ink); }
+.msg-attachments { display: flex; flex-wrap: wrap; gap: var(--space-1); margin-bottom: var(--space-2); }
+
+/* Workspace dialog */
+.swatches { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.swatch { width: 26px; height: 26px; border-radius: var(--radius-full); border: 2px solid transparent; cursor: pointer; padding: 0; }
+.swatch[aria-checked='true'] { border-color: var(--ink); box-shadow: 0 0 0 2px var(--surface-overlay) inset; }
+.swatch-none { background: linear-gradient(135deg, transparent 45%, var(--ink-faint) 45%, var(--ink-faint) 55%, transparent 55%), var(--surface); border-color: var(--line-strong); }
+.swatch:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-2); }
+.workspace-dialog .field input { height: var(--control-md); }
+
 /* Segmented control */
 .tw-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: var(--radius-sm); background: var(--night); border: 1px solid var(--line); }
 .tw-seg button { font-size: 12px; line-height: 16px; font-weight: 500; height: 24px; padding: 0 var(--space-2); border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ink-muted); cursor: pointer; }

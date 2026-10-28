@@ -13,29 +13,70 @@ export interface ProviderConfig {
   hasKey?: boolean
 }
 
+/**
+ * What a model accepts, fetched from the provider where it says (the Anthropic Models API reports
+ * effort levels and thinking modes per model) and filled from known conventions where it doesn't.
+ */
+export interface ModelOptions {
+  /** Effort / reasoning levels in the provider's own names, in order; empty if not supported. */
+  efforts: string[]
+  /** How the effort is sent: Anthropic output_config.effort, OpenAI reasoning_effort, OpenRouter reasoning.effort. */
+  effortParam: 'anthropic' | 'reasoning_effort' | 'openrouter' | null
+  /** The level used when none is chosen, when known. */
+  defaultEffort?: string
+  /** Whether effort levels came from the provider itself rather than a convention. */
+  effortsFromProvider: boolean
+  /** Adaptive thinking (Claude) with a summarized/omitted display choice. */
+  adaptiveThinking: boolean
+  temperature: boolean
+  /** Largest output in tokens, when known. */
+  maxOutput?: number
+  caching: boolean
+}
+
 export interface ModelInfo {
   id: string
   providerId: string
   name: string
   local: boolean
   contextWindow?: number
+  options?: ModelOptions
 }
 
-export type Effort = 'low' | 'medium' | 'high' | 'xhigh' | 'max'
 export type CacheTtl = '5m' | '1h'
 
 export interface ChatSettings {
   providerId: string
   modelId: string
-  /** Frozen once the first message is sent, so the cached prefix never changes. */
+  /** Sent with every request. Editable any time; a change restarts the prompt cache. */
   systemPrompt: string
-  /** null = the model's default. */
-  effort: Effort | null
+  /** The provider's own level name (e.g. "high"); null = the model's default. */
+  effort: string | null
+  /** Claude: return a readable summary of the thinking, or nothing. */
+  thinkingDisplay: 'summarized' | 'omitted'
+  caching: boolean
   cacheTtl: CacheTtl
   showThinking: boolean
-  /** OpenAI-compatible (local) models only; the Claude API no longer accepts sampling parameters. */
+  /** Only for models that accept it; the Claude API no longer takes sampling parameters. */
   temperature: number | null
-  maxTokens: number
+  /** null = the largest the model allows (capped at 64k for Claude), or the server default. */
+  maxTokens: number | null
+  /** Send only the latest N messages; null = the whole conversation. */
+  messageLimit: number | null
+  /** JSON merged into the request body last, for anything the panel doesn't cover. */
+  extraParams: string
+}
+
+/** A saved set of model settings. */
+export interface SettingsPreset {
+  name: string
+  settings: Partial<ChatSettings>
+}
+
+/** A file attached to a message; its text is injected into that message in full. */
+export interface Attachment {
+  name: string
+  text: string
 }
 
 export interface Usage {
@@ -64,6 +105,8 @@ export interface NodeView {
   createdAt: number
   siblingIndex: number
   siblingCount: number
+  /** Files attached to a user message (their text is part of the message sent). */
+  attachments?: { name: string; chars: number }[]
 }
 
 export interface ConversationSummary {
@@ -77,12 +120,25 @@ export interface ConversationSummary {
   deletedAt?: number
 }
 
-/** A sidebar folder of chats (Twilight's own; chat folders don't exist on disk). */
+/**
+ * A workspace: a sidebar group of chats with its own defaults. New chats started in it take its
+ * system prompt and model. (Twilight's own; nothing on disk.)
+ */
 export interface ChatFolder {
   id: string
   name: string
   collapsed: boolean
+  description: string
+  /** A design-system accent token name, e.g. "iris", or "" for none. */
+  color: string
+  systemPrompt: string
+  providerId: string | null
+  modelId: string | null
+  /** Put the workspace name and description at the top of new chats' system prompt. */
+  includeContext: boolean
 }
+
+export type WorkspacePatch = Partial<Omit<ChatFolder, 'id'>>
 
 /** Split compare: A is the conversation's main thread, B a second branch of the same tree. */
 export type Pane = 'a' | 'b'
@@ -97,7 +153,7 @@ export interface ConversationView {
   id: string
   title: string
   settings: ChatSettings
-  /** True once the system prompt is frozen into the conversation. */
+  /** True once the first message has been sent. */
   started: boolean
   path: NodeView[]
   /** Pane B while split compare is open. */
@@ -150,6 +206,7 @@ export interface TwilightApi {
   listFolders(): Promise<ChatFolder[]>
   createFolder(name: string): Promise<ChatFolder[]>
   renameFolder(id: string, name: string): Promise<ChatFolder[]>
+  updateWorkspace(id: string, patch: WorkspacePatch): Promise<ChatFolder[]>
   setFolderCollapsed(id: string, collapsed: boolean): Promise<ChatFolder[]>
   /** Deletes the folder only; its chats move back to Recent. */
   deleteFolder(id: string): Promise<ChatFolder[]>
@@ -168,7 +225,12 @@ export interface TwilightApi {
   setRequestLogs(enabled: boolean): Promise<void>
   openLogsFolder(): Promise<void>
   updateChatSettings(id: string, patch: Partial<ChatSettings>, pane?: Pane): Promise<ConversationView>
-  send(id: string, text: string, target?: SendTarget): Promise<ConversationView>
+  send(id: string, text: string, target?: SendTarget, attachments?: Attachment[]): Promise<ConversationView>
+  /** Opens a file picker; returns the chosen text files' contents. */
+  pickAttachments(): Promise<Attachment[]>
+  listPresets(): Promise<SettingsPreset[]>
+  savePreset(preset: SettingsPreset): Promise<SettingsPreset[]>
+  deletePreset(name: string): Promise<SettingsPreset[]>
   regenerate(id: string, assistantNodeId: string, pane?: Pane): Promise<ConversationView>
   switchBranch(id: string, nodeId: string, direction: -1 | 1, pane?: Pane): Promise<ConversationView>
   stop(id: string, target?: SendTarget): Promise<void>

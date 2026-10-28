@@ -52,7 +52,8 @@
     "appId": "app.twilight.desktop",
     "productName": "Twilight",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "out/**/*"
@@ -60,7 +61,12 @@
     "asarUnpack": [
       "**/*.node"
     ],
+    "electronLanguages": [
+      "en-US"
+    ],
     "win": {
+      "icon": "build/icon.png",
+      "artifactName": "Twilight-${version}-${arch}.${ext}",
       "target": [
         "nsis",
         "zip"
@@ -68,7 +74,9 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "artifactName": "Twilight-Setup-${version}.${ext}"
     },
     "publish": null
   }

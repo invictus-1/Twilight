@@ -2,7 +2,8 @@ import { memo, useState, type DragEvent, type ReactNode } from 'react'
 import type { ChatFolder, ConversationSummary, DocEntry } from '@shared/types'
 import { modelName, useStore } from '../store'
 import { useWriting } from '../writingStore'
-import { ChevronDown, ChevronRight, FolderIcon, FolderPlusIcon, PinIcon, PlusIcon, SettingsIcon, TrashIcon } from './Icons'
+import { ChevronDown, ChevronRight, FolderIcon, FolderPlusIcon, PinIcon, PlusIcon, SettingsIcon, SlidersIcon, TrashIcon } from './Icons'
+import { WorkspaceDialog } from './WorkspaceDialog'
 
 const CHAT_MIME = 'application/x-twilight-chat'
 const DOC_MIME = 'application/x-twilight-doc'
@@ -144,6 +145,7 @@ const ChatRow = memo(function ChatRow({ c, active, model, depth }: { c: Conversa
 
 function ChatFolderGroup({ folder, chats }: { folder: ChatFolder; chats: ConversationSummary[] }) {
   const [renaming, setRenaming] = useState(false)
+  const [editing, setEditing] = useState(false)
   const currentId = useStore((s) => s.current?.id)
   const models = useStore((s) => s.models)
   const store = useStore.getState()
@@ -152,11 +154,11 @@ function ChatFolderGroup({ folder, chats }: { folder: ChatFolder; chats: Convers
     <div className={`folder ${drop.over ? 'drop-over' : ''}`} {...drop.props}>
       <div className="folder-head" onClick={() => !renaming && void store.toggleFolder(folder.id)} onDoubleClick={() => setRenaming(true)}>
         {folder.collapsed ? <ChevronRight size={14} className="folder-chevron" /> : <ChevronDown size={14} className="folder-chevron" />}
-        <FolderIcon size={15} className="folder-icon" />
+        <FolderIcon size={15} className="folder-icon" style={folder.color ? { color: `var(--${folder.color})` } : undefined} />
         {renaming ? (
           <NameInput
             initial={folder.name}
-            placeholder="Folder name"
+            placeholder="Workspace name"
             onDone={(name) => {
               setRenaming(false)
               if (name && name !== folder.name) void store.renameFolder(folder.id, name)
@@ -170,7 +172,7 @@ function ChatFolderGroup({ folder, chats }: { folder: ChatFolder; chats: Convers
           <button
             className="tw-btn tw-btn-ghost tw-btn-icon"
             aria-label={`New chat in ${folder.name}`}
-            title="New chat in this folder"
+            title="New chat in this workspace"
             onClick={(e) => {
               e.stopPropagation()
               store.setMode('chat')
@@ -181,8 +183,19 @@ function ChatFolderGroup({ folder, chats }: { folder: ChatFolder; chats: Convers
           </button>
           <button
             className="tw-btn tw-btn-ghost tw-btn-icon"
-            aria-label={`Delete folder ${folder.name}`}
-            title="Delete folder (its chats move to Recent)"
+            aria-label={`Edit workspace ${folder.name}`}
+            title="Workspace settings: default system prompt and model"
+            onClick={(e) => {
+              e.stopPropagation()
+              setEditing(true)
+            }}
+          >
+            <SlidersIcon size={14} />
+          </button>
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-icon"
+            aria-label={`Delete workspace ${folder.name}`}
+            title="Delete workspace (its chats move to Recent)"
             onClick={(e) => {
               e.stopPropagation()
               void store.deleteFolder(folder.id)
@@ -195,6 +208,7 @@ function ChatFolderGroup({ folder, chats }: { folder: ChatFolder; chats: Convers
       {!folder.collapsed &&
         chats.map((c) => <ChatRow key={c.id} c={c} active={c.id === currentId} model={modelName(models, c.modelId)} depth={1} />)}
       {!folder.collapsed && chats.length === 0 && <p className="folder-empty">Drag chats here</p>}
+      {editing && <WorkspaceDialog workspace={folder} onClose={() => setEditing(false)} />}
     </div>
   )
 }
@@ -220,13 +234,13 @@ function ChatList({ creating, onCreated }: { creating: boolean; onCreated: () =>
           {pinned.map(row)}
         </>
       )}
-      {(folders.length > 0 || creating) && <SectionHeader title="Folders" />}
+      {(folders.length > 0 || creating) && <SectionHeader title="Workspaces" />}
       {creating && (
         <div className="folder-head">
           <FolderIcon size={15} className="folder-icon" />
           <NameInput
             initial=""
-            placeholder="Folder name"
+            placeholder="Workspace name"
             onDone={(name) => {
               onCreated()
               if (name) void store.createFolder(name)
@@ -430,7 +444,12 @@ export function Sidebar() {
       <div className="sidebar-head drag">
         <span className="brand">Twilight</span>
         <span className="head-actions">
-          <button className="tw-btn tw-btn-ghost tw-btn-icon no-drag" aria-label="New folder" title="New folder" onClick={() => setCreating(true)}>
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
+            aria-label={mode === 'chat' ? 'New workspace' : 'New folder'}
+            title={mode === 'chat' ? 'New workspace' : 'New folder'}
+            onClick={() => setCreating(true)}
+          >
             <FolderPlusIcon />
           </button>
           <button

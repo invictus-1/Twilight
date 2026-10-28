@@ -4,7 +4,7 @@ import { getDefaults } from './chat'
 import type { NodeRow } from './db'
 import { getDocContext, readDoc } from './docs'
 import { appendLog } from './logs'
-import { getApiKey, getProvider, implFor } from './providers'
+import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { describeAnthropicError } from './providers/anthropic'
 
 // Writing tools (Ask, Rewrite, Tighten, Expand, Tone …) run on a selected passage and stream back
@@ -31,7 +31,7 @@ const escapeAttr = (s: string): string => s.replace(/"/g, "'")
 
 type Block = { type: 'text'; text: string; cache_control?: { type: 'ephemeral'; ttl: string } }
 
-async function buildPrompt(req: WritingRequest, ttl: string): Promise<{ system: string; blocks: Block[] }> {
+async function buildPrompt(req: WritingRequest, ttl: string | null): Promise<{ system: string; blocks: Block[] }> {
   const context = getDocContext(req.docPath)
   let system = RULES
   if (context.instructions.trim()) system += `\n\n<writer_instructions>\n${context.instructions.trim()}\n</writer_instructions>`
@@ -49,7 +49,7 @@ async function buildPrompt(req: WritingRequest, ttl: string): Promise<{ system: 
     blocks.push({
       type: 'text',
       text: `<manuscript title="${title}">\n${req.manuscript}\n</manuscript>`,
-      cache_control: { type: 'ephemeral', ttl }
+      ...(ttl ? { cache_control: { type: 'ephemeral' as const, ttl } } : {})
     })
     blocks.push({ type: 'text', text: `<passage>\n${req.passage}\n</passage>\n\nInstruction: ${req.instruction}` })
   } else {
@@ -68,7 +68,13 @@ export function runWritingTool(contents: WebContents, requestId: string, req: Wr
   const config = getProvider(defaults.providerId)
   // Quick edits favour speed: low effort and short output. The cache lifetime follows the
   // chat default (1 hour), since writers pause between edits.
-  const settings: ChatSettings = { ...defaults, effort: config.kind === 'anthropic' ? 'low' : defaults.effort, maxTokens: 8000 }
+  const options = modelOptions(defaults.providerId, defaults.modelId)
+  const settings: ChatSettings = {
+    ...defaults,
+    effort: options?.efforts.includes('low') && config.kind === 'anthropic' ? 'low' : defaults.effort,
+    maxTokens: 8000,
+    messageLimit: null
+  }
   const controller = new AbortController()
   running.set(requestId, controller)
   const emit = (event: StreamEvent): void => {
@@ -101,7 +107,7 @@ export function runWritingTool(contents: WebContents, requestId: string, req: Wr
   void (async () => {
     let text = ''
     try {
-      const { system, blocks } = await buildPrompt(req, settings.cacheTtl)
+      const { system, blocks } = await buildPrompt(req, settings.caching ? settings.cacheTtl : null)
       const history: NodeRow[] = [
         {
           id: requestId, conversation_id: 'writing', parent_id: null, role: 'user', text: blocks.map((b) => b.text).join('\n\n'),
@@ -115,6 +121,7 @@ export function runWritingTool(contents: WebContents, requestId: string, req: Wr
         system,
         history,
         settings,
+        options,
         signal: controller.signal,
         onText: (delta) => {
           text += delta

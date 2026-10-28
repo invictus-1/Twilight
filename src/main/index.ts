@@ -1,11 +1,24 @@
-import { app, BrowserWindow, ipcMain, Menu, session, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
 import { join } from 'node:path'
-import { mkdir } from 'node:fs/promises'
-import type { ChatFolder, ConversationSummary, DocContext, Pane, SendTarget, TwilightApi, WritingRequest } from '@shared/types'
+import { mkdir, readFile, stat } from 'node:fs/promises'
+import { basename } from 'node:path'
+import type {
+  Attachment,
+  ChatFolder,
+  ConversationSummary,
+  DocContext,
+  Pane,
+  SendTarget,
+  SettingsPreset,
+  TwilightApi,
+  WorkspacePatch,
+  WritingRequest
+} from '@shared/types'
 import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
 import * as logs from './logs'
+import * as workspaces from './workspaces'
 import * as writing from './writing'
 import * as providers from './providers'
 import { runE2E } from './e2e'
@@ -66,7 +79,34 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-const folders = (): ChatFolder[] => db.listFolders().map((f) => ({ id: f.id, name: f.name, collapsed: !!f.collapsed }))
+const folders = (): ChatFolder[] => workspaces.listWorkspaces()
+
+const ATTACH_LIMIT = 20 * 1024 * 1024
+
+/** Reads text files picked by the user; binary files are refused rather than injected as noise. */
+async function pickAttachments(win: BrowserWindow | null): Promise<Attachment[]> {
+  const options: Electron.OpenDialogOptions = {
+    title: 'Attach files',
+    defaultPath: docs.writingFolder(),
+    properties: ['openFile', 'multiSelections'],
+    filters: [
+      { name: 'Text and documents', extensions: ['md', 'txt', 'markdown', 'json', 'csv', 'tsv', 'yaml', 'yml', 'xml', 'html', 'htm', 'log', 'ini', 'toml'] },
+      { name: 'Code', extensions: ['ts', 'tsx', 'js', 'jsx', 'py', 'rs', 'go', 'java', 'cs', 'cpp', 'c', 'h', 'css', 'sql', 'sh', 'ps1', 'lua', 'rb', 'php'] },
+      { name: 'All files', extensions: ['*'] }
+    ]
+  }
+  const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+  if (result.canceled) return []
+  const out: Attachment[] = []
+  for (const file of result.filePaths) {
+    const info = await stat(file)
+    if (info.size > ATTACH_LIMIT) throw new Error(`${basename(file)} is over 20 MB.`)
+    const text = await readFile(file, 'utf8')
+    if (text.includes('\u0000')) throw new Error(`${basename(file)} isn't a text file. PDFs and images aren't supported yet.`)
+    out.push({ name: basename(file), text })
+  }
+  return out
+}
 
 const summary = (c: db.ConversationRow): ConversationSummary => ({
   id: c.id,
@@ -97,6 +137,21 @@ function registerIpc(): void {
     listFolders: () => folders(),
     createFolder: (_e, name: string) => (db.createFolder(name.trim() || 'New folder'), folders()),
     renameFolder: (_e, id: string, name: string) => (name.trim() && db.updateFolder(id, { name: name.trim() }), folders()),
+    updateWorkspace: (_e, id: string, patch: WorkspacePatch) => (workspaces.updateWorkspace(id, patch), folders()),
+    pickAttachments: (e) => pickAttachments(BrowserWindow.fromWebContents(e.sender)),
+    listPresets: () => db.kvGet<SettingsPreset[]>('presets') ?? [],
+    savePreset: (_e, preset: SettingsPreset) => {
+      const list = (db.kvGet<SettingsPreset[]>('presets') ?? []).filter((p) => p.name !== preset.name)
+      list.push(preset)
+      list.sort((a, b) => a.name.localeCompare(b.name))
+      db.kvSet('presets', list)
+      return list
+    },
+    deletePreset: (_e, name: string) => {
+      const list = (db.kvGet<SettingsPreset[]>('presets') ?? []).filter((p) => p.name !== name)
+      db.kvSet('presets', list)
+      return list
+    },
     setFolderCollapsed: (_e, id: string, collapsed: boolean) => (db.updateFolder(id, { collapsed: collapsed ? 1 : 0 }), folders()),
     deleteFolder: (_e, id: string) => (db.deleteFolder(id), folders()),
     moveConversation: (_e, id: string, folderId: string | null) => db.fileConversation(id, { folder_id: folderId }),
@@ -108,7 +163,8 @@ function registerIpc(): void {
       db.trashConversation(id)
     },
     updateChatSettings: (_e, id: string, patch, pane?: Pane) => chat.updateSettings(id, patch, pane),
-    send: (e, id: string, text: string, target?: SendTarget) => chat.send(e.sender, id, text, target),
+    send: (e, id: string, text: string, target?: SendTarget, attachments?: Attachment[]) =>
+      chat.send(e.sender, id, text, target, attachments),
     regenerate: (e, id: string, nodeId: string, pane?: Pane) => chat.regenerate(e.sender, id, nodeId, pane),
     switchBranch: (_e, id: string, nodeId: string, direction: -1 | 1, pane?: Pane) =>
       chat.switchBranch(id, nodeId, direction, pane),

@@ -1,5 +1,5 @@
-import type { ModelInfo, ProviderConfig } from '@shared/types'
-import { textBlocks, type GenerateRequest, type GenerateResult, type Provider } from './types'
+import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
+import { mergeExtraParams, textBlocks, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 // OpenAI-compatible chat servers: Ollama, LM Studio, llama.cpp, vLLM and the like. Local servers
 // reuse their KV cache for an unchanged prefix, so the same append-only history applies here.
@@ -16,13 +16,50 @@ function isLocal(url: string): boolean {
   return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:|\/|$)/.test(url)
 }
 
+interface ListedModel {
+  id: string
+  name?: string
+  context_length?: number
+  /** OpenRouter lists the request parameters each model accepts. */
+  supported_parameters?: string[]
+  top_provider?: { max_completion_tokens?: number }
+}
+
+/**
+ * OpenAI-compatible servers don't report effort levels, so they get the standard reasoning_effort
+ * names (which servers may ignore for models without reasoning). OpenRouter is the exception: it
+ * lists each model's supported parameters, and takes reasoning as { effort }.
+ */
+function openaiOptions(m: ListedModel, openRouter: boolean): ModelOptions {
+  const supports = (p: string): boolean => !m.supported_parameters || m.supported_parameters.includes(p)
+  const reasons = openRouter ? supports('reasoning') : true
+  return {
+    efforts: reasons ? ['low', 'medium', 'high'] : [],
+    effortParam: reasons ? (openRouter ? 'openrouter' : 'reasoning_effort') : null,
+    effortsFromProvider: openRouter && !!m.supported_parameters,
+    adaptiveThinking: false,
+    temperature: supports('temperature'),
+    maxOutput: m.top_provider?.max_completion_tokens,
+    // Local servers reuse their own cache for an unchanged prefix; there's nothing to switch.
+    caching: false
+  }
+}
+
 export const openaiProvider: Provider = {
   async listModels(config: ProviderConfig, apiKey?: string): Promise<ModelInfo[]> {
     const res = await fetch(`${base(config)}/models`, { headers: headers(apiKey), signal: AbortSignal.timeout(2500) })
     if (!res.ok) throw new Error(`${config.name}: ${res.status} ${res.statusText}`)
-    const json = (await res.json()) as { data?: { id: string }[] }
+    const json = (await res.json()) as { data?: ListedModel[] }
+    const openRouter = /openrouter\.ai/i.test(base(config))
     return (json.data ?? [])
-      .map((m) => ({ id: m.id, providerId: config.id, name: m.id, local: isLocal(base(config)) }))
+      .map((m) => ({
+        id: m.id,
+        providerId: config.id,
+        name: m.name ?? m.id,
+        local: isLocal(base(config)),
+        contextWindow: m.context_length,
+        options: openaiOptions(m, openRouter)
+      }))
       .sort((a, b) => a.name.localeCompare(b.name))
   },
 
@@ -46,9 +83,15 @@ export const openaiProvider: Provider = {
       stream: true,
       stream_options: { include_usage: true }
     }
-    // No max_tokens: local servers cap output at their own context size, and a large value
-    // can exceed a small context window and fail the request.
-    if (settings.temperature != null) body.temperature = settings.temperature
+    // max_tokens only when chosen: local servers cap output at their own context size, and a
+    // large default can exceed a small context window and fail the request.
+    if (settings.maxTokens != null) body.max_tokens = settings.maxTokens
+    if (settings.temperature != null && req.options?.temperature !== false) body.temperature = settings.temperature
+    if (settings.effort) {
+      if (req.options?.effortParam === 'openrouter') body.reasoning = { effort: settings.effort }
+      else body.reasoning_effort = settings.effort
+    }
+    mergeExtraParams(body, settings.extraParams ?? '')
 
     let text = ''
     let thinking = ''

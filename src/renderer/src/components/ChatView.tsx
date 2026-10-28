@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useStore } from '../store'
+import { CacheBar } from './CacheBar'
 import { ChatSettingsPanel } from './ChatSettingsPanel'
 import { Composer } from './Composer'
 import { SidebarIcon, SlidersIcon, SplitIcon } from './Icons'
@@ -45,7 +46,7 @@ export function ChatView() {
           disabled={!current}
         >
           <SlidersIcon />
-          Chat settings
+          Model settings
         </button>
       </header>
       {panelOpen && current && <ChatSettingsPanel key={current.id} onClose={() => setPanelOpen(false)} />}
@@ -59,6 +60,7 @@ export function ChatView() {
       ) : (
         <Thread key={current.id} />
       )}
+      {!split && current && <CacheBar />}
       <Composer />
     </main>
   )

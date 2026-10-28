@@ -1,20 +1,41 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import type { ChatSettings, ConversationView, Pane, SendTarget, StreamEvent } from '@shared/types'
+import type { Attachment, ChatSettings, ConversationView, Pane, SendTarget, StreamEvent } from '@shared/types'
 import * as db from './db'
-import { getApiKey, getProvider, implFor } from './providers'
+import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { appendLog } from './logs'
 import { describeAnthropicError } from './providers/anthropic'
+import { toWorkspace, workspaceSystemPrompt } from './workspaces'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
   modelId: 'claude-opus-5-5',
   systemPrompt: '',
   effort: null,
+  thinkingDisplay: 'summarized',
+  caching: true,
   cacheTtl: '1h',
   showThinking: false,
   temperature: null,
-  maxTokens: 64000
+  maxTokens: null,
+  messageLimit: null,
+  extraParams: ''
+}
+
+/** Settings as stored, with any field added since they were saved filled from the defaults. */
+const normalize = (stored: Partial<ChatSettings>): ChatSettings => ({ ...DEFAULT_SETTINGS, ...stored })
+
+/**
+ * With a recent-message limit, sends only the newest messages. The cut moves in steps of half the
+ * limit rather than every turn, so the cached prefix survives several turns between moves (a cut
+ * that slides every turn would miss the cache every turn).
+ */
+export function trimHistory<T extends { role: string }>(history: T[], limit: number | null): T[] {
+  if (!limit || history.length <= limit) return history
+  const step = Math.max(2, Math.floor(limit / 2))
+  let cut = Math.ceil((history.length - limit) / step) * step
+  while (cut < history.length - 1 && history[cut].role !== 'user') cut++
+  return history.slice(cut)
 }
 
 /** Split compare state stored on the conversation: pane B's leaf and settings. */
@@ -32,7 +53,7 @@ export function isRunning(id: string, pane?: Pane): boolean {
 }
 
 export function getDefaults(): ChatSettings {
-  return { ...DEFAULT_SETTINGS, ...db.kvGet<Partial<ChatSettings>>('defaults') }
+  return normalize(db.kvGet<Partial<ChatSettings>>('defaults') ?? {})
 }
 
 export function setDefaults(patch: Partial<ChatSettings>): ChatSettings {
@@ -41,7 +62,9 @@ export function setDefaults(patch: Partial<ChatSettings>): ChatSettings {
 }
 
 function splitOf(conv: db.ConversationRow): SplitState | null {
-  return conv.split ? (JSON.parse(conv.split) as SplitState) : null
+  if (!conv.split) return null
+  const split = JSON.parse(conv.split) as SplitState
+  return { ...split, settings: normalize(split.settings) }
 }
 
 function setSplit(id: string, split: SplitState | null): void {
@@ -50,7 +73,7 @@ function setSplit(id: string, split: SplitState | null): void {
 
 function settingsFor(conv: db.ConversationRow, pane: Pane): ChatSettings {
   const split = splitOf(conv)
-  return pane === 'b' && split ? split.settings : (JSON.parse(conv.settings) as ChatSettings)
+  return pane === 'b' && split ? split.settings : normalize(JSON.parse(conv.settings))
 }
 
 /** The node a pane's next message attaches to. */
@@ -74,22 +97,34 @@ export function view(id: string): ConversationView {
   return {
     id,
     title: conv.title,
-    settings: JSON.parse(conv.settings),
+    settings: settingsFor(conv, 'a'),
     started: !!conv.started,
     path: toViews(db.activePath(conv, nodes)),
     split: split ? { settings: split.settings, path: toViews(db.ancestors(nodes, split.leafId)) } : null
   }
 }
 
+/** A new chat takes the defaults, overlaid with its workspace's system prompt and model. */
 export function create(folderId: string | null = null): ConversationView {
-  return view(db.createConversation(getDefaults(), folderId).id)
+  const settings = getDefaults()
+  const row = folderId ? db.getFolder(folderId) : undefined
+  if (row) {
+    const ws = toWorkspace(row)
+    settings.systemPrompt = workspaceSystemPrompt(ws) || settings.systemPrompt
+    if (ws.providerId && ws.modelId) {
+      settings.providerId = ws.providerId
+      settings.modelId = ws.modelId
+    }
+  }
+  return view(db.createConversation(settings, folderId).id)
 }
 
+/**
+ * Any setting can change at any time, the system prompt included, separately for each split pane.
+ * The interface warns that a system prompt or model change restarts the prompt cache.
+ */
 export function updateSettings(id: string, patch: Partial<ChatSettings>, pane: Pane = 'a'): ConversationView {
   const conv = db.getConversation(id)
-  // The system prompt is part of the cached prefix (and shared by both panes); once the chat
-  // starts it stays as sent.
-  if (conv.started || pane === 'b') delete patch.systemPrompt
   const split = splitOf(conv)
   if (pane === 'b' && split) setSplit(id, { ...split, settings: { ...split.settings, ...patch } })
   else db.updateConversation(id, { settings: JSON.stringify({ ...settingsFor(conv, 'a'), ...patch }) })
@@ -101,15 +136,28 @@ function titleFrom(text: string): string {
   return line.length > 60 ? `${line.slice(0, 57)}…` : line || 'New chat'
 }
 
-export function send(contents: WebContents, id: string, text: string, target: SendTarget = 'a'): ConversationView {
+const escapeAttr = (s: string): string => s.replace(/"/g, "'")
+
+export function send(
+  contents: WebContents,
+  id: string,
+  text: string,
+  target: SendTarget = 'a',
+  attachments: Attachment[] = []
+): ConversationView {
   let conv = db.getConversation(id)
   const targets = panes(target, conv)
   if (targets.some((p) => isRunning(id, p))) throw new Error('A reply is still streaming in this chat.')
   if (!conv.started) {
-    db.updateNode(conv.root_id, { text: settingsFor(conv, 'a').systemPrompt })
-    db.updateConversation(id, { started: 1, title: titleFrom(text) })
+    db.updateConversation(id, { started: 1, title: titleFrom(text || attachments[0]?.name || 'New chat') })
     conv = db.getConversation(id)
   }
+  // Attached files go into the message itself, in full, ahead of what was typed. They become
+  // part of the history like any message, so later turns read them from cache.
+  const content = [
+    ...attachments.map((a) => ({ type: 'text', text: `<document name="${escapeAttr(a.name)}">\n${a.text}\n</document>` })),
+    ...(text ? [{ type: 'text', text }] : [])
+  ]
   const nodes = db.loadNodes(id)
   const userNodes = targets.map((pane) => {
     const user = db.insertNode(
@@ -119,13 +167,14 @@ export function send(contents: WebContents, id: string, text: string, target: Se
         parent_id: leafOf(conv, nodes, pane),
         role: 'user',
         text,
-        content: JSON.stringify([{ type: 'text', text }]),
+        content: JSON.stringify(content),
         thinking: null,
         model: null,
         provider_id: null,
         usage: null,
         status: 'done',
-        error: null
+        error: null,
+        attachments: attachments.length ? JSON.stringify(attachments.map((a) => ({ name: a.name, chars: a.text.length }))) : null
       },
       { activate: pane === 'a' }
     )
@@ -242,12 +291,17 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
     try {
       if (after) await after
       const nodes = db.loadNodes(conversationId)
-      const history = db.ancestors(nodes, userNodeId).filter((n) => n.role !== 'root')
+      const history = trimHistory(
+        db.ancestors(nodes, userNodeId).filter((n) => n.role !== 'root'),
+        settings.messageLimit
+      )
       const config = getProvider(settings.providerId)
       const result = await implFor(config).generate({
         config,
         apiKey: getApiKey(config.id),
-        system: nodes.get(conv.root_id)?.text ?? '',
+        // This pane's own system prompt (chats from before it was editable kept it on the root).
+        system: settings.systemPrompt || nodes.get(conv.root_id)?.text || '',
+        options: modelOptions(settings.providerId, settings.modelId),
         history,
         settings,
         signal: controller.signal,
@@ -292,9 +346,11 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
           effort: settings.effort ?? undefined,
           cacheTtl: settings.cacheTtl,
           temperature: settings.temperature ?? undefined,
-          system: nodes.get(conv.root_id)?.text || undefined,
+          system: settings.systemPrompt || nodes.get(conv.root_id)?.text || undefined,
+          messageLimit: settings.messageLimit ?? undefined,
           turnsBefore: db.ancestors(nodes, userNodeId).length - 2,
           prompt: nodes.get(userNodeId)?.text,
+          attachments: nodes.get(userNodeId)?.attachments ? JSON.parse(nodes.get(userNodeId)!.attachments!) : undefined,
           response: row.text,
           thinking: row.thinking ?? undefined,
           usage: row.usage ? JSON.parse(row.usage) : undefined,

@@ -1,7 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react'
-import type { SendTarget } from '@shared/types'
+import { formatTokens } from '@shared/pricing'
+import type { Attachment, SendTarget } from '@shared/types'
 import { useStore } from '../store'
-import { SendIcon, StopIcon } from './Icons'
+import { CloseIcon, PaperclipIcon, SendIcon, StopIcon } from './Icons'
 import { ModelPicker } from './ModelPicker'
 
 const MAX_LINES = 12
@@ -17,6 +18,7 @@ const PLACEHOLDER: Record<SendTarget, string> = { a: 'Message A', b: 'Message B'
 
 export function Composer() {
   const [text, setText] = useState('')
+  const [attachments, setAttachments] = useState<Attachment[]>([])
   const area = useRef<HTMLTextAreaElement>(null)
   const split = useStore((s) => !!s.current?.split)
   const target = useStore((s) => (s.current?.split ? s.target : 'a'))
@@ -43,14 +45,43 @@ export function Composer() {
 
   const submit = (): void => {
     const value = text.trim()
-    if (!value || streaming) return
+    if ((!value && attachments.length === 0) || streaming) return
     setText('')
-    void send(value)
+    setAttachments([])
+    void send(value, attachments)
+  }
+
+  const attach = async (): Promise<void> => {
+    try {
+      const picked = await window.twilight.pickAttachments()
+      if (picked.length) setAttachments((list) => [...list, ...picked])
+    } catch (err) {
+      useStore.getState().setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+    }
+    area.current?.focus()
   }
 
   return (
     <div className={`composer-wrap ${split ? 'composer-split' : ''}`}>
       <div className="tw-composer">
+        {attachments.length > 0 && (
+          <div className="tw-attach">
+            {attachments.map((a, i) => (
+              <span key={`${a.name}-${i}`} className="tw-badge attach-chip" title={`${a.text.length.toLocaleString()} characters, sent in full`}>
+                <PaperclipIcon size={13} />
+                {a.name}
+                <span className="attach-size">~{formatTokens(Math.round(a.text.length / 4))}</span>
+                <button
+                  className="attach-remove"
+                  aria-label={`Remove ${a.name}`}
+                  onClick={() => setAttachments((list) => list.filter((_, j) => j !== i))}
+                >
+                  <CloseIcon size={11} />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <textarea
           ref={area}
           rows={split ? 1 : 2}
@@ -65,6 +96,9 @@ export function Composer() {
           }}
         />
         <div className="tw-composer-bar">
+          <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Attach files" title="Attach files (their full text goes into the message)" onClick={() => void attach()}>
+            <PaperclipIcon />
+          </button>
           {split && (
             <div className="tw-seg" role="group" aria-label="Send to">
               {TARGETS.map((t) => (
@@ -87,7 +121,13 @@ export function Composer() {
               <StopIcon />
             </button>
           ) : (
-            <button className="tw-send" aria-label="Send (Enter)" title="Send (Enter)" disabled={!text.trim()} onClick={submit}>
+            <button
+              className="tw-send"
+              aria-label="Send (Enter)"
+              title="Send (Enter)"
+              disabled={!text.trim() && attachments.length === 0}
+              onClick={submit}
+            >
               <SendIcon />
             </button>
           )}

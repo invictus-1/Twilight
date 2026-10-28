@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { ModelInfo, ProviderConfig } from '@shared/types'
+import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
 import type { NodeRow } from '../db'
-import { textBlocks, type GenerateRequest, type GenerateResult, type Provider } from './types'
+import { mergeExtraParams, textBlocks, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 // Prompt caching is a prefix match, so every request is built to be the previous request plus
 // the new turns: frozen system prompt first (with its own breakpoint), then the history with
@@ -42,18 +42,55 @@ function toMessages(history: NodeRow[]): Message[] {
   return messages
 }
 
+/** Claude Opus 5.5 and Haiku 5.5 default to medium effort; the rest of the current family to high. */
+const MEDIUM_DEFAULT = /^claude-(opus-5-5|haiku-5-5)/
+
+type Capabilities = Record<string, { supported?: boolean; types?: Record<string, { supported?: boolean }> } & Record<string, unknown>>
+
+/**
+ * Reads a model's options from the Models API capability tree: the effort levels it lists (in the
+ * API's own names and order) and whether it takes adaptive thinking. Falls back to known rules
+ * for responses without capabilities.
+ */
+export function anthropicOptions(id: string, caps: Capabilities | undefined, maxOutput?: number): ModelOptions {
+  let efforts: string[]
+  let adaptive: boolean
+  if (caps) {
+    const effort = caps.effort as (Record<string, { supported?: boolean }> & { supported?: boolean }) | undefined
+    efforts = effort?.supported
+      ? Object.entries(effort).filter(([k, v]) => k !== 'supported' && typeof v === 'object' && v?.supported).map(([k]) => k)
+      : []
+    adaptive = !!caps.thinking?.types?.adaptive?.supported
+  } else {
+    adaptive = !NO_ADAPTIVE_THINKING.test(id)
+    efforts = adaptive ? ['low', 'medium', 'high', 'xhigh', 'max'] : []
+  }
+  return {
+    efforts,
+    effortParam: efforts.length ? 'anthropic' : null,
+    defaultEffort: efforts.length ? (MEDIUM_DEFAULT.test(id) ? 'medium' : 'high') : undefined,
+    effortsFromProvider: !!caps,
+    adaptiveThinking: adaptive,
+    temperature: false,
+    maxOutput,
+    caching: true
+  }
+}
+
 export const anthropicProvider: Provider = {
   async listModels(config: ProviderConfig, apiKey?: string): Promise<ModelInfo[]> {
     if (!apiKey) return []
     const client = new Anthropic({ apiKey })
     const models: ModelInfo[] = []
     for await (const m of client.models.list({ limit: 100 })) {
+      const extra = m as unknown as { max_input_tokens?: number; max_tokens?: number; capabilities?: Capabilities }
       models.push({
         id: m.id,
         providerId: config.id,
         name: m.display_name,
         local: false,
-        contextWindow: (m as unknown as { max_input_tokens?: number }).max_input_tokens
+        contextWindow: extra.max_input_tokens,
+        options: anthropicOptions(m.id, extra.capabilities, extra.max_tokens)
       })
     }
     return models
@@ -64,23 +101,28 @@ export const anthropicProvider: Provider = {
     const client = new Anthropic({ apiKey: req.apiKey })
     const { settings } = req
     const model = settings.modelId
+    const options = req.options ?? anthropicOptions(model, undefined)
     const ttl = settings.cacheTtl
+    const cache = settings.caching ? { cache_control: { type: 'ephemeral', ttl } } : {}
     const started = Date.now()
 
     const body: Record<string, unknown> = {
       model,
-      max_tokens: settings.maxTokens,
+      // Claude needs max_tokens; "model default" means the model's maximum, capped at 64k.
+      max_tokens: Math.min(settings.maxTokens ?? 64000, options.maxOutput ?? 128000),
       messages: toMessages(req.history),
-      cache_control: { type: 'ephemeral', ttl }
+      ...cache
     }
-    if (req.system) body.system = [{ type: 'text', text: req.system, cache_control: { type: 'ephemeral', ttl } }]
-    if (!NO_ADAPTIVE_THINKING.test(model)) body.thinking = { type: 'adaptive', display: 'summarized' }
-    if (settings.effort) body.output_config = { effort: settings.effort }
+    if (req.system) body.system = [{ type: 'text', text: req.system, ...cache }]
+    if (options.adaptiveThinking) body.thinking = { type: 'adaptive', display: settings.thinkingDisplay }
+    // Only levels this model lists; a level from another model would be rejected.
+    if (settings.effort && options.efforts.includes(settings.effort)) body.output_config = { effort: settings.effort }
     const betas: string[] = []
     if (SUPPORTS_FALLBACK.test(model)) {
       betas.push('server-side-fallback-2026-07-01')
       body.fallbacks = 'default'
     }
+    mergeExtraParams(body, settings.extraParams ?? '')
 
     const stream = client.beta.messages.stream(
       { ...body, betas } as unknown as Parameters<typeof client.beta.messages.stream>[0],

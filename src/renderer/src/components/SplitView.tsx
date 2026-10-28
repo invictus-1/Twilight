@@ -1,7 +1,8 @@
 import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import type { Pane } from '@shared/types'
 import { PaneContext } from '../pane'
-import { paneOf, useStore } from '../store'
+import { optionsFor, paneOf, useStore } from '../store'
+import { cacheStatus } from './CacheBar'
 import { CloseIcon } from './Icons'
 import { ModelPicker } from './ModelPicker'
 import { Thread } from './Thread'
@@ -9,9 +10,13 @@ import { Thread } from './Thread'
 /** The same stats, in the same order, under both panes so they compare at a glance. */
 function PaneFooter({ pane }: { pane: Pane }) {
   const last = useStore((s) => paneOf(s.current!, pane).path.findLast((n) => n.role === 'assistant'))
+  const settings = useStore((s) => paneOf(s.current!, pane).settings)
   const models = useStore((s) => s.models)
+  const providers = useStore((s) => s.providers)
   const u = last?.usage
-  if (!u) return <footer className="tw-pane-foot">No reply yet</footer>
+  const cache = cacheStatus(u, settings, optionsFor(models, providers, settings.providerId, settings.modelId))
+  const cacheLabel = { hit: 'cache hit', write: 'cache written', miss: 'not cached', off: 'caching off', idle: '' }[cache.tone]
+  if (!u) return <footer className="tw-pane-foot">No reply yet{cache.tone === 'off' ? ' · caching off' : ''}</footer>
   const local = models.find((m) => m.id === last.modelId && m.providerId === last.providerId)?.local ?? false
   const cost = costOf(last.modelId, u, local)
   return (
@@ -20,6 +25,11 @@ function PaneFooter({ pane }: { pane: Pane }) {
       <span>{formatTokens(u.input + u.cacheRead + u.cacheWrite)} in</span>
       <span>{(u.ms / 1000).toFixed(1)}s</span>
       {cost !== null && <span>{formatCost(cost)}</span>}
+      {cacheLabel && (
+        <span className={`cache-${cache.tone}`} title={cache.text}>
+          <span className="cache-dot" aria-hidden="true" /> {cacheLabel}
+        </span>
+      )}
     </footer>
   )
 }
