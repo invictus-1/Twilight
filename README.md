@@ -15,7 +15,7 @@ npm run typecheck
 
 Add an Anthropic API key, or start Ollama / LM Studio, under **Settings → Providers**. What's done and what's next: [ROADMAP.md](ROADMAP.md).
 
-`npm run dist` writes `release/Twilight-Setup-<version>.exe` (installer) and `release/Twilight-<version>-x64.zip` (portable). The builds are unsigned, so Windows SmartScreen asks once ("More info" → "Run anyway"). `npx electron scripts/make-icon.cjs` regenerates the app icon.
+`npm run dist` writes `release/Twilight-Setup-<version>.exe` (installer) and `release/Twilight-<version>-x64.zip` (portable). The builds are unsigned, so Windows SmartScreen asks once ("More info" → "Run anyway"). `npx electron scripts/make-icon.cjs` regenerates the app icon and `npx electron scripts/make-installer-art.cjs` the installer artwork.
 
 ### Model settings and workspaces
 
@@ -76,4 +76,4 @@ Messages render with `content-visibility: auto` and an estimated height so huge 
 After `npm run build`, both run in a throwaway profile and never touch your real data:
 
 - `TWILIGHT_SELFTEST=<folder> npx electron .` seeds a ~350k-token chat, scrolls it top to bottom one step per frame, and writes `selftest.json` (frame timings) and `selftest.png`.
-- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (94 checks) and screenshots.
+- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (104 checks) and screenshots.

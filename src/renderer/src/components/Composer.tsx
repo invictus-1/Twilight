@@ -32,6 +32,7 @@ export function Composer() {
   const send = useStore((s) => s.send)
   const stop = useStore((s) => s.stop)
   const currentId = useStore((s) => s.current?.id)
+  const choiceCards = useStore((s) => s.current?.settings.choiceCards ?? false)
 
   // Grow with the text up to MAX_LINES, then scroll.
   useLayoutEffect(() => {
@@ -99,6 +100,20 @@ export function Composer() {
           <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Attach files" title="Attach files (their full text goes into the message)" onClick={() => void attach()}>
             <PaperclipIcon />
           </button>
+          {currentId && (
+            <button
+              className="tw-btn tw-btn-ghost tw-btn-sm tw-toggle"
+              aria-pressed={choiceCards}
+              title="Choice cards: the model offers clickable options when you should decide (adds a short instruction to the system prompt)"
+              onClick={() => {
+                const s = useStore.getState()
+                void s.updateSettings({ choiceCards: !choiceCards }, 'a')
+                if (split) void s.updateSettings({ choiceCards: !choiceCards }, 'b')
+              }}
+            >
+              Choices
+            </button>
+          )}
           {split && (
             <div className="tw-seg" role="group" aria-label="Send to">
               {TARGETS.map((t) => (

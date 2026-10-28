@@ -3,4 +3,5 @@ out/
 release/
 *.log
 *.tsbuildinfo
+build/*.preview.png
 .DS_Store

@@ -6,6 +6,7 @@ import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { appendLog } from './logs'
 import { describeAnthropicError } from './providers/anthropic'
 import { toWorkspace, workspaceSystemPrompt } from './workspaces'
+import { CHOICES_INSTRUCTION } from '@shared/choices'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -19,7 +20,14 @@ const DEFAULT_SETTINGS: ChatSettings = {
   temperature: null,
   maxTokens: null,
   messageLimit: null,
-  extraParams: ''
+  extraParams: '',
+  choiceCards: false
+}
+
+/** The system prompt actually sent: the pane's own, plus the choice-card convention when it's on. */
+function systemFor(settings: ChatSettings, legacy: string): string {
+  const base = settings.systemPrompt || legacy
+  return settings.choiceCards ? [base, CHOICES_INSTRUCTION].filter(Boolean).join('\n\n') : base
 }
 
 /** Settings as stored, with any field added since they were saved filled from the defaults. */
@@ -300,7 +308,7 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
         config,
         apiKey: getApiKey(config.id),
         // This pane's own system prompt (chats from before it was editable kept it on the root).
-        system: settings.systemPrompt || nodes.get(conv.root_id)?.text || '',
+        system: systemFor(settings, nodes.get(conv.root_id)?.text ?? ''),
         options: modelOptions(settings.providerId, settings.modelId),
         history,
         settings,
@@ -346,7 +354,7 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
           effort: settings.effort ?? undefined,
           cacheTtl: settings.cacheTtl,
           temperature: settings.temperature ?? undefined,
-          system: settings.systemPrompt || nodes.get(conv.root_id)?.text || undefined,
+          system: systemFor(settings, nodes.get(conv.root_id)?.text ?? '') || undefined,
           messageLimit: settings.messageLimit ?? undefined,
           turnsBefore: db.ancestors(nodes, userNodeId).length - 2,
           prompt: nodes.get(userNodeId)?.text,

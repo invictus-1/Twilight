@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
+import { extractChoices } from '@shared/choices'
 import { gameFormat } from '@shared/gameFormat'
 import { computeVerdict } from '@shared/judge'
 import * as judge from './judge'
@@ -56,6 +57,8 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply =
           `### Prose — X ${xGood ? 8 : 5} · Y ${xGood ? 5 : 8}\nX quotes "${x.slice(0, 20)}".\n\n### Verdict\n${xGood ? 'X' : 'Y'} is better.\n\n` +
           '```json\n' + JSON.stringify({ criteria, overall: { X: xGood ? 8 : 5, Y: xGood ? 5 : 8 }, winner: xGood ? 'X' : 'Y', confidence: 'high' }) + '\n```'
+      } else if (system.includes('Interactive choices:')) {
+        reply = `The door creaks open on "${lastUser}".\n\n\`\`\`choices\nWhat do you do?\n1. Light the lamp\n2. Wait in the rain\n3. Call out\n4. Run for the bridge\n\`\`\``
       } else if (lastUser.includes('STATUSCARD')) {
         reply =
           'The rain held.\n\n<details>\n<summary>status card</summary>\n\n```\n═══ STATUS CARD ═══\nDATE     Thursday\n```\n\n</details>\n\n' +
@@ -633,6 +636,86 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('result screen shows the verdict, blind', fromSplit.headline === 'A is better written' && fromSplit.rows === 10, fromSplit)
       await new Promise((r) => setTimeout(r, 200))
       writeFileSync(join(outDir, 'e2e-judge.png'), (await win.webContents.capturePage()).toPNG())
+
+      // 26. Choice cards: parsing, the instruction reaching the model, and the card in use.
+      const parsedChoices = extractChoices('Story.\n\n```choices\nWhat now?\n1. Go left\n2. Go right\n```')
+      check('choices block parsed', parsedChoices.body === 'Story.' && parsedChoices.choices?.question === 'What now?' && parsedChoices.choices?.options.join() === 'Go left,Go right')
+      const partial = extractChoices('Story.\n\n```choices\nWhat now?\n1. Go le')
+      check('half-streamed choices stay hidden', partial.body === 'Story.' && partial.choices === null)
+      check('plain replies untouched', extractChoices('Just text.').choices === null)
+
+      const c3 = chat.create(null).id
+      chat.updateSettings(c3, { choiceCards: true })
+      const before26 = log.length
+      chat.send(contents, c3, 'Start')
+      await idle(c3)
+      check('choice instruction sent in the system prompt', (log[before26]?.messages[0]?.content ?? '').includes('Interactive choices:'))
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 700))
+      const card = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="chat"]').click()
+        await wait(200)
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Start')
+        row?.click()
+        await wait(500)
+        const c = document.querySelector('.choice-card')
+        const md = [...document.querySelectorAll('.tw-msg-ai .md')].at(-1)
+        const info = {
+          question: c?.querySelector('.choice-question')?.textContent ?? null,
+          options: [...(c?.querySelectorAll('.choice-text') ?? [])].map((e) => e.textContent),
+          rawHidden: !(md?.textContent.includes('choices') || md?.textContent.includes('Light the lamp'))
+        }
+        ;[...document.querySelectorAll('.choice-pick')][1]?.click()
+        return info
+      })()`)
+      check('choice card shows the question and options', card.question === 'What do you do?' && card.options?.length === 4, card)
+      check('raw choices block hidden from the reply', card.rawHidden === true)
+      await new Promise((r) => setTimeout(r, 300))
+      await idle(c3)
+      check('clicking a choice sends it', chat.view(c3).path.at(-2)?.text === 'Wait in the rain', chat.view(c3).path.at(-2)?.text)
+
+      await new Promise((r) => setTimeout(r, 400))
+      await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const cards = document.querySelectorAll('.choice-card')
+        const cardEl = cards[cards.length - 1]
+        cardEl.querySelector('[aria-label="Edit choice 1 before sending"]').click()
+        await wait(100)
+        const input = cardEl.querySelector('.choice-edit input')
+        input.value = 'Light the lamp and sing'
+        cardEl.querySelector('.choice-edit').requestSubmit()
+      })()`)
+      await new Promise((r) => setTimeout(r, 300))
+      await idle(c3)
+      check('an edited choice sends the edit', chat.view(c3).path.at(-2)?.text === 'Light the lamp and sing', chat.view(c3).path.at(-2)?.text)
+
+      await new Promise((r) => setTimeout(r, 400))
+      await win.webContents.executeJavaScript(`(async () => {
+        const cards = document.querySelectorAll('.choice-card')
+        const cardEl = cards[cards.length - 1]
+        const input = cardEl.querySelector('.choice-own input')
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Dance in the rain')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        await new Promise((r) => setTimeout(r, 50))
+        cardEl.querySelector('.choice-own').requestSubmit()
+      })()`)
+      await new Promise((r) => setTimeout(r, 300))
+      await idle(c3)
+      check('"Something else" sends your own words', chat.view(c3).path.at(-2)?.text === 'Dance in the rain', chat.view(c3).path.at(-2)?.text)
+      await new Promise((r) => setTimeout(r, 500))
+      const answered = await win.webContents.executeJavaScript(`(() => {
+        const cards = [...document.querySelectorAll('.choice-card')]
+        return {
+          count: cards.length,
+          firstPicked: cards[0]?.querySelector('.choice-picked .choice-text')?.textContent ?? null,
+          firstActive: !!cards[0]?.querySelector('.choice-own'),
+          lastActive: !!cards[cards.length - 1]?.querySelector('.choice-own')
+        }
+      })()`)
+      check('answered cards show the pick and go quiet', answered.firstPicked === 'Wait in the rain' && !answered.firstActive && answered.lastActive, answered)
+      writeFileSync(join(outDir, 'e2e-choices.png'), (await win.webContents.capturePage()).toPNG())
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {

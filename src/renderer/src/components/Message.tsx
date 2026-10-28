@@ -7,7 +7,9 @@ import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
 import { modelName, paneOf, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
+import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
+import { ChoiceCard } from './ChoiceCard'
 import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
@@ -95,7 +97,7 @@ function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking:
         </details>
       )}
       {text ? (
-        <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(text) }} />
+        <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(extractChoices(text).body) }} />
       ) : (
         <div className="msg-pending">
           <span className="tw-spin" /> {thinking ? 'Thinking' : 'Waiting for the first token'}
@@ -144,7 +146,8 @@ function UsageLine({ node }: { node: NodeView }) {
   )
 }
 
-function AssistantMessage({ node }: { node: NodeView }) {
+function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeView; isLast: boolean }) {
+  const { body, choices } = extractChoices(node.text)
   const models = useStore((s) => s.models)
   const pane = usePane()
   const showThinking = useStore((s) => (s.current ? paneOf(s.current, pane).settings.showThinking : false))
@@ -166,7 +169,10 @@ function AssistantMessage({ node }: { node: NodeView }) {
               <div className="thinking-body">{node.thinking}</div>
             </details>
           )}
-          {node.text && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, node.text) }} />}
+          {body && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />}
+          {choices && (
+            <ChoiceCard choices={choices} active={isLast} answer={next?.role === 'user' ? next.text : null} />
+          )}
         </>
       )}
       {node.status === 'error' && (
@@ -185,7 +191,7 @@ function AssistantMessage({ node }: { node: NodeView }) {
               className="tw-btn tw-btn-ghost tw-btn-icon"
               aria-label="Copy"
               title="Copy"
-              onClick={() => void navigator.clipboard.writeText(node.text)}
+              onClick={() => void navigator.clipboard.writeText(body)}
             >
               <CopyIcon />
             </button>
@@ -197,7 +203,7 @@ function AssistantMessage({ node }: { node: NodeView }) {
             >
               <RefreshIcon />
             </button>
-            {node.text && <GameFormatButton text={node.text} />}
+            {body && <GameFormatButton text={body} />}
             {node.text && (
               <button
                 className="tw-btn tw-btn-ghost tw-btn-icon"
@@ -206,7 +212,7 @@ function AssistantMessage({ node }: { node: NodeView }) {
                 onClick={() => {
                   const title = useStore.getState().current?.title ?? 'From chat'
                   useStore.getState().setMode('write')
-                  void useWriting.getState().fromText(title, node.text)
+                  void useWriting.getState().fromText(title, body)
                 }}
               >
                 <PenIcon />
@@ -231,8 +237,8 @@ function AssistantMessage({ node }: { node: NodeView }) {
 }
 
 export const Message = memo(
-  function Message({ node }: { node: NodeView }) {
-    return node.role === 'user' ? <UserMessage node={node} /> : <AssistantMessage node={node} />
+  function Message({ node, next, isLast = false }: { node: NodeView; next?: NodeView; isLast?: boolean }) {
+    return node.role === 'user' ? <UserMessage node={node} /> : <AssistantMessage node={node} next={next} isLast={isLast} />
   },
   (a, b) =>
     a.node.id === b.node.id &&
@@ -240,5 +246,8 @@ export const Message = memo(
     a.node.text === b.node.text &&
     a.node.siblingIndex === b.node.siblingIndex &&
     a.node.siblingCount === b.node.siblingCount &&
-    a.node.usage === b.node.usage
+    a.node.usage === b.node.usage &&
+    a.isLast === b.isLast &&
+    a.next?.id === b.next?.id &&
+    a.next?.text === b.next?.text
 )

@@ -45,7 +45,8 @@ interface State {
   deleteFolder(id: string): Promise<void>
   moveChat(id: string, folderId: string | null): Promise<void>
   pinChat(id: string, pinned: boolean): Promise<void>
-  send(text: string, attachments?: Attachment[]): Promise<void>
+  /** Sends to the composer's target, or to `target` when given (a choice card sends to its own pane). */
+  send(text: string, attachments?: Attachment[], target?: SendTarget): Promise<void>
   updateWorkspace(id: string, patch: WorkspacePatch): Promise<void>
   regenerate(nodeId: string, pane: Pane): Promise<void>
   switchBranch(nodeId: string, direction: -1 | 1, pane: Pane): Promise<void>
@@ -164,12 +165,12 @@ export const useStore = create<State>((set, get) => {
       await get().refreshList()
     },
 
-    async send(text, attachments = []) {
+    async send(text, attachments = [], explicit) {
       if (!get().current) {
         await get().newChat()
         if (!get().current) return
       }
-      const target = get().current!.split ? get().target : 'a'
+      const target = get().current!.split ? (explicit ?? get().target) : 'a'
       await withCurrent((id) => api.send(id, text, target, attachments))
       await get().refreshList()
     },

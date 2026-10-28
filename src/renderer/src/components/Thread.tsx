@@ -96,8 +96,8 @@ export function Thread() {
   return (
     <div className="thread-scroll" ref={scroller} onClick={onClick}>
       <div className="thread" ref={content}>
-        {path.map((node) => (
-          <Message key={node.id} node={node} />
+        {path.map((node, i) => (
+          <Message key={node.id} node={node} next={path[i + 1]} isLast={i === path.length - 1} />
         ))}
         <div ref={sentinel} className="thread-end" />
       </div>

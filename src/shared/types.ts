@@ -67,6 +67,8 @@ export interface ChatSettings {
   messageLimit: number | null
   /** JSON merged into the request body last, for anything the panel doesn't cover. */
   extraParams: string
+  /** Text-adventure choice cards: the model offers numbered options to click (see shared/choices.ts). */
+  choiceCards: boolean
 }
 
 /** A saved set of model settings. */

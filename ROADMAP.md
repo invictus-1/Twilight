@@ -10,7 +10,7 @@ What's done, what's next, and ideas we haven't committed to. Updated with every 
 - [x] Model list cached on disk so it works offline
 - [x] Per-reply cost, tokens and cache hit rate
 - [x] Request logs (daily JSONL) and a Trash for deleted chats
-- [x] Windows installer and portable build (`npm run dist`)
+- [x] Windows installer and portable build (`npm run dist`), with Twilight artwork on the installer pages
 
 ### Chat
 - [x] Conversations as trees: regenerate adds a version, ‹ 2 / 3 › switcher
@@ -23,6 +23,7 @@ What's done, what's next, and ideas we haven't committed to. Updated with every 
 - [x] Workspaces: pinned / workspaces / recent, drag to file, default system prompt + model + color per workspace
 - [x] Full markdown (tables, task lists, footnotes, code blocks with copy and collapse) plus safe HTML: collapsible `<details>` blocks (status cards), with scripts, images and event handlers stripped
 - [x] Game Format: copy a reply for RPG Maker with paragraphs joined, dividers optional, code and HTML blocks untouched
+- [x] Choice cards for text adventures: the model offers numbered options (any model, no tool calling needed); click one, edit it before sending, or write your own; answered cards show the pick
 - [x] **Judge**: two passages scored blind against a rubric by a judge model you choose, run in both orders, with shared context (system prompt, author prompt, reference files) cached across runs; "Judge A vs B" from split compare; a built-in General fiction rubric and editable copies; reveal who wrote which after scoring
 - [x] 240Hz scrolling on a 350k-token chat (measured with `TWILIGHT_SELFTEST`)
 
@@ -35,6 +36,9 @@ What's done, what's next, and ideas we haven't committed to. Updated with every 
 - [x] Send a chat reply to Writing
 
 ## Next
+- [ ] Animated first-run welcome: the cover's bands slide in and the sun sets, flowing into setup (provider key or local server, writing folder, theme)
+- [ ] Choice cards: keyboard picks (1–9), a "suggest more options" button, and per-workspace default for adventure workspaces
+- [ ] Code signing when Twilight is shared (Azure Trusted Signing or an OV certificate)
 - [ ] Judge follow-ups: a personal leaderboard across judgments; judge more than two passages
 - [ ] Game Format in the Writing editor too, and a "copy as game format" for a whole chat
 - [ ] Undo toast for destructive actions (delete, move)
