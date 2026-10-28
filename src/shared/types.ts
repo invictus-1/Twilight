@@ -71,6 +71,15 @@ export interface ConversationSummary {
   title: string
   updatedAt: number
   modelId: string
+  folderId: string | null
+  pinned: boolean
+}
+
+/** A sidebar folder of chats (Twilight's own; chat folders don't exist on disk). */
+export interface ChatFolder {
+  id: string
+  name: string
+  collapsed: boolean
 }
 
 /** Split compare: A is the conversation's main thread, B a second branch of the same tree. */
@@ -123,7 +132,15 @@ export interface WritingRequest {
 
 export interface TwilightApi {
   listConversations(): Promise<ConversationSummary[]>
-  createConversation(): Promise<ConversationView>
+  createConversation(folderId?: string | null): Promise<ConversationView>
+  listFolders(): Promise<ChatFolder[]>
+  createFolder(name: string): Promise<ChatFolder[]>
+  renameFolder(id: string, name: string): Promise<ChatFolder[]>
+  setFolderCollapsed(id: string, collapsed: boolean): Promise<ChatFolder[]>
+  /** Deletes the folder only; its chats move back to Recent. */
+  deleteFolder(id: string): Promise<ChatFolder[]>
+  moveConversation(id: string, folderId: string | null): Promise<void>
+  pinConversation(id: string, pinned: boolean): Promise<void>
   openConversation(id: string): Promise<ConversationView>
   renameConversation(id: string, title: string): Promise<void>
   deleteConversation(id: string): Promise<void>
@@ -148,10 +165,15 @@ export interface TwilightApi {
   getWritingFolder(): Promise<string>
   chooseWritingFolder(): Promise<string | null>
   listDocs(): Promise<DocEntry[]>
+  /** Every subfolder of the writing folder (relative paths), empty ones included. */
+  listDocFolders(): Promise<string[]>
+  createDocFolder(path: string): Promise<string>
+  /** Moves a document into `folder` ('' = the top level); never overwrites. Returns its new path. */
+  moveDoc(path: string, folder: string): Promise<string>
   readDoc(path: string): Promise<DocContent>
   /** Saves atomically; returns the new modified time. */
   writeDoc(path: string, text: string): Promise<number>
-  createDoc(name: string): Promise<DocEntry>
+  createDoc(name: string, folder?: string): Promise<DocEntry>
   /** Streams a rewrite of the passage as StreamEvents with conversationId "writing" and nodeId = requestId. */
   runWritingTool(requestId: string, request: WritingRequest): Promise<void>
   stopWritingTool(requestId: string): Promise<void>

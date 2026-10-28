@@ -31,6 +31,10 @@ Each chat is a tree of messages under a hidden root that holds the system prompt
 
 Pane B is a second branch of the same tree: "Clone into split" (Ctrl+Shift+S, or the split icon on a reply) copies the conversation at that point, history, system prompt and settings included. Change B's model, then send to A, B or Both (Alt+1/2/3). B's branches never move pane A; "Keep A" or "Keep B" closes the split and continues on that branch, with the other still reachable from the version switcher. When both panes use the same model, B waits for A's first token so it reads A's prompt cache.
 
+### Folders
+
+Chats sit in Twilight's own folders (a database record, nothing on disk), with Pinned and Recent sections; drag a chat onto a folder to file it, onto Recent to unfile it. Deleting a folder never deletes its chats. In Writing, folders are the real subfolders of the writing folder, so they match an Obsidian vault; dragging a document onto a folder moves the file, and a move never overwrites an existing file.
+
 ### Writing
 
 Documents are plain `.md` files in a folder you choose (it defaults to `Documents\Twilight`; an Obsidian vault works as is, and both apps can edit the same files). The editor is CodeMirror 6, the engine Obsidian uses; it loads on first use, opens a 115k-word manuscript in about 35ms, autosaves atomically, and picks up edits made outside Twilight when the window regains focus.
@@ -58,4 +62,4 @@ Messages render with `content-visibility: auto` and an estimated height so huge 
 After `npm run build`, both run in a throwaway profile and never touch your real data:
 
 - `TWILIGHT_SELFTEST=<folder> npx electron .` seeds a ~350k-token chat, scrolls it top to bottom one step per frame, and writes `selftest.json` (frame timings) and `selftest.png`.
-- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (28 checks) and screenshots.
+- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (40 checks) and screenshots.

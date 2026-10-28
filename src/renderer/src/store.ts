@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  ChatFolder,
   ChatSettings,
   ConversationSummary,
   ConversationView,
@@ -15,6 +16,7 @@ const api = window.twilight
 
 interface State {
   conversations: ConversationSummary[]
+  folders: ChatFolder[]
   current: ConversationView | null
   models: ModelInfo[]
   providers: ProviderConfig[]
@@ -30,7 +32,13 @@ interface State {
   refreshList(): Promise<void>
   refreshModels(refresh?: boolean): Promise<void>
   open(id: string): Promise<void>
-  newChat(): Promise<void>
+  newChat(folderId?: string | null): Promise<void>
+  createFolder(name: string): Promise<void>
+  renameFolder(id: string, name: string): Promise<void>
+  toggleFolder(id: string): Promise<void>
+  deleteFolder(id: string): Promise<void>
+  moveChat(id: string, folderId: string | null): Promise<void>
+  pinChat(id: string, pinned: boolean): Promise<void>
   send(text: string): Promise<void>
   regenerate(nodeId: string, pane: Pane): Promise<void>
   switchBranch(nodeId: string, direction: -1 | 1, pane: Pane): Promise<void>
@@ -70,6 +78,7 @@ export const useStore = create<State>((set, get) => {
 
   return {
     conversations: [],
+    folders: [],
     current: null,
     models: [],
     providers: [],
@@ -81,12 +90,13 @@ export const useStore = create<State>((set, get) => {
     error: null,
 
     async init() {
-      const [conversations, providers, defaults] = await Promise.all([
+      const [conversations, folders, providers, defaults] = await Promise.all([
         api.listConversations(),
+        api.listFolders(),
         api.listProviders(),
         api.getDefaults()
       ])
-      set({ conversations, providers, defaults })
+      set({ conversations, folders, providers, defaults })
       if (conversations[0]) await get().open(conversations[0].id)
       void get().refreshModels()
     },
@@ -104,13 +114,40 @@ export const useStore = create<State>((set, get) => {
       if (view) set({ current: view })
     },
 
-    async newChat() {
+    async newChat(folderId = null) {
       const current = get().current
-      // Reuse an untouched chat instead of piling up empty ones.
-      if (current && current.path.length === 0 && !current.split) return
-      const view = await guard(set, () => api.createConversation())
+      // Reuse an untouched chat instead of piling up empty ones (moving it if needed).
+      if (current && current.path.length === 0 && !current.split) {
+        await api.moveConversation(current.id, folderId)
+        await get().refreshList()
+        return
+      }
+      const view = await guard(set, () => api.createConversation(folderId))
       if (!view) return
       set({ current: view })
+      await get().refreshList()
+    },
+
+    async createFolder(name) {
+      set({ folders: await api.createFolder(name) })
+    },
+    async renameFolder(id, name) {
+      set({ folders: await api.renameFolder(id, name) })
+    },
+    async toggleFolder(id) {
+      const folder = get().folders.find((f) => f.id === id)
+      if (folder) set({ folders: await api.setFolderCollapsed(id, !folder.collapsed) })
+    },
+    async deleteFolder(id) {
+      set({ folders: await api.deleteFolder(id) })
+      await get().refreshList()
+    },
+    async moveChat(id, folderId) {
+      await api.moveConversation(id, folderId)
+      await get().refreshList()
+    },
+    async pinChat(id, pinned) {
+      await api.pinConversation(id, pinned)
       await get().refreshList()
     },
 

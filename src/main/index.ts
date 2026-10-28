@@ -1,6 +1,6 @@
 import { app, BrowserWindow, ipcMain, Menu, session, shell } from 'electron'
 import { join } from 'node:path'
-import type { Pane, SendTarget, TwilightApi, WritingRequest } from '@shared/types'
+import type { ChatFolder, Pane, SendTarget, TwilightApi, WritingRequest } from '@shared/types'
 import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
@@ -64,7 +64,9 @@ function createWindow(): BrowserWindow {
   return win
 }
 
-type Handlers = { [K in keyof TwilightApi]?: (event: Electron.IpcMainInvokeEvent, ...args: never[]) => unknown }
+const folders = (): ChatFolder[] => db.listFolders().map((f) => ({ id: f.id, name: f.name, collapsed: !!f.collapsed }))
+
+type Handlers ={ [K in keyof TwilightApi]?: (event: Electron.IpcMainInvokeEvent, ...args: never[]) => unknown }
 
 function registerIpc(): void {
   const handlers: Handlers = {
@@ -73,9 +75,18 @@ function registerIpc(): void {
         id: c.id,
         title: c.title,
         updatedAt: c.updated_at,
-        modelId: (JSON.parse(c.settings) as { modelId: string }).modelId
+        modelId: (JSON.parse(c.settings) as { modelId: string }).modelId,
+        folderId: c.folder_id,
+        pinned: !!c.pinned
       })),
-    createConversation: () => chat.create(),
+    createConversation: (_e, folderId?: string | null) => chat.create(folderId ?? null),
+    listFolders: () => folders(),
+    createFolder: (_e, name: string) => (db.createFolder(name.trim() || 'New folder'), folders()),
+    renameFolder: (_e, id: string, name: string) => (name.trim() && db.updateFolder(id, { name: name.trim() }), folders()),
+    setFolderCollapsed: (_e, id: string, collapsed: boolean) => (db.updateFolder(id, { collapsed: collapsed ? 1 : 0 }), folders()),
+    deleteFolder: (_e, id: string) => (db.deleteFolder(id), folders()),
+    moveConversation: (_e, id: string, folderId: string | null) => db.fileConversation(id, { folder_id: folderId }),
+    pinConversation: (_e, id: string, pinned: boolean) => db.fileConversation(id, { pinned: pinned ? 1 : 0 }),
     openConversation: (_e, id: string) => chat.view(id),
     renameConversation: (_e, id: string, title: string) => db.updateConversation(id, { title }),
     deleteConversation: (_e, id: string) => {
@@ -99,9 +110,12 @@ function registerIpc(): void {
     getWritingFolder: () => docs.writingFolder(),
     chooseWritingFolder: (e) => docs.chooseWritingFolder(BrowserWindow.fromWebContents(e.sender)),
     listDocs: () => docs.listDocs(),
+    listDocFolders: () => docs.listDocFolders(),
+    createDocFolder: (_e, path: string) => docs.createDocFolder(path),
+    moveDoc: (_e, path: string, folder: string) => docs.moveDoc(path, folder),
     readDoc: (_e, path: string) => docs.readDoc(path),
     writeDoc: (_e, path: string, text: string) => docs.writeDoc(path, text),
-    createDoc: (_e, name: string) => docs.createDoc(name),
+    createDoc: (_e, name: string, folder?: string) => docs.createDoc(name, folder),
     runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
     stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
     openExternal: async (_e, url: string) => {

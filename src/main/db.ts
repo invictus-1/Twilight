@@ -35,6 +35,44 @@ export interface ConversationRow {
   started: number
   /** Split compare: pane B's leaf node and settings (JSON), or null. */
   split: string | null
+  folder_id: string | null
+  pinned: number
+}
+
+export interface FolderRow {
+  id: string
+  name: string
+  created_at: number
+  collapsed: number
+}
+
+export function listFolders(): FolderRow[] {
+  return db.prepare('SELECT * FROM folders ORDER BY name COLLATE NOCASE').all() as FolderRow[]
+}
+
+export function createFolder(name: string): FolderRow {
+  const row: FolderRow = { id: randomUUID(), name, created_at: Date.now(), collapsed: 0 }
+  db.prepare('INSERT INTO folders (id, name, created_at, collapsed) VALUES (@id, @name, @created_at, @collapsed)').run(row)
+  return row
+}
+
+export function updateFolder(id: string, fields: Partial<Pick<FolderRow, 'name' | 'collapsed'>>): void {
+  const sets = Object.keys(fields).map((k) => `${k} = @${k}`)
+  if (sets.length) db.prepare(`UPDATE folders SET ${sets.join(', ')} WHERE id = @id`).run({ ...fields, id })
+}
+
+/** Removes a folder; its chats are kept and move back to Recent. */
+export function deleteFolder(id: string): void {
+  db.transaction(() => {
+    db.prepare('UPDATE conversations SET folder_id = NULL WHERE folder_id = ?').run(id)
+    db.prepare('DELETE FROM folders WHERE id = ?').run(id)
+  })()
+}
+
+/** Filing and pinning don't count as activity, so they leave updated_at alone. */
+export function fileConversation(id: string, fields: { folder_id?: string | null; pinned?: number }): void {
+  const sets = Object.keys(fields).map((k) => `${k} = @${k}`)
+  if (sets.length) db.prepare(`UPDATE conversations SET ${sets.join(', ')} WHERE id = @id`).run({ ...fields, id })
 }
 
 let db: Database.Database
@@ -76,6 +114,16 @@ export function openDatabase(file: string): void {
   `)
   const columns = (db.prepare('PRAGMA table_info(conversations)').all() as { name: string }[]).map((c) => c.name)
   if (!columns.includes('split')) db.exec('ALTER TABLE conversations ADD COLUMN split TEXT')
+  if (!columns.includes('folder_id')) db.exec('ALTER TABLE conversations ADD COLUMN folder_id TEXT')
+  if (!columns.includes('pinned')) db.exec('ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS folders (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      collapsed INTEGER NOT NULL DEFAULT 0
+    );
+  `)
   // A crash mid-stream leaves "streaming" rows behind; they are stopped, not lost.
   db.prepare(`UPDATE nodes SET status = 'stopped' WHERE status = 'streaming'`).run()
 }
@@ -106,14 +154,14 @@ export function getConversation(id: string): ConversationRow {
   return row
 }
 
-export function createConversation(settings: ChatSettings): ConversationRow {
+export function createConversation(settings: ChatSettings, folderId: string | null = null): ConversationRow {
   const now = Date.now()
   const id = randomUUID()
   const rootId = randomUUID()
   db.transaction(() => {
     db.prepare(
-      'INSERT INTO conversations (id, title, created_at, updated_at, root_id, settings) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(id, 'New chat', now, now, rootId, JSON.stringify(settings))
+      'INSERT INTO conversations (id, title, created_at, updated_at, root_id, settings, folder_id) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(id, 'New chat', now, now, rootId, JSON.stringify(settings), folderId)
     db.prepare(
       `INSERT INTO nodes (id, conversation_id, parent_id, role, status, created_at) VALUES (?, ?, NULL, 'root', 'done', ?)`
     ).run(rootId, id, now)

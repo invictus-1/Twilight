@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import * as chat from './chat'
+import * as db from './db'
 import * as docs from './docs'
 import * as providers from './providers'
 
@@ -224,6 +225,67 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         saved.text.startsWith('No one ever saw who lit them (mock-a). Wren stopped on the bridge'),
         saved.text.slice(0, 120)
       )
+
+      // 11. Chat folders: create in a folder, pin, and deleting a folder keeps its chats.
+      const rpg = db.createFolder('RPG Maker')
+      const misc = db.createFolder('Misc')
+      const inFolder = chat.create(rpg.id).id
+      const filed = (cid: string): db.ConversationRow | undefined => db.listConversations().find((c) => c.id === cid)
+      check('new chat lands in its folder', filed(inFolder)?.folder_id === rpg.id)
+      db.fileConversation(id, { pinned: 1 })
+      db.fileConversation(inFolder, { folder_id: misc.id })
+      db.deleteFolder(misc.id)
+      check('deleting a folder keeps its chats', !!filed(inFolder) && filed(inFolder)?.folder_id === null)
+
+      // 12. Document folders are real folders; moves never overwrite; paths stay inside.
+      await docs.createDocFolder('Book/Part 1')
+      const docFolders = await docs.listDocFolders()
+      check('nested doc folders created', docFolders.includes('Book') && docFolders.includes('Book/Part 1'), docFolders)
+      const ch1 = await docs.createDoc('Chapter 1', 'Book/Part 1')
+      check('new doc lands in its folder', ch1.path === 'Book/Part 1/Chapter 1.md', ch1.path)
+      check('move doc into a folder', (await docs.moveDoc('Scene 2.md', 'Book')) === 'Book/Scene 2.md')
+      await docs.createDoc('Clash', 'Book')
+      await docs.createDoc('Clash')
+      check('move refuses to overwrite', await docs.moveDoc('Clash.md', 'Book').then(() => false, () => true))
+      check('original kept after refused move', (await docs.listDocs()).some((d) => d.path === 'Clash.md'))
+      check('folder outside the writing folder refused', await docs.createDocFolder('../evil').then(() => false, () => true))
+      check('hidden folder refused', await docs.createDocFolder('.obsidian/x').then(() => false, () => true))
+
+      // 13. Sidebar drag and drop, through real DOM drag events.
+      const helloId = id
+      // The main process changed folders directly, so reload the interface to pick them up.
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 600))
+      const ui = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const drop = (target, mime, value) => {
+          const dt = new DataTransfer()
+          dt.setData(mime, value)
+          target.dispatchEvent(new DragEvent('dragover', { dataTransfer: dt, bubbles: true, cancelable: true }))
+          target.dispatchEvent(new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true }))
+        }
+        const names = [...document.querySelectorAll('.folder-name')].map((e) => e.textContent)
+        const sections = [...document.querySelectorAll('.side-section')].map((e) => e.textContent)
+        const folderEl = [...document.querySelectorAll('.folder')].find((f) => f.querySelector('.folder-name')?.textContent === 'RPG Maker')
+        if (!folderEl) return { names, sections, step: 'no folder element' }
+        drop(folderEl, 'application/x-twilight-chat', ${JSON.stringify(helloId)})
+        await wait(300)
+        document.querySelector('[data-mode="write"]').click()
+        for (let i = 0; i < 100 && !document.querySelector('.folder-head[data-folder="Book"]'); i++) await wait(10)
+        const bookEl = document.querySelector('.folder-head[data-folder="Book"]').parentElement
+        drop(bookEl, 'application/x-twilight-doc', 'Scene.md')
+        await wait(400)
+        return { names, sections, step: 'done' }
+      })()`)
+      check('sidebar shows folders and sections', ui.names?.includes('RPG Maker') && ui.sections?.includes('Pinned') && ui.sections?.includes('Recent'), ui)
+      check('drag chat into folder', filed(helloId)?.folder_id === rpg.id)
+      check('drag doc into folder',(await docs.listDocs()).some((d) => d.path === 'Book/Scene.md'))
+      await new Promise((r) => setTimeout(r, 300))
+      writeFileSync(join(outDir, 'e2e-docfolders.png'), (await win.webContents.capturePage()).toPNG())
+      await win.webContents.executeJavaScript(`document.querySelector('[data-mode="chat"]').click()`)
+      await new Promise((r) => setTimeout(r, 400))
+      writeFileSync(join(outDir, 'e2e-chatfolders.png'), (await win.webContents.capturePage()).toPNG())
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {

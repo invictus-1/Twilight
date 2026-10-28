@@ -1,8 +1,11 @@
-import { memo, useState } from 'react'
-import type { ConversationSummary } from '@shared/types'
+import { memo, useState, type DragEvent, type ReactNode } from 'react'
+import type { ChatFolder, ConversationSummary, DocEntry } from '@shared/types'
 import { modelName, useStore } from '../store'
 import { useWriting } from '../writingStore'
-import { PlusIcon, SettingsIcon, TrashIcon } from './Icons'
+import { ChevronDown, ChevronRight, FolderIcon, FolderPlusIcon, PinIcon, PlusIcon, SettingsIcon, TrashIcon } from './Icons'
+
+const CHAT_MIME = 'application/x-twilight-chat'
+const DOC_MIME = 'application/x-twilight-doc'
 
 function relativeTime(ts: number): string {
   const diff = Date.now() - ts
@@ -17,96 +20,349 @@ function relativeTime(ts: number): string {
   return new Date(ts).toLocaleDateString()
 }
 
-const Row = memo(function Row({ c, active, model }: { c: ConversationSummary; active: boolean; model: string }) {
+/** Makes an element accept one kind of dragged item, highlighting while something hovers over it. */
+function useDrop(mime: string, onDrop: (value: string) => void) {
+  const [over, setOver] = useState(false)
+  return {
+    over,
+    props: {
+      onDragOver: (e: DragEvent) => {
+        if (!e.dataTransfer.types.includes(mime)) return
+        e.preventDefault()
+        e.dataTransfer.dropEffect = 'move'
+        setOver(true)
+      },
+      onDragLeave: (e: DragEvent) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false)
+      },
+      onDrop: (e: DragEvent) => {
+        setOver(false)
+        const value = e.dataTransfer.getData(mime)
+        if (value) {
+          e.preventDefault()
+          onDrop(value)
+        }
+      }
+    }
+  }
+}
+
+/** Inline name field: Enter or leaving it commits, Esc cancels. */
+function NameInput({ initial, placeholder, onDone }: { initial: string; placeholder: string; onDone: (name: string | null) => void }) {
+  return (
+    <input
+      className="tw-conv-edit name-input"
+      autoFocus
+      defaultValue={initial}
+      placeholder={placeholder}
+      onClick={(e) => e.stopPropagation()}
+      onBlur={(e) => onDone(e.currentTarget.value.trim() || null)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        if (e.key === 'Escape') {
+          e.currentTarget.value = ''
+          e.currentTarget.blur()
+        }
+      }}
+    />
+  )
+}
+
+function SectionHeader({ title, children, drop }: { title: string; children?: ReactNode; drop?: ReturnType<typeof useDrop> }) {
+  return (
+    <div className={`side-section ${drop?.over ? 'drop-over' : ''}`} {...drop?.props}>
+      <span>{title}</span>
+      {children}
+    </div>
+  )
+}
+
+// ——— Chats ———
+
+const ChatRow = memo(function ChatRow({ c, active, model, depth }: { c: ConversationSummary; active: boolean; model: string; depth: number }) {
   const [editing, setEditing] = useState(false)
   const store = useStore.getState()
   return (
     <div
       className="tw-conv"
+      style={{ paddingLeft: 12 + depth * 16 }}
       aria-current={active ? 'true' : undefined}
+      draggable={!editing}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(CHAT_MIME, c.id)
+        e.dataTransfer.effectAllowed = 'move'
+      }}
       onClick={() => !editing && void store.open(c.id)}
       onDoubleClick={() => setEditing(true)}
     >
       {editing ? (
-        <input
-          className="tw-conv-edit"
-          autoFocus
-          defaultValue={c.title}
-          onBlur={(e) => {
+        <NameInput
+          initial={c.title}
+          placeholder="Chat title"
+          onDone={(title) => {
             setEditing(false)
-            const title = e.currentTarget.value.trim()
             if (title && title !== c.title) void store.renameChat(c.id, title)
-          }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') e.currentTarget.blur()
-            if (e.key === 'Escape') setEditing(false)
           }}
         />
       ) : (
-        <span className="tw-conv-title">{c.title}</span>
+        <span className="tw-conv-title">
+          {c.pinned && <PinIcon size={12} className="pinned-mark" />}
+          {c.title}
+        </span>
       )}
       <span className="tw-conv-meta">
         {model} · {relativeTime(c.updatedAt)}
       </span>
-      <button
-        className="tw-btn tw-btn-ghost tw-btn-icon tw-conv-delete"
-        aria-label={`Delete ${c.title}`}
-        title="Delete"
-        onClick={(e) => {
-          e.stopPropagation()
-          void store.deleteChat(c.id)
-        }}
-      >
-        <TrashIcon size={14} />
-      </button>
+      <span className="row-actions">
+        <button
+          className="tw-btn tw-btn-ghost tw-btn-icon"
+          aria-label={c.pinned ? `Unpin ${c.title}` : `Pin ${c.title}`}
+          title={c.pinned ? 'Unpin' : 'Pin'}
+          aria-pressed={c.pinned}
+          onClick={(e) => {
+            e.stopPropagation()
+            void store.pinChat(c.id, !c.pinned)
+          }}
+        >
+          <PinIcon size={14} />
+        </button>
+        <button
+          className="tw-btn tw-btn-ghost tw-btn-icon"
+          aria-label={`Delete ${c.title}`}
+          title="Delete chat"
+          onClick={(e) => {
+            e.stopPropagation()
+            void store.deleteChat(c.id)
+          }}
+        >
+          <TrashIcon size={14} />
+        </button>
+      </span>
     </div>
   )
 })
 
-function ChatList() {
-  const conversations = useStore((s) => s.conversations)
+function ChatFolderGroup({ folder, chats }: { folder: ChatFolder; chats: ConversationSummary[] }) {
+  const [renaming, setRenaming] = useState(false)
   const currentId = useStore((s) => s.current?.id)
   const models = useStore((s) => s.models)
+  const store = useStore.getState()
+  const drop = useDrop(CHAT_MIME, (id) => void store.moveChat(id, folder.id))
   return (
-    <div className="sidebar-list">
-      {conversations.map((c) => (
-        <Row key={c.id} c={c} active={c.id === currentId} model={modelName(models, c.modelId)} />
-      ))}
-      {conversations.length === 0 && <p className="sidebar-empty">No chats yet.</p>}
+    <div className={`folder ${drop.over ? 'drop-over' : ''}`} {...drop.props}>
+      <div className="folder-head" onClick={() => !renaming && void store.toggleFolder(folder.id)} onDoubleClick={() => setRenaming(true)}>
+        {folder.collapsed ? <ChevronRight size={14} className="folder-chevron" /> : <ChevronDown size={14} className="folder-chevron" />}
+        <FolderIcon size={15} className="folder-icon" />
+        {renaming ? (
+          <NameInput
+            initial={folder.name}
+            placeholder="Folder name"
+            onDone={(name) => {
+              setRenaming(false)
+              if (name && name !== folder.name) void store.renameFolder(folder.id, name)
+            }}
+          />
+        ) : (
+          <span className="folder-name">{folder.name}</span>
+        )}
+        <span className="folder-count">{chats.length || ''}</span>
+        <span className="row-actions">
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-icon"
+            aria-label={`New chat in ${folder.name}`}
+            title="New chat in this folder"
+            onClick={(e) => {
+              e.stopPropagation()
+              store.setMode('chat')
+              void store.newChat(folder.id)
+            }}
+          >
+            <PlusIcon size={14} />
+          </button>
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-icon"
+            aria-label={`Delete folder ${folder.name}`}
+            title="Delete folder (its chats move to Recent)"
+            onClick={(e) => {
+              e.stopPropagation()
+              void store.deleteFolder(folder.id)
+            }}
+          >
+            <TrashIcon size={14} />
+          </button>
+        </span>
+      </div>
+      {!folder.collapsed &&
+        chats.map((c) => <ChatRow key={c.id} c={c} active={c.id === currentId} model={modelName(models, c.modelId)} depth={1} />)}
+      {!folder.collapsed && chats.length === 0 && <p className="folder-empty">Drag chats here</p>}
     </div>
   )
 }
 
-function DocList() {
+function ChatList({ creating, onCreated }: { creating: boolean; onCreated: () => void }) {
+  const conversations = useStore((s) => s.conversations)
+  const folders = useStore((s) => s.folders)
+  const currentId = useStore((s) => s.current?.id)
+  const models = useStore((s) => s.models)
+  const store = useStore.getState()
+  const recentDrop = useDrop(CHAT_MIME, (id) => void store.moveChat(id, null))
+  const pinned = conversations.filter((c) => c.pinned)
+  const recent = conversations.filter((c) => !c.pinned && !c.folderId)
+  const row = (c: ConversationSummary): ReactNode => (
+    <ChatRow key={c.id} c={c} active={c.id === currentId} model={modelName(models, c.modelId)} depth={0} />
+  )
+
+  return (
+    <div className="sidebar-list">
+      {pinned.length > 0 && (
+        <>
+          <SectionHeader title="Pinned" />
+          {pinned.map(row)}
+        </>
+      )}
+      {(folders.length > 0 || creating) && <SectionHeader title="Folders" />}
+      {creating && (
+        <div className="folder-head">
+          <FolderIcon size={15} className="folder-icon" />
+          <NameInput
+            initial=""
+            placeholder="Folder name"
+            onDone={(name) => {
+              onCreated()
+              if (name) void store.createFolder(name)
+            }}
+          />
+        </div>
+      )}
+      {folders.map((f) => (
+        <ChatFolderGroup key={f.id} folder={f} chats={conversations.filter((c) => c.folderId === f.id)} />
+      ))}
+      <SectionHeader title="Recent" drop={recentDrop} />
+      <div className={`recent ${recentDrop.over ? 'drop-over' : ''}`} {...recentDrop.props}>
+        {recent.map(row)}
+        {recent.length === 0 && <p className="sidebar-empty">{conversations.length ? 'Everything is filed.' : 'No chats yet.'}</p>}
+      </div>
+    </div>
+  )
+}
+
+// ——— Documents (real folders on disk) ———
+
+const parentOf = (path: string): string => (path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '')
+
+function DocRow({ d, depth }: { d: DocEntry; depth: number }) {
+  const active = useWriting((s) => s.open?.path === d.path)
+  return (
+    <div
+      className="tw-conv doc-item"
+      style={{ paddingLeft: 12 + depth * 16 }}
+      data-path={d.path}
+      aria-current={active ? 'true' : undefined}
+      draggable
+      onDragStart={(e) => {
+        e.dataTransfer.setData(DOC_MIME, d.path)
+        e.dataTransfer.effectAllowed = 'move'
+      }}
+      onClick={() => void useWriting.getState().openDoc(d.path)}
+    >
+      <span className="tw-conv-title">{d.name}</span>
+      <span className="tw-conv-meta">{relativeTime(d.mtime)}</span>
+    </div>
+  )
+}
+
+function DocFolder({ path, depth }: { path: string; depth: number }) {
+  const folders = useWriting((s) => s.folders)
   const docs = useWriting((s) => s.docs)
-  const openPath = useWriting((s) => s.open?.path)
+  const collapsed = useWriting((s) => s.collapsed.has(path))
+  const w = useWriting.getState()
+  const drop = useDrop(DOC_MIME, (doc) => void w.moveDoc(doc, path))
+  const subfolders = folders.filter((f) => parentOf(f) === path)
+  const inHere = docs.filter((d) => parentOf(d.path) === path).sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+  const count = docs.filter((d) => d.path.startsWith(`${path}/`)).length
+  return (
+    <div className={`folder ${drop.over ? 'drop-over' : ''}`} {...drop.props}>
+      <div className="folder-head" style={{ paddingLeft: 8 + depth * 16 }} data-folder={path} onClick={() => w.toggleFolder(path)}>
+        {collapsed ? <ChevronRight size={14} className="folder-chevron" /> : <ChevronDown size={14} className="folder-chevron" />}
+        <FolderIcon size={15} className="folder-icon" />
+        <span className="folder-name">{path.split('/').pop()}</span>
+        <span className="folder-count">{count || ''}</span>
+        <span className="row-actions">
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-icon"
+            aria-label={`New document in ${path}`}
+            title="New document in this folder"
+            onClick={(e) => {
+              e.stopPropagation()
+              void w.newDoc(path)
+            }}
+          >
+            <PlusIcon size={14} />
+          </button>
+        </span>
+      </div>
+      {!collapsed && (
+        <>
+          {subfolders.map((f) => (
+            <DocFolder key={f} path={f} depth={depth + 1} />
+          ))}
+          {inHere.map((d) => (
+            <DocRow key={d.path} d={d} depth={depth + 1} />
+          ))}
+          {subfolders.length === 0 && inHere.length === 0 && (
+            <p className="folder-empty" style={{ paddingLeft: 28 + depth * 16 }}>
+              Drag documents here
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+function DocList({ creating, onCreated }: { creating: boolean; onCreated: () => void }) {
+  const docs = useWriting((s) => s.docs)
+  const folders = useWriting((s) => s.folders)
   const folder = useWriting((s) => s.folder)
   const error = useWriting((s) => s.error)
+  const w = useWriting.getState()
+  const rootDrop = useDrop(DOC_MIME, (doc) => void w.moveDoc(doc, ''))
+  const topFolders = folders.filter((f) => !f.includes('/'))
+  const rootDocs = docs.filter((d) => !d.path.includes('/'))
   return (
     <>
       <div className="sidebar-list">
-        {docs.map((d) => {
-          const dir = d.path.includes('/') ? d.path.slice(0, d.path.lastIndexOf('/')) : ''
-          return (
-            <div
-              key={d.path}
-              className="tw-conv doc-item"
-              data-path={d.path}
-              aria-current={d.path === openPath ? 'true' : undefined}
-              onClick={() => void useWriting.getState().openDoc(d.path)}
-            >
-              <span className="tw-conv-title">{d.name}</span>
-              <span className="tw-conv-meta">
-                {dir ? `${dir} · ` : ''}
-                {relativeTime(d.mtime)}
-              </span>
-            </div>
-          )
-        })}
-        {docs.length === 0 && <p className="sidebar-empty">{error ?? 'No documents yet.'}</p>}
+        {creating && (
+          <div className="folder-head">
+            <FolderIcon size={15} className="folder-icon" />
+            <NameInput
+              initial=""
+              placeholder="Folder name (a/b for a subfolder)"
+              onDone={(name) => {
+                onCreated()
+                if (name) void w.newFolder(name)
+              }}
+            />
+          </div>
+        )}
+        {topFolders.map((f) => (
+          <DocFolder key={f} path={f} depth={0} />
+        ))}
+        <SectionHeader title="Documents" drop={rootDrop} />
+        <div className={`recent ${rootDrop.over ? 'drop-over' : ''}`} {...rootDrop.props}>
+          {rootDocs.map((d) => (
+            <DocRow key={d.path} d={d} depth={0} />
+          ))}
+          {docs.length === 0 && <p className="sidebar-empty">No documents yet.</p>}
+        </div>
       </div>
-      <button className="folder-btn" title={`${folder}\nClick to choose another folder (an Obsidian vault works)`} onClick={() => void useWriting.getState().chooseFolder()}>
-        <span className="folder-label">Folder</span>
+      {error && (
+        <p className="side-error" role="alert" onClick={() => useWriting.setState({ error: null })}>
+          {error}
+        </p>
+      )}
+      <button className="folder-btn" title={`${folder}\nClick to choose another folder (an Obsidian vault works)`} onClick={() => void w.chooseFolder()}>
+        <span className="folder-label">Writing folder</span>
         <span className="folder-path">{folder}</span>
       </button>
     </>
@@ -118,22 +374,36 @@ export function Sidebar() {
   const setMode = useStore((s) => s.setMode)
   const newChat = useStore((s) => s.newChat)
   const setSettingsOpen = useStore((s) => s.setSettingsOpen)
+  const [creating, setCreating] = useState(false)
 
   return (
     <nav className="sidebar" aria-label={mode === 'chat' ? 'Conversations' : 'Documents'}>
       <div className="sidebar-head drag">
         <span className="brand">Twilight</span>
-        <button
-          className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
-          aria-label={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
-          title={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
-          onClick={() => void (mode === 'chat' ? newChat() : useWriting.getState().newDoc())}
-        >
-          <PlusIcon />
-        </button>
+        <span className="head-actions">
+          <button className="tw-btn tw-btn-ghost tw-btn-icon no-drag" aria-label="New folder" title="New folder" onClick={() => setCreating(true)}>
+            <FolderPlusIcon />
+          </button>
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
+            aria-label={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
+            title={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
+            onClick={() => void (mode === 'chat' ? newChat() : useWriting.getState().newDoc())}
+          >
+            <PlusIcon />
+          </button>
+        </span>
       </div>
       <div className="mode-tabs" role="tablist">
-        <button role="tab" data-mode="chat" aria-selected={mode === 'chat'} onClick={() => setMode('chat')}>
+        <button
+          role="tab"
+          data-mode="chat"
+          aria-selected={mode === 'chat'}
+          onClick={() => {
+            setCreating(false)
+            setMode('chat')
+          }}
+        >
           Chats
         </button>
         <button
@@ -141,6 +411,7 @@ export function Sidebar() {
           data-mode="write"
           aria-selected={mode === 'write'}
           onClick={() => {
+            setCreating(false)
             setMode('write')
             void useWriting.getState().refresh()
           }}
@@ -148,7 +419,11 @@ export function Sidebar() {
           Writing
         </button>
       </div>
-      {mode === 'chat' ? <ChatList /> : <DocList />}
+      {mode === 'chat' ? (
+        <ChatList creating={creating} onCreated={() => setCreating(false)} />
+      ) : (
+        <DocList creating={creating} onCreated={() => setCreating(false)} />
+      )}
       <div className="sidebar-foot">
         <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setSettingsOpen(true)}>
           <SettingsIcon />

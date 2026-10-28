@@ -80,8 +80,8 @@ export function view(id: string): ConversationView {
   }
 }
 
-export function create(): ConversationView {
-  return view(db.createConversation(getDefaults()).id)
+export function create(folderId: string | null = null): ConversationView {
+  return view(db.createConversation(getDefaults(), folderId).id)
 }
 
 export function updateSettings(id: string, patch: Partial<ChatSettings>, pane: Pane = 'a'): ConversationView {

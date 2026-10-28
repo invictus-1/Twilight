@@ -34,7 +34,59 @@ function resolveInside(rel: string): string {
   return full
 }
 
+/** Resolves a folder-relative directory ('' is the writing folder itself), refusing anything outside it. */
+function resolveFolder(rel: string): string {
+  const root = resolve(writingFolder())
+  const full = resolve(root, rel)
+  if (full !== root && !full.startsWith(root + sep)) throw new Error(`Not a folder in the writing folder: ${rel}`)
+  if (relative(root, full).split(sep).some((part) => part.startsWith('.'))) throw new Error(`Hidden folders are off limits: ${rel}`)
+  return full
+}
+
 const toRel = (full: string): string => relative(resolve(writingFolder()), full).split(sep).join('/')
+
+export async function listDocFolders(): Promise<string[]> {
+  const root = resolve(writingFolder())
+  await fs.mkdir(root, { recursive: true })
+  const out: string[] = []
+  const walk = async (dir: string): Promise<void> => {
+    for (const e of await fs.readdir(dir, { withFileTypes: true })) {
+      if (!e.isDirectory() || e.name.startsWith('.') || SKIP.has(e.name)) continue
+      const full = join(dir, e.name)
+      out.push(toRel(full))
+      if (out.length < MAX_FILES) await walk(full)
+    }
+  }
+  await walk(root)
+  return out.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
+
+export async function createDocFolder(rel: string): Promise<string> {
+  const clean = rel
+    .split('/')
+    .map((part) => part.replace(/[\\:*?"<>|]+/g, ' ').trim())
+    .filter(Boolean)
+    .join('/')
+  if (!clean) throw new Error('Give the folder a name.')
+  const full = resolveFolder(clean)
+  await fs.mkdir(full, { recursive: true })
+  return toRel(full)
+}
+
+/** Moves a document into another folder of the writing folder, keeping its name; never overwrites. */
+export async function moveDoc(rel: string, folder: string): Promise<string> {
+  const from = resolveInside(rel)
+  const to = join(resolveFolder(folder), basename(from))
+  if (to === from) return toRel(from)
+  try {
+    await fs.access(to)
+    throw new Error(`"${basename(from)}" already exists in that folder.`)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
+  }
+  await fs.rename(from, to)
+  return toRel(to)
+}
 
 export async function listDocs(): Promise<DocEntry[]> {
   const root = resolve(writingFolder())
@@ -74,13 +126,13 @@ export async function writeDoc(rel: string, text: string): Promise<number> {
   return (await fs.stat(full)).mtimeMs
 }
 
-export async function createDoc(name: string): Promise<DocEntry> {
+export async function createDoc(name: string, folder = ''): Promise<DocEntry> {
   const clean = name.replace(/[\\/:*?"<>|]+/g, ' ').trim() || 'Untitled'
-  const root = resolve(writingFolder())
-  await fs.mkdir(root, { recursive: true })
+  const dir = resolveFolder(folder)
+  await fs.mkdir(dir, { recursive: true })
   for (let n = 1; ; n++) {
     const fileName = `${n === 1 ? clean : `${clean} ${n}`}.md`
-    const full = resolveInside(fileName)
+    const full = resolveInside(toRel(join(dir, fileName)))
     try {
       await fs.writeFile(full, '', { encoding: 'utf8', flag: 'wx' }) // wx: never overwrite an existing file
       const st = await fs.stat(full)

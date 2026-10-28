@@ -37,6 +37,15 @@ export const SettingsIcon = (p: Props) => (
 export const SlidersIcon = (p: Props) => (
   <Icon {...p}><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></Icon>
 )
+export const FolderIcon = (p: Props) => (
+  <Icon {...p}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></Icon>
+)
+export const FolderPlusIcon = (p: Props) => (
+  <Icon {...p}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 11v5M9.5 13.5h5" /></Icon>
+)
+export const PinIcon = (p: Props) => (
+  <Icon {...p}><path d="M9 4h6l-1 6 3 3v2H7v-2l3-3zM12 15v5" /></Icon>
+)
 export const SplitIcon = (p: Props) => (
   <Icon {...p}><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M12 4v16" /></Icon>
 )

@@ -54,11 +54,35 @@ h1, h2, h3 { margin: 0; }
 .tw-conv { position: relative; display: flex; flex-direction: column; gap: 2px; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); cursor: pointer; content-visibility: auto; contain-intrinsic-size: auto 52px; }
 .tw-conv:hover { background: var(--surface-hover); }
 .tw-conv[aria-current='true'] { background: var(--iris-soft); }
-.tw-conv-title { font-size: 13px; line-height: 18px; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; padding-right: var(--space-6); }
+.tw-conv-title { font-size: 13px; line-height: 18px; font-weight: 500; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .tw-conv-meta { font-size: 12px; line-height: 16px; color: var(--ink-muted); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .tw-conv-edit { font-size: 13px; background: var(--surface-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-xs); padding: 0 var(--space-1); outline: none; }
-.tw-conv-delete { position: absolute; top: 6px; right: 6px; opacity: 0; }
-.tw-conv:hover .tw-conv-delete, .tw-conv-delete:focus-visible { opacity: 1; }
+/* Hover actions on rows and folder headers (pin, delete, new inside). */
+.row-actions { position: absolute; top: 50%; right: 4px; transform: translateY(-50%); display: none; gap: 0; background: var(--night); border-radius: var(--radius-sm); }
+.tw-conv[aria-current='true'] .row-actions { background: var(--iris-soft); }
+.tw-conv:hover .row-actions, .folder-head:hover .row-actions, .row-actions:focus-within { display: inline-flex; }
+.row-actions .tw-btn-icon { width: 24px; height: 24px; }
+.row-actions [aria-pressed='true'] { color: var(--iris); }
+.pinned-mark { color: var(--iris); vertical-align: -1px; margin-right: 4px; }
+.name-input { width: 100%; height: 22px; }
+.head-actions { display: inline-flex; gap: 2px; }
+
+/* Sidebar sections and folders */
+.side-section { display: flex; align-items: center; justify-content: space-between; padding: var(--space-3) var(--space-3) var(--space-1); font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-faint); border-radius: var(--radius-sm); }
+.folder { border-radius: var(--radius-sm); }
+.folder-head { position: relative; display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 var(--space-2); border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; font-weight: 500; color: var(--ink); user-select: none; }
+.folder-head:hover { background: var(--surface-hover); }
+.folder-chevron { color: var(--ink-faint); }
+.folder-icon { color: var(--ink-muted); }
+.folder-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.folder-count { font-size: 12px; font-weight: 400; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.folder-head:hover .folder-count { visibility: hidden; }
+.folder-empty { margin: 0; padding: 2px var(--space-3) var(--space-2) 44px; font-size: 12px; color: var(--ink-faint); }
+.recent { min-height: 40px; border-radius: var(--radius-sm); }
+/* Drop targets: a solid iris outline, not color alone. */
+.drop-over { background: var(--iris-soft); box-shadow: inset 0 0 0 1px var(--iris); }
+.tw-conv[draggable='true'] { -webkit-user-drag: element; }
+.side-error { margin: 0 var(--space-2) var(--space-2); padding: var(--space-2) var(--space-3); font-size: 12px; color: var(--ink); background: var(--danger-soft); border-radius: var(--radius-sm); cursor: pointer; }
 
 /* Buttons */
 .tw-btn { font-size: 13px; line-height: 18px; font-weight: 500; height: var(--control-md); padding: 0 var(--space-3); display: inline-flex; align-items: center; gap: var(--space-2); border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--surface-raised); color: var(--ink); cursor: pointer; white-space: nowrap; }
