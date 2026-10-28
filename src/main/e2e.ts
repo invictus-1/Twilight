@@ -751,6 +751,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       chat.send(contents, c3, 'Start')
       await idle(c3)
       check('choice instruction sent in the system prompt', (log[before26]?.messages[0]?.content ?? '').includes('Interactive choices:'))
+      check('no choice tool unless its switch is on', !(log[before26]?.body as { tools?: unknown }).tools)
+      check('choices blocks left as written with their switch off', extractChoices('Story.\n\n```choices\nWhat now?\n1. Go left\n2. Go right\n```', true, false).choices === null)
       win.webContents.reload()
       await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
       await new Promise((r) => setTimeout(r, 700))
@@ -900,13 +902,14 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // 27c. Choices as a tool call: the model calls present_choices, the card draws from the call,
       // and the pick goes back as the call's result.
       const c7 = chat.create(null).id
-      chat.updateSettings(c7, { choiceCards: true, choiceMode: 'tool' })
+      chat.updateSettings(c7, { choiceCards: true, choiceTool: true })
       const beforeChoiceTool = log.length
       chat.send(contents, c7, 'TOOLCHOICE')
       await idle(c7)
       const choiceToolReq = log[beforeChoiceTool]?.body as { tools?: { function: { name: string } }[] } | undefined
       check('choice tool sent with the request', choiceToolReq?.tools?.[0]?.function.name === 'present_choices', choiceToolReq?.tools)
       check('tool how-to in the system prompt', (log[beforeChoiceTool]?.messages[0]?.content ?? '').includes('present_choices tool'))
+      check('only one how-to with the tool and choices blocks both on', !(log[beforeChoiceTool]?.messages[0]?.content ?? '').includes('fenced block marked "choices"'))
       const toolNode = chat.view(c7).path.at(-1)
       check('tool call read into a card', toolNode?.toolChoices?.groups.map((g) => g.title).join('|') === 'Outfit|What do you do?' && toolNode?.text === 'The bridge sways in the wind.', toolNode?.toolChoices)
       check('tool card drops a "something else" option', toolNode?.toolChoices?.groups[1].options.map((o) => o.label).join() === 'Cross,Turn back')

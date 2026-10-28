@@ -22,7 +22,9 @@ const DEFAULT_SETTINGS: ChatSettings = {
   messageLimit: null,
   extraParams: '',
   choiceCards: false,
-  choiceMode: 'text',
+  choiceTool: false,
+  choiceFenced: true,
+  choicePlain: true,
   choiceInstructions: true
 }
 
@@ -30,7 +32,10 @@ const DEFAULT_SETTINGS: ChatSettings = {
 function systemFor(settings: ChatSettings, legacy: string): string {
   const base = settings.systemPrompt || legacy
   if (!settings.choiceCards || !settings.choiceInstructions) return base
-  return [base, settings.choiceMode === 'tool' ? CHOICES_TOOL_INSTRUCTION : CHOICES_INSTRUCTION].filter(Boolean).join('\n\n')
+  // One how-to at most, so the model is never told two ways at once. Plain options come from your
+  // own prompt, so they have none.
+  const howTo = settings.choiceTool ? CHOICES_TOOL_INSTRUCTION : settings.choiceFenced ? CHOICES_INSTRUCTION : ''
+  return [base, howTo].filter(Boolean).join('\n\n')
 }
 
 /** Settings as stored, with any field added since they were saved filled from the defaults. */

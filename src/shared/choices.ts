@@ -209,9 +209,11 @@ function plainChoices(text: string): { body: string; choices: ChoiceSet | null }
 /**
  * Splits a reply into the text to show and its choice card. A fenced choices block still being
  * streamed (no closing fence yet) is hidden but yields no card until it's complete. With
- * `plain`, an ordinary numbered list of options at the end also becomes a card.
+ * `plain`, numbered options at the end that read as a decision also become a card; with
+ * `fenced` off, choices blocks are left as written.
  */
-export function extractChoices(text: string, plain = false): { body: string; choices: ChoiceSet | null } {
+export function extractChoices(text: string, plain = false, fenced = true): { body: string; choices: ChoiceSet | null } {
+  if (!fenced) return plain ? plainChoices(text) : { body: text, choices: null }
   const opens = [...text.matchAll(OPEN)]
   const last = opens.at(-1)
   if (!last || last.index === undefined) return plain ? plainChoices(text) : { body: text, choices: null }

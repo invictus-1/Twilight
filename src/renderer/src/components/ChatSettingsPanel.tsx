@@ -5,7 +5,7 @@ import { CloseIcon, TrashIcon } from './Icons'
 
 /** Settings a preset carries (everything about how the model is asked, not which chat). */
 const PRESET_KEYS: (keyof ChatSettings)[] = [
-  'effort', 'thinkingDisplay', 'caching', 'cacheTtl', 'temperature', 'maxTokens', 'messageLimit', 'extraParams', 'systemPrompt', 'choiceCards', 'choiceMode', 'choiceInstructions'
+  'effort', 'thinkingDisplay', 'caching', 'cacheTtl', 'temperature', 'maxTokens', 'messageLimit', 'extraParams', 'systemPrompt', 'choiceCards', 'choiceTool', 'choiceFenced', 'choicePlain', 'choiceInstructions'
 ]
 
 /** A switchable number with a slider, like "Max output tokens". Off means "not sent". */
@@ -168,24 +168,34 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
         Choice cards: the model can offer clickable options (text adventures)
       </label>
       {settings.choiceCards && (
-        <div className="choice-settings">
-          <div className="tw-seg" role="group" aria-label="How the model offers choices">
-            <button aria-pressed={settings.choiceMode === 'text'} onClick={() => void update({ choiceMode: 'text' })}>
-              Written in the reply
-            </button>
-            <button aria-pressed={settings.choiceMode === 'tool'} onClick={() => void update({ choiceMode: 'tool' })}>
-              Tool call
-            </button>
-          </div>
+        <div className="choice-settings" role="group" aria-label="How the model can offer choices">
+          <label className="check">
+            <input type="checkbox" checked={settings.choiceTool} onChange={(e) => void update({ choiceTool: e.target.checked })} />
+            Tool call (present_choices)
+          </label>
           <span className="field-note">
-            {settings.choiceMode === 'tool'
-              ? 'The model calls present_choices with the options as data, and your pick goes back as its result. Needs a model with tool calling. Switching restarts the prompt cache once.'
-              : 'Options written as text are read from the end of the reply: a numbered list under a title that asks, or with a "Something else" option.'}
+            The model calls a tool with the options as data; your pick goes back as its result. Needs a model with tool calling. Turning it on or off restarts the prompt cache once.
           </span>
           <label className="check">
-            <input type="checkbox" checked={settings.choiceInstructions} onChange={(e) => void update({ choiceInstructions: e.target.checked })} />
-            Add Twilight’s how-to to the system prompt (turn off if your own prompt covers it)
+            <input type="checkbox" checked={settings.choiceFenced} onChange={(e) => void update({ choiceFenced: e.target.checked })} />
+            Choices blocks in the reply (```choices)
           </label>
+          <label className="check">
+            <input type="checkbox" checked={settings.choicePlain} onChange={(e) => void update({ choicePlain: e.target.checked })} />
+            Plain numbered options at the end of the reply
+          </label>
+          <span className="field-note">Read only under a title that asks (“What do you do?”, “Choices…”) or with a “Something else” option; other lists stay lists.</span>
+          <label className="check">
+            <input type="checkbox" checked={settings.choiceInstructions} onChange={(e) => void update({ choiceInstructions: e.target.checked })} />
+            Add Twilight’s how-to to the system prompt
+          </label>
+          <span className="field-note">
+            {settings.choiceTool
+              ? 'Tells the model to use the tool. Turn off if your own prompt already does.'
+              : settings.choiceFenced
+                ? 'Tells the model to write a choices block. Turn off if your own prompt sets the format.'
+                : 'Plain options follow your own prompt, so there’s nothing to add.'}
+          </span>
         </div>
       )}
 

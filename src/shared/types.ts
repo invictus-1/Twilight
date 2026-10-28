@@ -93,9 +93,14 @@ export interface ChatSettings {
   extraParams: string
   /** Text-adventure choice cards: the model offers numbered options to click (see shared/choices.ts). */
   choiceCards: boolean
-  /** How the model offers them: written in the reply, or as a present_choices tool call. */
-  choiceMode: 'text' | 'tool'
-  /** Add Twilight's short how-to for the chosen mode to the system prompt (off when yours covers it). */
+  /** Each way of offering choices has its own switch, so only the ones you use are active. */
+  /** Send the present_choices tool; the model calls it with the options as data. */
+  choiceTool: boolean
+  /** Read ```choices blocks written in the reply. */
+  choiceFenced: boolean
+  /** Read plain numbered options at the end of the reply (a title that asks, or "Something else"). */
+  choicePlain: boolean
+  /** Add Twilight's short how-to to the system prompt: for the tool if it's on, else for choices blocks. */
   choiceInstructions: boolean
 }
 

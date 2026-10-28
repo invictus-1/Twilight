@@ -176,6 +176,9 @@ function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking:
   const subscribe = (cb: () => void): (() => void) => subscribeStream(nodeId, cb)
   const text = useSyncExternalStore(subscribe, () => readStream(nodeId).text)
   const thinking = useSyncExternalStore(subscribe, () => readStream(nodeId).thinking)
+  const pane = usePane()
+  // A choices block being written stays hidden until its card can show (only when they're read).
+  const fenced = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceFenced : true))
   return (
     <>
       {showThinking && thinking && (
@@ -185,7 +188,7 @@ function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking:
         </details>
       )}
       {text ? (
-        <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(extractChoices(text).body) }} />
+        <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(extractChoices(text, false, fenced).body) }} />
       ) : (
         <div className="msg-pending">
           <span className="tw-spin" /> {thinking ? 'Thinking' : 'Waiting for the first token'}
@@ -241,9 +244,12 @@ function UsageLine({ node }: { node: NodeView }) {
 
 function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeView; isLast: boolean }) {
   const pane = usePane()
-  const plainChoices = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceCards : false))
+  const plainChoices = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceCards && paneOf(s.current, pane).settings.choicePlain : false))
+  const fencedChoices = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceFenced : true))
   // A present_choices call carries its options as data; otherwise they're read from the text.
-  const { body, choices } = node.toolChoices ? { body: node.text, choices: node.toolChoices } : extractChoices(node.text, plainChoices)
+  const { body, choices } = node.toolChoices
+    ? { body: node.text, choices: node.toolChoices }
+    : extractChoices(node.text, plainChoices, fencedChoices)
   const models = useStore((s) => s.models)
   const showThinking = useStore((s) => (s.current ? paneOf(s.current, pane).settings.showThinking : false))
   const [editing, setEditing] = useState(false)
