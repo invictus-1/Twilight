@@ -5,7 +5,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 ## 0.4.0
 
 **Writer insights** (a new tab)
-- Your writing folder seen as numbers:
+- Your writing folder seen as numbers, opening on today's count under a twilight sky:
   - **Dashboard:** words written today, this week, month and year; your streak and best day; the last 14 days.
   - **Heatmap:** every day of the year you wrote, plus the hours you write in.
   - **Word analysis:** sentence length, dialogue share, adverb density, vocabulary, most used words.
@@ -29,6 +29,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 - **Models start hidden:** tick the ones you want in the picker, with Show all and Hide all. After updating, only the model you're using stays ticked.
 - **Roadmap page** in Settings: what has shipped, what's next and what's later, as a timeline and cards.
 - Clicking a tab while Settings is open now closes Settings.
+- Saving a document no longer fails now and then on Windows when another program (an antivirus scan, a sync client, Obsidian) has the file open for a moment; Twilight retries the save.
 
 **Clearer API key problems**
 - A pasted key is cleaned up before it's saved: an `ANTHROPIC_API_KEY=` or `x-api-key:` prefix, `Bearer`, quotes, and spaces or line breaks from copying. Keys you already saved are cleaned too.

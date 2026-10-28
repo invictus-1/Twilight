@@ -1077,7 +1077,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         document.querySelector('[data-mode="insights"]').click()
         await wait(500)
         const page = (label) => [...document.querySelectorAll('.insights-nav-item')].find((b) => b.textContent.startsWith(label))?.click()
-        const out = { tabs: document.querySelectorAll('.insights-nav-item').length, stats: [...document.querySelectorAll('.ins-stat-label')].map((e) => e.textContent), bars: document.querySelectorAll('.ins-bar').length }
+        const out = { hero: !!document.querySelector('.ins-hero .ins-hero-n'), tabs: document.querySelectorAll('.insights-nav-item').length, stats: [...document.querySelectorAll('.ins-stat-label')].map((e) => e.textContent), bars: document.querySelectorAll('.ins-bar').length }
         page('Heatmap'); await wait(300)
         out.heatCells = document.querySelectorAll('.heatmap-cell.l4, .heatmap-cell.l3, .heatmap-cell.l2, .heatmap-cell.l1').length - 4
         page('Word analysis'); await wait(300)
@@ -1092,7 +1092,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('insights pages listed', insUi.tabs === 9, insUi.tabs)
-      check('dashboard shows the stat cards and 14 bars', insUi.stats.includes('Today') && insUi.stats.includes('Best day') && insUi.bars === 14, insUi)
+      check('dashboard shows today, the stat cards and 14 bars', insUi.hero === true && insUi.stats.includes('Best day') && insUi.bars === 14, insUi)
       check('heatmap marks today', insUi.heatCells >= 1, insUi.heatCells)
       check('word analysis lists words', insUi.topWords > 0, insUi.topWords)
       check('characters page shows screen time and pairs', insUi.characters.join() === 'Rowan,Wren' && insUi.pairs >= 1, insUi)

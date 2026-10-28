@@ -140,8 +140,25 @@ export async function writeDoc(rel: string, text: string): Promise<number> {
   await fs.mkdir(dirname(full), { recursive: true })
   const tmp = join(dirname(full), `.${basename(full)}.twilight-tmp`)
   await fs.writeFile(tmp, text, 'utf8')
-  await fs.rename(tmp, full)
+  await renameOver(tmp, full)
   return (await fs.stat(full)).mtimeMs
+}
+
+/**
+ * Windows refuses to replace a file while anything has it open (the insights reader, an
+ * antivirus scan, Obsidian's indexer, a sync client) and lets go milliseconds later, so the swap
+ * is retried briefly before giving up.
+ */
+async function renameOver(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fs.rename(from, to)
+    } catch (err) {
+      const code = (err as NodeJS.ErrnoException).code
+      if (attempt >= 8 || (code !== 'EPERM' && code !== 'EBUSY' && code !== 'EACCES')) throw err
+      await new Promise((r) => setTimeout(r, 25 * (attempt + 1)))
+    }
+  }
 }
 
 export async function createDoc(name: string, folder = ''): Promise<DocEntry> {

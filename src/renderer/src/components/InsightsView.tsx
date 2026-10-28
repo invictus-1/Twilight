@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { AchievementDef, InsightsSummary, TrackedCharacter } from '@shared/insights'
 import { useInsights, type InsightsPage } from '../insightsStore'
 import { useStore } from '../store'
@@ -45,13 +45,42 @@ function PageHead({ title, sub, children }: { title: string; sub: string; childr
   )
 }
 
-function Stat(props: { label: string; value: string; sub?: string; icon: React.ReactNode; tone: string }) {
+const reducedMotion = (): boolean => typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+
+/** A number that counts up to its value when it first shows (and glides when it changes). */
+function useCountUp(target: number, ms = 750): number {
+  const [value, setValue] = useState(() => (reducedMotion() ? target : 0))
+  const shown = useRef(value)
+  useEffect(() => {
+    if (reducedMotion()) {
+      shown.current = target
+      setValue(target)
+      return
+    }
+    const from = shown.current
+    const start = performance.now()
+    let frame = 0
+    const tick = (now: number): void => {
+      const p = Math.min(1, (now - start) / ms)
+      shown.current = from + (target - from) * (1 - (1 - p) ** 3)
+      setValue(shown.current)
+      if (p < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [target, ms])
+  return value
+}
+
+function Stat(props: { label: string; value: number | string; format?: (v: number) => string; sub?: string; icon: React.ReactNode; tone: string; index?: number }) {
+  const counted = useCountUp(typeof props.value === 'number' ? props.value : 0)
+  const shown = typeof props.value === 'number' ? (props.format ?? n)(counted) : props.value
   return (
-    <div className="ins-stat" style={{ '--tone': props.tone } as React.CSSProperties}>
+    <div className="ins-stat" style={{ '--tone': props.tone, '--i': props.index ?? 0 } as React.CSSProperties}>
       <div className="ins-stat-text">
         <span className="ins-stat-label">{props.label}</span>
-        <span className="ins-stat-value" title={props.value}>
-          {props.value}
+        <span className="ins-stat-value" title={typeof props.value === 'number' ? n(props.value) : props.value}>
+          {shown}
         </span>
         {props.sub && <span className="ins-stat-sub">{props.sub}</span>}
       </div>
@@ -100,25 +129,74 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 // ——— Dashboard ———
 
+/** Today, front and centre: the evening sky from the Roadmap, with today's count in the writing face. */
+function TodayHero({ s }: { s: InsightsSummary }) {
+  const today = useCountUp(s.today, 900)
+  const now = new Date()
+  return (
+    <section className="ins-hero">
+      <div className="rm-sky" aria-hidden="true">
+        <span className="rm-sun" />
+        <span className="rm-band rm-band-1" />
+        <span className="rm-band rm-band-2" />
+        <span className="rm-band rm-band-3" />
+      </div>
+      <div className="ins-hero-body">
+        <span className="rm-eyebrow">{now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</span>
+        <div className="ins-hero-count">
+          <span className="ins-hero-n">{n(today)}</span>
+          <span className="ins-hero-unit">word{s.today === 1 ? '' : 's'} today</span>
+        </div>
+        <div className="ins-hero-chips">
+          <span className={`ins-chip ${s.streak ? 'lit' : ''}`}>
+            <FlameIcon size={14} />
+            {s.streak ? `${s.streak}-day streak` : 'No streak yet'}
+            {s.longestStreak > s.streak && <em>best {s.longestStreak}</em>}
+          </span>
+          {s.bestDay && (
+            <span className="ins-chip">
+              <TrophyIcon size={14} />
+              Best day {n(s.bestDay.words)}
+            </span>
+          )}
+          {s.trackingSince && (
+            <span className="ins-chip">
+              <CalendarIcon size={14} />
+              Since {dayLabel(s.trackingSince, { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function Dashboard({ s }: { s: InsightsSummary }) {
   const today = s.last14.at(-1)?.day
   const avg = s.activeDays ? s.written / s.activeDays : 0
   return (
     <>
-      <PageHead title="Dashboard" sub={s.trackingSince ? `Tracking since ${dayLabel(s.trackingSince, { month: 'long', day: 'numeric', year: 'numeric' })}` : 'Words written, counted from your writing folder'} />
-      <div className="ins-grid4">
-        <Stat label="Today" value={n(s.today)} sub="words written" icon={<BoltIcon />} tone="var(--warning)" />
-        <Stat label="This week" value={n(s.week)} sub="last 7 days" icon={<FeatherIcon />} tone="var(--dusk)" />
-        <Stat label="This month" value={n(s.month)} sub={new Date().toLocaleDateString(undefined, { month: 'long' })} icon={<TrendIcon />} tone="var(--horizon)" />
-        <Stat label="This year" value={n(s.year)} sub={String(new Date().getFullYear())} icon={<CalendarIcon />} tone="var(--success)" />
-        <Stat label="Story total" value={n(s.storyTotal)} sub={`${n(s.files)} file${s.files === 1 ? '' : 's'}`} icon={<BookIcon />} tone="var(--iris)" />
-        <Stat label="Written since tracking" value={n(s.written)} sub={`${n(s.activeDays)} active day${s.activeDays === 1 ? '' : 's'} · ${n(avg)} a day`} icon={<PulseIcon />} tone="var(--dusk)" />
-        <Stat label="Current streak" value={`${s.streak} day${s.streak === 1 ? '' : 's'}`} sub={`longest: ${s.longestStreak}`} icon={<FlameIcon />} tone="var(--horizon)" />
+      <PageHead title="Dashboard" sub="Words written, counted as your files grow, wherever you write them" />
+      <TodayHero s={s} />
+      <div className="ins-grid3">
+        <Stat index={0} label="This week" value={s.week} sub="last 7 days" icon={<FeatherIcon />} tone="var(--dusk)" />
+        <Stat index={1} label="This month" value={s.month} sub={new Date().toLocaleDateString(undefined, { month: 'long' })} icon={<TrendIcon />} tone="var(--horizon)" />
+        <Stat index={2} label="This year" value={s.year} sub={String(new Date().getFullYear())} icon={<CalendarIcon />} tone="var(--success)" />
+        <Stat index={3} label="Story total" value={s.storyTotal} sub={`${n(s.files)} file${s.files === 1 ? '' : 's'}`} icon={<BookIcon />} tone="var(--iris)" />
         <Stat
+          index={4}
+          label="Written since tracking"
+          value={s.written}
+          sub={`${n(s.activeDays)} active day${s.activeDays === 1 ? '' : 's'} · ${n(avg)} a day`}
+          icon={<PulseIcon />}
+          tone="var(--dusk)"
+        />
+        <Stat
+          index={5}
           label="Best day"
-          value={n(s.bestDay?.words ?? 0)}
+          value={s.bestDay?.words ?? 0}
           sub={s.bestDay ? dayLabel(s.bestDay.day, { month: 'short', day: 'numeric', year: 'numeric' }) : 'not yet'}
-          icon={<TrophyIcon />}
+          icon={<BoltIcon />}
           tone="var(--warning)"
         />
       </div>
@@ -253,10 +331,10 @@ function Words({ s }: { s: InsightsSummary }) {
     <>
       <PageHead title="Word analysis" sub="Prose health and vocabulary across the whole writing folder" />
       <div className="ins-grid4">
-        <Stat label="Avg sentence" value={`${st.avgSentence.toFixed(1)} words`} sub={`longest: ${n(st.longestSentence)} words`} icon={<PulseIcon />} tone="var(--horizon)" />
-        <Stat label="Dialogue" value={`${Math.round(st.dialoguePercent)}%`} sub="of the prose is spoken" icon={<SpeechIcon />} tone="var(--dusk)" />
-        <Stat label="Adverb density" value={st.adverbsPer1k.toFixed(1)} sub="-ly words per 1,000" icon={<FeatherIcon />} tone="var(--warning)" />
-        <Stat label="Vocabulary" value={n(st.vocabulary)} sub={`different words · richness ${st.richness.toFixed(2)}%`} icon={<BookIcon />} tone="var(--success)" />
+        <Stat index={0} label="Avg sentence" value={st.avgSentence} format={(v) => `${v.toFixed(1)} words`} sub={`longest: ${n(st.longestSentence)} words`} icon={<PulseIcon />} tone="var(--horizon)" />
+        <Stat index={1} label="Dialogue" value={st.dialoguePercent} format={(v) => `${Math.round(v)}%`} sub="of the prose is spoken" icon={<SpeechIcon />} tone="var(--dusk)" />
+        <Stat index={2} label="Adverb density" value={st.adverbsPer1k} format={(v) => v.toFixed(1)} sub="-ly words per 1,000" icon={<FeatherIcon />} tone="var(--warning)" />
+        <Stat index={3} label="Vocabulary" value={st.vocabulary} sub={`different words · richness ${st.richness.toFixed(2)}%`} icon={<BookIcon />} tone="var(--success)" />
       </div>
       <div className="ins-two">
         <section className="ins-card">
