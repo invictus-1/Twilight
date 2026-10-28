@@ -6,7 +6,7 @@ import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { appendLog } from './logs'
 import { describeAnthropicError } from './providers/anthropic'
 import { toWorkspace, workspaceSystemPrompt } from './workspaces'
-import { CHOICES_INSTRUCTION } from '@shared/choices'
+import { CHOICES_INSTRUCTION, CHOICES_TOOL_INSTRUCTION } from '@shared/choices'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -21,13 +21,16 @@ const DEFAULT_SETTINGS: ChatSettings = {
   maxTokens: null,
   messageLimit: null,
   extraParams: '',
-  choiceCards: false
+  choiceCards: false,
+  choiceMode: 'text',
+  choiceInstructions: true
 }
 
-/** The system prompt actually sent: the pane's own, plus the choice-card convention when it's on. */
+/** The system prompt actually sent: the pane's own, plus the choice how-to when choices are on and it's wanted. */
 function systemFor(settings: ChatSettings, legacy: string): string {
   const base = settings.systemPrompt || legacy
-  return settings.choiceCards ? [base, CHOICES_INSTRUCTION].filter(Boolean).join('\n\n') : base
+  if (!settings.choiceCards || !settings.choiceInstructions) return base
+  return [base, settings.choiceMode === 'tool' ? CHOICES_TOOL_INSTRUCTION : CHOICES_INSTRUCTION].filter(Boolean).join('\n\n')
 }
 
 /** Settings as stored, with any field added since they were saved filled from the defaults. */

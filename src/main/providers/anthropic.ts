@@ -1,7 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk'
 import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
 import type { NodeRow } from '../db'
-import { mergeExtraParams, textBlocks, type GenerateRequest, type GenerateResult, type Provider } from './types'
+import { CHOICES_TOOL } from '@shared/choices'
+import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 // Prompt caching is a prefix match, so every request is built to be the previous request plus
 // the new turns: frozen system prompt first (with its own breakpoint), then the history with
@@ -16,7 +17,11 @@ const SUPPORTS_FALLBACK = /^claude-(opus-5|opus-5-5|fable-5-1|sonnet-5-5)$/
 type Block = { type: string; [key: string]: unknown }
 type Message = { role: 'user' | 'assistant'; content: Block[] }
 
-function toMessages(history: NodeRow[]): Message[] {
+/** Block types replayed from a stored reply; anything else (another provider's bookkeeping) is left out. */
+const REPLAYED = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use'])
+const isDocument = (b: Block): boolean => b.type === 'text' && typeof b.text === 'string' && b.text.startsWith('<document name=')
+
+export function toMessages(history: NodeRow[]): Message[] {
   const messages: Message[] = []
   for (const node of history) {
     let role: 'user' | 'assistant'
@@ -24,13 +29,24 @@ function toMessages(history: NodeRow[]): Message[] {
     if (node.role === 'user') {
       role = 'user'
       content = node.content ? (JSON.parse(node.content) as Block[]) : [{ type: 'text', text: node.text }]
+      // After a present_choices call, the reader's answer is that call's result. Tool results go
+      // first in the turn; attached documents follow. Rebuilt the same way every time, so cached.
+      const prev = messages.at(-1)
+      const calls = prev?.role === 'assistant' ? prev.content.filter((b) => b.type === 'tool_use') : []
+      if (calls.length) {
+        const answer = content.filter((b) => b.type === 'text' && !isDocument(b)).map((b) => b.text as string).join('\n\n') || node.text
+        content = [
+          ...calls.map((call, i) => ({ type: 'tool_result', tool_use_id: call.id, content: i === 0 ? answer : 'Answered with the first call.' })),
+          ...content.filter(isDocument)
+        ]
+      }
     } else if (node.role === 'assistant') {
       if (!node.text && !node.content) continue // an empty failed turn adds nothing
       role = 'assistant'
       // Replay Claude's own blocks unchanged (thinking blocks included) so the prefix and any
       // preserved thinking stay valid. Other providers store plain text blocks.
       content = node.content
-        ? (JSON.parse(node.content) as Block[]).filter((b) => b.type !== 'fallback')
+        ? (JSON.parse(node.content) as Block[]).filter((b) => REPLAYED.has(b.type))
         : textBlocks(node)
       if (node.status !== 'done') content = content.filter((b) => b.type === 'text')
       if (!content.length) continue
@@ -140,6 +156,10 @@ export const anthropicProvider: Provider = {
     if (options.adaptiveThinking) body.thinking = { type: 'adaptive', display: settings.thinkingDisplay }
     // Only levels this model lists; a level from another model would be rejected.
     if (settings.effort && options.efforts.includes(settings.effort)) body.output_config = { effort: settings.effort }
+    // Tools sit at the very start of the cached prefix, so the choice tool is sent on every turn
+    // while the mode is on. Its input is a few short labels: the API's default buffering (which
+    // validates the JSON before streaming it) is worth more here than eager input streaming.
+    if (wantsChoiceTool(settings)) body.tools = [CHOICES_TOOL]
     const betas: string[] = []
     if (SUPPORTS_FALLBACK.test(model)) {
       betas.push('server-side-fallback-2026-07-01')

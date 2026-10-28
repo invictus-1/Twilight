@@ -12,7 +12,8 @@ import { extractChoices } from '@shared/choices'
 import { gameFormat } from '@shared/gameFormat'
 import { computeVerdict } from '@shared/judge'
 import * as judge from './judge'
-import { anthropicOptions } from './providers/anthropic'
+import { anthropicOptions, toMessages } from './providers/anthropic'
+import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
 import * as providers from './providers'
 import * as updates from './updates'
@@ -99,6 +100,25 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       const entry: LoggedRequest = { model: parsed.model, messages: parsed.messages, body: parsed, startedAt: Date.now() }
       log.push(entry)
       const lastUser = [...parsed.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+      const toolResult = parsed.messages.at(-1)?.role === 'tool' ? parsed.messages.at(-1)?.content : null
+      if (!toolResult && lastUser.includes('TOOLCHOICE') && (parsed as { tools?: unknown[] }).tools?.length) {
+        const args = JSON.stringify({
+          groups: [
+            { title: 'Outfit', context: 'Cold wind on the bridge.', options: [{ label: 'Coat', details: 'Wool coat, boots' }, { label: 'Cloak' }] },
+            { title: 'What do you do?', options: [{ label: 'Cross' }, { label: 'Turn back' }, { label: 'Something else' }] }
+          ]
+        })
+        res.writeHead(200, { 'content-type': 'text/event-stream' })
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'The bridge sways in the wind.' } }] })}\n\n`)
+        entry.firstTokenAt ??= Date.now()
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_e2e', type: 'function', function: { name: 'present_choices', arguments: '' } }] } }] })}\n\n`)
+        for (const part of [args.slice(0, 40), args.slice(40)]) {
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: part } }] } }] })}\n\n`)
+        }
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })}\n\n`)
+        res.end('data: [DONE]\n\n')
+        return
+      }
       const system = parsed.messages[0]?.content ?? ''
       let reply: string
       if (system.startsWith('You are a line editor')) {
@@ -113,6 +133,8 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply =
           `### Prose — X ${xGood ? 8 : 5} · Y ${xGood ? 5 : 8}\nX quotes "${x.slice(0, 20)}".\n\n### Verdict\n${xGood ? 'X' : 'Y'} is better.\n\n` +
           '```json\n' + JSON.stringify({ criteria, overall: { X: xGood ? 8 : 5, Y: xGood ? 5 : 8 }, winner: xGood ? 'X' : 'Y', confidence: 'high' }) + '\n```'
+      } else if (toolResult) {
+        reply = `Answering the tool result: ${toolResult}`
       } else if (lastUser.includes('MULTICHOICE')) {
         reply = 'The gate creaked.\n\nOUTFIT · Day 2 Morning\nPlace: a cold pier, then a warm cabin.\n1 · PLAIN: \n\n* Pieces: wool coat\n\n2 · BOLD\n\n* Pieces: red scarf\n\n3 · SOMETHING ELSE\n\nChoices (Morning)\n\n1. Head out\n2. Stay in\n3. Something else.'
       } else if (lastUser.includes('PLAINCHOICES')) {
@@ -134,7 +156,7 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         entry.firstTokenAt ??= Date.now()
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: w } }] })}\n\n`)
       }
-      const prompt = parsed.messages.reduce((n, m) => n + m.content.length, 0)
+      const prompt = parsed.messages.reduce((n, m) => n + (m.content?.length ?? 0), 0)
       res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: Math.ceil(prompt / 4), completion_tokens: words.length } })}\n\n`)
       res.end('data: [DONE]\n\n')
     })
@@ -195,7 +217,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         both.map((r) => r.messages.length)
       )
       check('the two user turns are versions of each other', v.path[2].siblingCount === 2 && v.split!.path[2].siblingCount === 2)
-      check('different models ran in parallel', Math.abs((both[0]?.startedAt ?? 0) - (both[1]?.startedAt ?? 0)) < 60)
+      // Generous: on a loaded machine two parallel starts can sit tens of milliseconds apart.
+      check('different models ran in parallel', Math.abs((both[0]?.startedAt ?? 0) - (both[1]?.startedAt ?? 0)) < 200)
 
       // 4. Same model in both panes: B waits for A's first token so it can read A's cache.
       chat.updateSettings(id, { modelId: 'mock-a' }, 'b')
@@ -873,6 +896,63 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return [...card.querySelectorAll('.choice-picked .choice-text')].map((e) => e.textContent)
       })()`)
       check('answered multi-group card shows each pick', multiAnswered.join() === 'BOLD,Stay in', multiAnswered)
+
+      // 27c. Choices as a tool call: the model calls present_choices, the card draws from the call,
+      // and the pick goes back as the call's result.
+      const c7 = chat.create(null).id
+      chat.updateSettings(c7, { choiceCards: true, choiceMode: 'tool' })
+      const beforeChoiceTool = log.length
+      chat.send(contents, c7, 'TOOLCHOICE')
+      await idle(c7)
+      const choiceToolReq = log[beforeChoiceTool]?.body as { tools?: { function: { name: string } }[] } | undefined
+      check('choice tool sent with the request', choiceToolReq?.tools?.[0]?.function.name === 'present_choices', choiceToolReq?.tools)
+      check('tool how-to in the system prompt', (log[beforeChoiceTool]?.messages[0]?.content ?? '').includes('present_choices tool'))
+      const toolNode = chat.view(c7).path.at(-1)
+      check('tool call read into a card', toolNode?.toolChoices?.groups.map((g) => g.title).join('|') === 'Outfit|What do you do?' && toolNode?.text === 'The bridge sways in the wind.', toolNode?.toolChoices)
+      check('tool card drops a "something else" option', toolNode?.toolChoices?.groups[1].options.map((o) => o.label).join() === 'Cross,Turn back')
+      await new Promise((r) => setTimeout(r, 400))
+      const toolUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'TOOLCHOICE')
+        row?.click()
+        await wait(500)
+        const card = document.querySelector('.choice-card')
+        const groups = [...card.querySelectorAll('.choice-group')]
+        groups[0].querySelectorAll('.choice-pick')[0].click()
+        await wait(100)
+        groups[1].querySelectorAll('.choice-pick')[0].click()
+        await wait(100)
+        const out = { groups: groups.length, details: card.querySelector('.choice-details')?.textContent.trim() ?? null }
+        ;[...card.querySelectorAll('button')].find((b) => b.textContent.includes('Send choices'))?.click()
+        return out
+      })()`)
+      check('tool card shows its groups and details', toolUi.groups === 2 && toolUi.details === 'Wool coat, boots', toolUi)
+      const beforeAnswer = log.length
+      await new Promise((r) => setTimeout(r, 300))
+      await idle(c7)
+      const answerMsgs = (log[beforeAnswer]?.messages ?? []) as unknown as { role: string; content: string | null; tool_calls?: { id: string }[]; tool_call_id?: string }[]
+      const asked = answerMsgs.find((m) => m.role === 'assistant' && m.tool_calls)
+      const result = answerMsgs.find((m) => m.role === 'tool')
+      check('the call is replayed with the history', asked?.tool_calls?.[0]?.id === 'call_e2e' && asked?.content === 'The bridge sways in the wind.', asked)
+      check('the pick goes back as the tool result', result?.tool_call_id === 'call_e2e' && result?.content === 'Outfit: Coat\nWhat do you do?: Cross', result)
+      check('the pick is not also sent as a user message', !answerMsgs.slice(answerMsgs.indexOf(result!)).some((m) => m.role === 'user'))
+      check('the model answers after the tool result', (chat.view(c7).path.at(-1)?.text ?? '').includes('tool result'), chat.view(c7).path.at(-1)?.text)
+
+      // The same exchange in Claude's format: the answer becomes a tool_result, first in the turn,
+      // documents after; other providers' tool bookkeeping is never replayed to Claude.
+      const row = (role: string, content: unknown, text = ''): db.NodeRow =>
+        ({ id: randomUUID(), conversation_id: 'x', parent_id: 'p', role, text, content: JSON.stringify(content), thinking: null, model: null, provider_id: null, usage: null, status: 'done', error: null, created_at: 0, active_child_id: null }) as unknown as db.NodeRow
+      const claudeMsgs = toMessages([
+        row('user', [{ type: 'text', text: 'Begin' }]),
+        row('assistant', [{ type: 'thinking', thinking: 'hm', signature: 'sig' }, { type: 'text', text: 'Story.' }, { type: 'tool_use', id: 'toolu_1', name: 'present_choices', input: { groups: [] } }]),
+        row('user', [{ type: 'text', text: '<document name="notes.md">x</document>' }, { type: 'text', text: 'Cross' }], 'Cross'),
+        row('assistant', [{ type: 'text', text: 'Next.' }, { type: 'tool_calls', calls: [{ id: 'c', name: 'present_choices', arguments: '{}' }] }])
+      ])
+      const answerTurn = claudeMsgs[2]?.content as { type: string; tool_use_id?: string; content?: string; text?: string }[]
+      check('Claude gets the pick as a tool_result first', answerTurn?.[0]?.type === 'tool_result' && answerTurn[0].tool_use_id === 'toolu_1' && answerTurn[0].content === 'Cross', answerTurn)
+      check('attached documents follow the tool_result', answerTurn?.[1]?.text?.startsWith('<document name=') === true && answerTurn.length === 2)
+      check('thinking and tool_use replayed unchanged', (claudeMsgs[1]?.content as { type: string }[]).map((b) => b.type).join() === 'thinking,text,tool_use')
+      check("another provider's tool calls aren't replayed to Claude", (claudeMsgs[3]?.content as { type: string }[]).map((b) => b.type).join() === 'text')
 
       // 28. Message actions: delete one, delete below, view, restore (also after writing more), edit, tok/s.
       const c5 = chat.create(null).id

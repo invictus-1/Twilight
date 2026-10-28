@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
+import { CHOICES_TOOL_NAME, choicesFromTool, type ChoiceSet } from '@shared/choices'
 import type { ChatSettings, NodeStatus, NodeView, Usage } from '@shared/types'
 
 // Conversations are trees. Every conversation has one hidden root node whose text is the
@@ -371,6 +372,25 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
     createdAt: node.created_at,
     siblingIndex: siblings.findIndex((s) => s.id === node.id),
     siblingCount: siblings.length,
-    attachments: node.attachments ? JSON.parse(node.attachments) : undefined
+    attachments: node.attachments ? JSON.parse(node.attachments) : undefined,
+    toolChoices: node.role === 'assistant' ? (toolChoicesOf(node.content) ?? undefined) : undefined
   }
+}
+
+/** Choices offered by a present_choices call, in Claude's blocks or an OpenAI-style tool_calls block. */
+function toolChoicesOf(content: string | null): ChoiceSet | null {
+  if (!content || !content.includes(CHOICES_TOOL_NAME)) return null
+  for (const block of JSON.parse(content) as { type: string; name?: string; input?: unknown; calls?: { name: string; arguments: string }[] }[]) {
+    if (block.type === 'tool_use' && block.name === CHOICES_TOOL_NAME) return choicesFromTool(block.input)
+    if (block.type === 'tool_calls') {
+      const call = block.calls?.find((c) => c.name === CHOICES_TOOL_NAME)
+      if (!call) continue
+      try {
+        return choicesFromTool(JSON.parse(call.arguments))
+      } catch {
+        return null
+      }
+    }
+  }
+  return null
 }

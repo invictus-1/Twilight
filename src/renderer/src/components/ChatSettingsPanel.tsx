@@ -5,7 +5,7 @@ import { CloseIcon, TrashIcon } from './Icons'
 
 /** Settings a preset carries (everything about how the model is asked, not which chat). */
 const PRESET_KEYS: (keyof ChatSettings)[] = [
-  'effort', 'thinkingDisplay', 'caching', 'cacheTtl', 'temperature', 'maxTokens', 'messageLimit', 'extraParams', 'systemPrompt', 'choiceCards'
+  'effort', 'thinkingDisplay', 'caching', 'cacheTtl', 'temperature', 'maxTokens', 'messageLimit', 'extraParams', 'systemPrompt', 'choiceCards', 'choiceMode', 'choiceInstructions'
 ]
 
 /** A switchable number with a slider, like "Max output tokens". Off means "not sent". */
@@ -167,6 +167,27 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
         <input type="checkbox" checked={settings.choiceCards} onChange={(e) => void update({ choiceCards: e.target.checked })} />
         Choice cards: the model can offer clickable options (text adventures)
       </label>
+      {settings.choiceCards && (
+        <div className="choice-settings">
+          <div className="tw-seg" role="group" aria-label="How the model offers choices">
+            <button aria-pressed={settings.choiceMode === 'text'} onClick={() => void update({ choiceMode: 'text' })}>
+              Written in the reply
+            </button>
+            <button aria-pressed={settings.choiceMode === 'tool'} onClick={() => void update({ choiceMode: 'tool' })}>
+              Tool call
+            </button>
+          </div>
+          <span className="field-note">
+            {settings.choiceMode === 'tool'
+              ? 'The model calls present_choices with the options as data, and your pick goes back as its result. Needs a model with tool calling. Switching restarts the prompt cache once.'
+              : 'Options written as text are read from the end of the reply: a numbered list under a title that asks, or with a "Something else" option.'}
+          </span>
+          <label className="check">
+            <input type="checkbox" checked={settings.choiceInstructions} onChange={(e) => void update({ choiceInstructions: e.target.checked })} />
+            Add Twilight’s how-to to the system prompt (turn off if your own prompt covers it)
+          </label>
+        </div>
+      )}
 
       <h3 className="settings-section">Common</h3>
       <NumberSetting

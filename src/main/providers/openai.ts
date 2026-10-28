@@ -1,5 +1,19 @@
+import { CHOICES_TOOL } from '@shared/choices'
 import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
-import { mergeExtraParams, textBlocks, type GenerateRequest, type GenerateResult, type Provider } from './types'
+import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
+
+/** A tool call as stored with the reply, replayed in the next request. */
+interface StoredCall {
+  id: string
+  name: string
+  arguments: string
+}
+
+function storedCalls(content: string | null): StoredCall[] {
+  if (!content) return []
+  const block = (JSON.parse(content) as { type: string; calls?: StoredCall[] }[]).find((b) => b.type === 'tool_calls')
+  return block?.calls ?? []
+}
 
 // OpenAI-compatible chat servers: Ollama, LM Studio, llama.cpp, vLLM and the like. Local servers
 // reuse their KV cache for an unchanged prefix, so the same append-only history applies here.
@@ -79,15 +93,29 @@ export const openaiProvider: Provider = {
   async generate(req: GenerateRequest): Promise<GenerateResult> {
     const { settings } = req
     const started = Date.now()
-    const messages: { role: string; content: string }[] = []
+    const messages: Record<string, unknown>[] = []
     if (req.system) messages.push({ role: 'system', content: req.system })
+    let pendingCalls: StoredCall[] = []
     for (const node of req.history) {
       if (node.role !== 'user' && node.role !== 'assistant') continue
-      const text = textBlocks(node)
-        .map((b) => b.text)
-        .join('\n\n')
-      if (!text) continue
-      messages.push({ role: node.role, content: text })
+      const blocks = textBlocks(node)
+      if (node.role === 'user' && pendingCalls.length) {
+        // The reader's answer to a present_choices call goes back as the call's result; attached
+        // documents follow as an ordinary user message.
+        const answer = blocks.filter((b) => !b.text.startsWith('<document name=')).map((b) => b.text).join('\n\n') || node.text
+        pendingCalls.forEach((call, i) => messages.push({ role: 'tool', tool_call_id: call.id, content: i === 0 ? answer : 'Answered with the first call.' }))
+        pendingCalls = []
+        const docs = blocks.filter((b) => b.text.startsWith('<document name=')).map((b) => b.text).join('\n\n')
+        if (docs) messages.push({ role: 'user', content: docs })
+        continue
+      }
+      const text = blocks.map((b) => b.text).join('\n\n')
+      const calls = node.role === 'assistant' && node.status === 'done' ? storedCalls(node.content) : []
+      if (!text && !calls.length) continue
+      if (calls.length) {
+        messages.push({ role: 'assistant', content: text || null, tool_calls: calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } })) })
+        pendingCalls = calls
+      } else messages.push({ role: node.role, content: text })
     }
 
     const body: Record<string, unknown> = {
@@ -104,10 +132,15 @@ export const openaiProvider: Provider = {
       if (req.options?.effortParam === 'openrouter') body.reasoning = { effort: settings.effort }
       else body.reasoning_effort = settings.effort
     }
+    if (wantsChoiceTool(settings)) {
+      body.tools = [{ type: 'function', function: { name: CHOICES_TOOL.name, description: CHOICES_TOOL.description, parameters: CHOICES_TOOL.input_schema } }]
+    }
     mergeExtraParams(body, settings.extraParams ?? '')
 
     let text = ''
     let thinking = ''
+    // Tool calls arrive in pieces, keyed by index: the id and name first, the arguments in fragments.
+    const calls: StoredCall[] = []
     const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: 0 }
     try {
       const res = await fetch(`${base(req.config)}/chat/completions`, {
@@ -135,7 +168,14 @@ export const openaiProvider: Provider = {
           const data = line.slice(5).trim()
           if (data === '[DONE]') continue
           const chunk = JSON.parse(data) as {
-            choices?: { delta?: { content?: string; reasoning_content?: string; reasoning?: string } }[]
+            choices?: {
+              delta?: {
+                content?: string
+                reasoning_content?: string
+                reasoning?: string
+                tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]
+              }
+            }[]
             usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }
           }
           const delta = chunk.choices?.[0]?.delta
@@ -147,6 +187,12 @@ export const openaiProvider: Provider = {
           if (delta?.content) {
             text += delta.content
             req.onText(delta.content)
+          }
+          for (const part of delta?.tool_calls ?? []) {
+            const call = (calls[part.index ?? 0] ??= { id: '', name: '', arguments: '' })
+            if (part.id) call.id = part.id
+            if (part.function?.name) call.name += part.function.name
+            if (part.function?.arguments) call.arguments += part.function.arguments
           }
           if (chunk.usage) {
             const cached = chunk.usage.prompt_tokens_details?.cached_tokens ?? 0
@@ -160,10 +206,11 @@ export const openaiProvider: Provider = {
       if (!req.signal.aborted) throw err
     }
     usage.ms = Date.now() - started
+    const made = calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || `call_${i}` }))
     return {
       text,
       thinking: thinking || undefined,
-      content: [{ type: 'text', text }],
+      content: made.length ? [{ type: 'text', text }, { type: 'tool_calls', calls: made }] : [{ type: 'text', text }],
       usage,
       modelId: settings.modelId
     }

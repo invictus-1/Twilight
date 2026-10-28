@@ -32,6 +32,9 @@ export interface Provider {
   generate(request: GenerateRequest): Promise<GenerateResult>
 }
 
+/** Choices are on and offered as a present_choices tool call rather than written in the reply. */
+export const wantsChoiceTool = (settings: ChatSettings): boolean => settings.choiceCards && settings.choiceMode === 'tool'
+
 const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
 /** Merges the user's extra-parameters JSON into a request body: objects merge, everything else replaces. */

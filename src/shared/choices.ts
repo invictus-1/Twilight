@@ -15,6 +15,68 @@ What do you do?
 \`\`\`
 Put nothing after the block. Offer choices only when the decision is genuinely the reader's; otherwise end the reply normally.`
 
+// ——— Choices as a tool call ———
+// The other way to offer choices: the model calls present_choices with the options as data, the
+// card draws from that, and the reader's answer goes back as the tool's result (which is simply
+// their next turn). Nothing to parse, so no format drift; it needs a model that does tool calling.
+
+export const CHOICES_TOOL_NAME = 'present_choices'
+
+export const CHOICES_TOOL = {
+  name: CHOICES_TOOL_NAME,
+  description:
+    "Shows the reader a choice menu in the app, in place of writing the options as text. Call it at the end of a reply, after the story text, whenever the reader should decide what happens next. Put several decisions made at the same moment (an outfit and then an action, or one decision per character) in one call as separate groups. The app always adds a box for the reader's own answer, so don't include a \"something else\" option. The reader's picks come back as this tool's result, which is their next turn: one line per group, \"Group title: pick\", or just the pick when there is one group.",
+  input_schema: {
+    type: 'object',
+    properties: {
+      groups: {
+        type: 'array',
+        minItems: 1,
+        description: 'One entry per decision, in the order the reader should make them.',
+        items: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Short heading for this decision, e.g. "What do you do?" or "Outfit · Day 3 dawn".' },
+            context: { type: 'string', description: 'Optional context shown under the title (venue, weather, stakes), markdown.' },
+            options: {
+              type: 'array',
+              minItems: 2,
+              items: {
+                type: 'object',
+                properties: {
+                  label: { type: 'string', description: 'The option as the reader would say or do it, short.' },
+                  details: { type: 'string', description: 'Optional detail shown under the option, markdown (bullets are fine).' }
+                },
+                required: ['label']
+              }
+            }
+          },
+          required: ['title', 'options']
+        }
+      }
+    },
+    required: ['groups']
+  }
+} as const
+
+export const CHOICES_TOOL_INSTRUCTION = `Interactive choices: whenever the reader should decide what happens next, end your reply by calling the ${CHOICES_TOOL_NAME} tool instead of writing the options as text. Put every decision of that moment in the one call, as separate groups. Offer choices only when the decision is genuinely the reader's; otherwise end the reply normally.`
+
+/** A present_choices call's input as a card; anything malformed is dropped rather than trusted. */
+export function choicesFromTool(input: unknown): ChoiceSet | null {
+  const str = (v: unknown): string => (typeof v === 'string' ? v.trim() : '')
+  const raw = (input as { groups?: unknown })?.groups
+  if (!Array.isArray(raw)) return null
+  const groups: ChoiceGroup[] = []
+  for (const g of raw) {
+    const options = (Array.isArray(g?.options) ? g.options : [])
+      .map((o: unknown) => ({ label: str((o as { label?: unknown })?.label), details: str((o as { details?: unknown })?.details) }))
+      .filter((o: ChoiceOption) => o.label && !SOMETHING_ELSE.test(o.label))
+      .slice(0, 9)
+    if (options.length) groups.push({ title: str(g?.title) || null, intro: str(g?.context), options })
+  }
+  return groups.length ? { groups } : null
+}
+
 export interface ChoiceOption {
   label: string
   /** Lines written under the option (bullets of detail), as markdown; often empty. */

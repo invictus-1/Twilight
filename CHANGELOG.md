@@ -2,6 +2,14 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## 0.3.0
+
+**Choices as a tool call**
+- New in Model settings, under Choice cards: offer choices **Written in the reply** (as before) or by **Tool call**. With Tool call, the model calls `present_choices` with the options as data. The card is drawn from that, so there's no text format to follow or misread.
+- Your pick goes back to the model as the call's result: one line per decision ("Outfit: Coat"), or just the pick when there's one. Groups, context lines, option details and the "Something else" box all work the same as with text choices.
+- Works with Claude and with OpenAI-compatible servers whose models support tool calling (OpenRouter, LM Studio, Ollama, llama.cpp with tool support).
+- "Add Twilight's how-to to the system prompt" is now its own switch. Turn it off when your own prompt already explains how to offer choices.
+
 ## 0.2.0
 
 **Updates**

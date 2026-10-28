@@ -242,7 +242,8 @@ function UsageLine({ node }: { node: NodeView }) {
 function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeView; isLast: boolean }) {
   const pane = usePane()
   const plainChoices = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceCards : false))
-  const { body, choices } = extractChoices(node.text, plainChoices)
+  // A present_choices call carries its options as data; otherwise they're read from the text.
+  const { body, choices } = node.toolChoices ? { body: node.text, choices: node.toolChoices } : extractChoices(node.text, plainChoices)
   const models = useStore((s) => s.models)
   const showThinking = useStore((s) => (s.current ? paneOf(s.current, pane).settings.showThinking : false))
   const [editing, setEditing] = useState(false)

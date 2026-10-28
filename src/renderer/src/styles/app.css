@@ -557,3 +557,5 @@ body.resizing .resize-handle { pointer-events: auto; }
 .choice-details p { margin: 0; }
 .choice-pick { align-items: flex-start; }
 .choice-send { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-3); border-top: 1px solid var(--line); padding-top: var(--space-2); }
+.choice-settings { display: flex; flex-direction: column; gap: var(--space-2); padding-left: 24px; }
+.choice-settings .tw-seg { align-self: flex-start; }

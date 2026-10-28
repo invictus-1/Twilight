@@ -1,5 +1,6 @@
 // Types shared by the main process, the preload bridge and the renderer.
 
+import type { ChoiceSet } from './choices'
 import type { JudgeInput, Judgment, JudgmentSummary, Rubric } from './judge'
 
 export type ProviderKind = 'anthropic' | 'openai'
@@ -92,6 +93,10 @@ export interface ChatSettings {
   extraParams: string
   /** Text-adventure choice cards: the model offers numbered options to click (see shared/choices.ts). */
   choiceCards: boolean
+  /** How the model offers them: written in the reply, or as a present_choices tool call. */
+  choiceMode: 'text' | 'tool'
+  /** Add Twilight's short how-to for the chosen mode to the system prompt (off when yours covers it). */
+  choiceInstructions: boolean
 }
 
 /** A saved set of model settings. */
@@ -147,6 +152,8 @@ export interface NodeView {
   siblingCount: number
   /** Files attached to a user message (their text is part of the message sent). */
   attachments?: { name: string; chars: number }[]
+  /** Choices the model offered with a present_choices tool call. */
+  toolChoices?: ChoiceSet
 }
 
 export interface ConversationSummary {
