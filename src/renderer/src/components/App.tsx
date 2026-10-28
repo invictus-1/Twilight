@@ -1,7 +1,9 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { useStore } from '../store'
-import { handleStreamEvent } from '../stream'
+import { useJudge } from '../judgeStore'
+import { clearStream, handleStreamEvent } from '../stream'
 import { useWriting } from '../writingStore'
+import { JudgeView } from './JudgeView'
 
 // The editor (CodeMirror) loads the first time Writing opens, so startup only parses the chat.
 const WritingView = lazy(() => import('./WritingView').then((m) => ({ default: m.WritingView })))
@@ -20,10 +22,14 @@ export function App() {
     const store = useStore.getState()
     void store.init()
     void useWriting.getState().init()
+    void useJudge.getState().init()
     return window.twilight.onStream((event) => {
       handleStreamEvent(event)
-      // Writing-tool runs finish inside the editor (Editor.tsx), not in a chat.
-      if (event.kind === 'done' && event.conversationId !== 'writing') useStore.getState().applyDone(event.conversationId, event.node)
+      if (event.kind !== 'done') return
+      // Writing-tool runs finish inside the editor (Editor.tsx); judge runs in the judgment.
+      if (event.conversationId === 'judge') {
+        void useJudge.getState().reload(event.node.parentId ?? '').then(() => clearStream(event.nodeId))
+      } else if (event.conversationId !== 'writing') useStore.getState().applyDone(event.conversationId, event.node)
     })
   }, [])
 
@@ -64,6 +70,8 @@ export function App() {
       <Sidebar />
       {mode === 'chat' ? (
         <ChatView />
+      ) : mode === 'judge' ? (
+        <JudgeView />
       ) : (
         <Suspense fallback={<main className="chat" />}>
           <WritingView />

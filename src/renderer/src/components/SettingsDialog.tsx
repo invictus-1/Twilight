@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { ProviderConfig } from '@shared/types'
+import { readGameFormat, writeGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
 import { CloseIcon, TrashIcon } from './Icons'
 
@@ -109,6 +110,32 @@ function RequestLogs() {
   )
 }
 
+/** How the "Game Format" button on replies reflows text for pasting into a game. */
+function GameFormatOptions() {
+  const [options, setOptions] = useState(readGameFormat)
+  const set = (patch: Partial<typeof options>): void => {
+    const next = { ...options, ...patch }
+    writeGameFormat(next)
+    setOptions(next)
+  }
+  return (
+    <div className="provider">
+      <p className="field-note">
+        The Game Format button on a reply copies it with each chunk's paragraphs joined by single line breaks. Code blocks and HTML blocks
+        (stat sheets, status cards) are copied exactly as they are.
+      </p>
+      <label className="check">
+        <input type="checkbox" checked={options.removeDividers} onChange={(e) => set({ removeDividers: e.target.checked })} />
+        Remove the --- dividers between chunks too
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={options.stripMarkdown} onChange={(e) => set({ stripMarkdown: e.target.checked })} />
+        Remove markdown marks from prose (**bold**, *italic*, # headings)
+      </label>
+    </div>
+  )
+}
+
 export function SettingsDialog() {
   const providers = useStore((s) => s.providers)
   const setOpen = useStore((s) => s.setSettingsOpen)
@@ -151,6 +178,8 @@ export function SettingsDialog() {
         </div>
         <h3 className="t-heading section">Safety net</h3>
         <RequestLogs />
+        <h3 className="t-heading section">Game Format</h3>
+        <GameFormatOptions />
       </div>
     </div>
   )

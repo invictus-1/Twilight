@@ -15,6 +15,8 @@ import type {
 } from '@shared/types'
 import { clearStream } from './stream'
 
+export type Mode = 'chat' | 'write' | 'judge'
+
 const api = window.twilight
 
 interface State {
@@ -27,7 +29,7 @@ interface State {
   defaults: ChatSettings | null
   /** Where the composer sends while split compare is open. */
   target: SendTarget
-  mode: 'chat' | 'write'
+  mode: Mode
   sidebarOpen: boolean
   settingsOpen: boolean
   error: string | null
@@ -52,7 +54,7 @@ interface State {
   cloneIntoSplit(nodeId?: string): Promise<void>
   closeSplit(keep: Pane): Promise<void>
   setTarget(target: SendTarget): void
-  setMode(mode: 'chat' | 'write'): void
+  setMode(mode: Mode): void
   setDefaultModel(providerId: string, modelId: string): Promise<void>
   deleteChat(id: string): Promise<void>
   refreshTrash(): Promise<void>

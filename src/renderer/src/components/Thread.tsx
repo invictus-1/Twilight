@@ -77,6 +77,13 @@ export function Thread() {
       if (href && /^https?:\/\//.test(href)) void window.twilight.openExternal(href)
       return
     }
+    const collapse = target.closest<HTMLElement>('[data-collapse]')
+    if (collapse) {
+      const block = collapse.closest('.tw-codeblock')
+      const collapsed = block?.classList.toggle('collapsed')
+      collapse.textContent = collapsed ? 'Expand' : 'Collapse'
+      return
+    }
     const copy = target.closest<HTMLElement>('[data-copy]')
     if (copy) {
       const code = copy.closest('.tw-codeblock')?.querySelector('code')?.textContent ?? ''

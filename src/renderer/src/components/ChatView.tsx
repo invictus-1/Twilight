@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { useStore } from '../store'
+import type { NodeView } from '@shared/types'
+import { useJudge } from '../judgeStore'
+import { modelName, useStore } from '../store'
 import { CacheBar } from './CacheBar'
 import { ChatSettingsPanel } from './ChatSettingsPanel'
 import { Composer } from './Composer'
@@ -13,6 +15,40 @@ function greeting(): string {
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
   return 'Good evening'
+}
+
+/** Sends the two panes' latest replies to the Judge, with the prompt and system prompt they came from. */
+function JudgeSplitButton() {
+  const current = useStore((s) => s.current)!
+  const models = useStore((s) => s.models)
+  const lastReply = (path: NodeView[]): NodeView | undefined => path.findLast((n) => n.role === 'assistant' && n.status === 'done' && !!n.text)
+  const a = lastReply(current.path)
+  const b = current.split ? lastReply(current.split.path) : undefined
+  const prompt = current.path.findLast((n) => n.role === 'user')?.text ?? ''
+  const sysA = current.settings.systemPrompt
+  const sysB = current.split?.settings.systemPrompt ?? ''
+  return (
+    <button
+      className="tw-btn tw-btn-ghost tw-btn-sm no-drag"
+      disabled={!a || !b}
+      title="Compare the two panes' latest replies with a judge model"
+      onClick={() => {
+        if (!a || !b) return
+        useJudge.getState().newDraft({
+          title: current.title,
+          passageA: a.text,
+          passageB: b.text,
+          labelA: modelName(models, a.modelId),
+          labelB: modelName(models, b.modelId),
+          authorPrompt: prompt,
+          systemPrompt: sysA === sysB ? sysA : `Pane A's system prompt:\n${sysA}\n\nPane B's system prompt:\n${sysB}`
+        })
+        useStore.getState().setMode('judge')
+      }}
+    >
+      Judge A vs B
+    </button>
+  )
 }
 
 export function ChatView() {
@@ -39,6 +75,7 @@ export function ChatView() {
           <SplitIcon />
           {split ? 'Close split' : 'Split'}
         </button>
+        {split && <JudgeSplitButton />}
         <button
           className="tw-btn tw-btn-ghost tw-btn-sm no-drag"
           aria-expanded={panelOpen}

@@ -8,6 +8,9 @@ import { join } from 'node:path'
 import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
+import { gameFormat } from '@shared/gameFormat'
+import { computeVerdict } from '@shared/judge'
+import * as judge from './judge'
 import { anthropicOptions } from './providers/anthropic'
 import * as workspaces from './workspaces'
 import * as providers from './providers'
@@ -39,10 +42,27 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       const entry: LoggedRequest = { model: parsed.model, messages: parsed.messages, body: parsed, startedAt: Date.now() }
       log.push(entry)
       const lastUser = [...parsed.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
-      // Writing tools get a plausible edit of the passage; chats get an echo.
-      const reply = parsed.messages[0]?.content.startsWith('You are a line editor')
-        ? `No one ever saw who lit them (${parsed.model}).`
-        : `**${parsed.model}** replying to "${lastUser}". Here is a short answer with a list:\n\n- one\n- two\n\nDone.`
+      const system = parsed.messages[0]?.content ?? ''
+      let reply: string
+      if (system.startsWith('You are a line editor')) {
+        // Writing tools get a plausible edit of the passage.
+        reply = `No one ever saw who lit them (${parsed.model}).`
+      } else if (system.startsWith('You are an exacting fiction editor')) {
+        // The judge: the passage containing GOOD scores 8, the other 5; "explicit" doesn't apply.
+        const ids = [...system.matchAll(/^- ([\w-]+) · /gm)].map((m) => m[1])
+        const x = /<passage id="X">\n([\s\S]*?)\n<\/passage>/.exec(lastUser)?.[1] ?? ''
+        const xGood = x.includes('GOOD')
+        const criteria = ids.map((id) => (id === 'explicit' ? { id, X: null, Y: null } : { id, X: xGood ? 8 : 5, Y: xGood ? 5 : 8 }))
+        reply =
+          `### Prose — X ${xGood ? 8 : 5} · Y ${xGood ? 5 : 8}\nX quotes "${x.slice(0, 20)}".\n\n### Verdict\n${xGood ? 'X' : 'Y'} is better.\n\n` +
+          '```json\n' + JSON.stringify({ criteria, overall: { X: xGood ? 8 : 5, Y: xGood ? 5 : 8 }, winner: xGood ? 'X' : 'Y', confidence: 'high' }) + '\n```'
+      } else if (lastUser.includes('STATUSCARD')) {
+        reply =
+          'The rain held.\n\n<details>\n<summary>status card</summary>\n\n```\n═══ STATUS CARD ═══\nDATE     Thursday\n```\n\n</details>\n\n' +
+          '<img src="x" onerror="window.__pwned = 1"> <script>window.__pwned = 2</script> <b>bold html</b>'
+      } else {
+        reply = `**${parsed.model}** replying to "${lastUser}". Here is a short answer with a list:\n\n- one\n- two\n\nDone.`
+      }
       const words = reply.split(/(?<= )/)
       res.writeHead(200, { 'content-type': 'text/event-stream' })
       for (const w of words) {
@@ -493,6 +513,126 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('model settings panel opens', ui2.panel === true, ui2)
       await new Promise((r) => setTimeout(r, 200))
       writeFileSync(join(outDir, 'e2e-settings.png'), (await win.webContents.capturePage()).toPNG())
+
+      // 22. Game Format: paragraphs joined within chunks, dividers kept, code and HTML untouched.
+      const sample = 'ofjasdoifjasodif\n\najosdfjasoidfj\n\nasdofjiasodf\n\n---\n\noidsfjsodjfids\n\nsdfjosidjf\n\nsdojfsoidfj'
+      check(
+        'game format matches the wanted layout',
+        gameFormat(sample) === 'ofjasdoifjasodif\najosdfjasoidfj\nasdofjiasodf\n\n---\n\noidsfjsodjfids\nsdfjosidjf\nsdojfsoidfj',
+        gameFormat(sample)
+      )
+      const withBlocks = 'Para one.\n\nPara two.\n\n```\nSTATUS  Wren\n\n        Rowan\n```\n\n<details>\n<summary>status card</summary>\n\n```\nDATE x\n```\n\n</details>\n\nAfter.\n\nMore.'
+      const formatted = gameFormat(withBlocks)
+      check('game format leaves code blocks alone', formatted.includes('```\nSTATUS  Wren\n\n        Rowan\n```'), formatted)
+      check('game format leaves <details> alone', formatted.includes('<details>\n<summary>status card</summary>\n\n```\nDATE x\n```\n\n</details>'), formatted)
+      check('game format joins prose around blocks', formatted.startsWith('Para one.\nPara two.') && formatted.endsWith('After.\nMore.'), formatted)
+      check('game format can drop dividers', !gameFormat(sample, { removeDividers: true, stripMarkdown: false }).includes('---'))
+      check('game format can strip markdown', gameFormat('**Bold** and *soft*.\n\n# Title', { removeDividers: false, stripMarkdown: true }) === 'Bold and soft.\nTitle')
+
+      // 23. status card <details> renders; dangerous HTML is stripped.
+      chat.send(contents, c2, 'Show the STATUSCARD')
+      await idle(c2)
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 700))
+      const html = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'First')
+        row?.click()
+        await wait(500)
+        const msgs = [...document.querySelectorAll('.tw-msg-ai .md')]
+        const md = msgs[msgs.length - 1]
+        const details = md?.querySelector('details')
+        details?.querySelector('summary')?.click()
+        await wait(100)
+        return {
+          summary: details?.querySelector('summary')?.textContent ?? null,
+          open: details?.open ?? null,
+          code: details?.querySelector('pre code')?.textContent ?? null,
+          img: !!md?.querySelector('img'), script: !!md?.querySelector('script'), pwned: window.__pwned ?? null,
+          bold: md?.querySelector('b')?.textContent ?? null, escaped: md?.textContent.includes('<details') ?? null,
+          gameBtn: !!document.querySelector('.game-format-btn')
+        }
+      })()`)
+      check('<details> status card renders and opens', html.summary === 'status card' && html.open === true && html.code?.includes('STATUS CARD'), html)
+      check('dangerous HTML stripped, nothing ran', !html.img && !html.script && html.pwned === null, html)
+      check('harmless HTML kept', html.bold === 'bold html' && html.escaped === false, html)
+      check('Game Format button on replies', html.gameBtn === true)
+      await new Promise((r) => setTimeout(r, 200))
+      writeFileSync(join(outDir, 'e2e-statuscard.png'), (await win.webContents.capturePage()).toPNG())
+
+      // 24. The Judge: blind, both orders, scores mapped back to A and B.
+      const beforeJudge = log.length
+      const judgment = judge.runJudge(contents, {
+        title: 'Lamps test',
+        passageA: 'GOOD: The lamps came on one street at a time.',
+        passageB: 'The lamps turned on.',
+        labelA: 'Opus Secret',
+        labelB: 'Sonnet Secret',
+        authorPrompt: 'Write the lamps.',
+        systemPrompt: 'You are a co-writer.',
+        contextDocs: [{ name: 'Bible.md', text: 'Wren counts lamps.' }],
+        extraInstructions: '',
+        judgeProviderId: 'mock',
+        judgeModelId: 'mock-a',
+        effort: null,
+        rubricId: 'general-fiction',
+        bothOrders: true
+      })
+      for (let i = 0; i < 400 && judge.getJudgment(judgment.id).runs.some((r) => r.status === 'streaming'); i++) await new Promise((r) => setTimeout(r, 25))
+      const judged = judge.getJudgment(judgment.id)
+      const verdict = computeVerdict(judged.rubric, judged.runs)
+      const judgeReqs = log.slice(beforeJudge).filter((r) => r.messages[0]?.content.startsWith('You are an exacting fiction editor'))
+      check('judge ran twice', judgeReqs.length === 2 && judged.runs.every((r) => r.status === 'done'), judged.runs.map((r) => [r.status, r.error]))
+      check('both orders agree on A', verdict.winner === 'A' && verdict.agreement === 'agree', verdict)
+      check('scores mapped back to A and B', verdict.overallA !== null && Math.abs(verdict.overallA - 8) < 0.01 && Math.abs((verdict.overallB ?? 0) - 5) < 0.01, [verdict.overallA, verdict.overallB])
+      check('inapplicable criterion stays empty', verdict.criteria.find((c) => c.id === 'explicit')?.A === null)
+      const judgeSent = judgeReqs.map((r) => r.messages.at(-1)?.content ?? '')
+      check('the judge never sees model names', !judgeSent.some((s) => s.includes('Secret')))
+      check('runs swap the order', judgeSent[0]?.indexOf('GOOD') < judgeSent[0]?.indexOf('turned on') && judgeSent[1]?.indexOf('GOOD') > judgeSent[1]?.indexOf('turned on'))
+      check(
+        'both runs share the same context prefix (one cache)',
+        judgeSent[0]?.split('<passage id="X">')[0] === judgeSent[1]?.split('<passage id="X">')[0] && judgeSent[0]?.includes('<document name="Bible.md">'),
+        judgeSent.map((s) => s.length)
+      )
+      check('second run waits for the first token', judgeReqs[1].startedAt >= (judgeReqs[0].firstTokenAt ?? Infinity))
+
+      // 25. Judge A vs B from a split chat, then the result screen.
+      chat.cloneIntoSplit(c2)
+      chat.updateSettings(c2, { modelId: 'mock-b' }, 'b')
+      chat.send(contents, c2, 'Write the scene', 'both')
+      await idle(c2)
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 700))
+      const fromSplit = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'First')
+        row?.click()
+        await wait(500)
+        const btn = [...document.querySelectorAll('.chat-head button')].find((b) => b.textContent === 'Judge A vs B')
+        if (!btn) return { step: 'no button' }
+        btn.click()
+        await wait(300)
+        const areas = [...document.querySelectorAll('.judge-passage textarea')].map((t) => t.value)
+        const labels = [...document.querySelectorAll('.judge-label')].map((i) => i.value)
+        const author = document.querySelector('.judge-form textarea[placeholder="The prompt both models answered"]')?.value
+        // Then open the earlier judgment.
+        document.querySelector('[data-mode="judge"]').click()
+        await wait(200)
+        const item = [...document.querySelectorAll('.judgment-item')].find((r) => r.textContent.includes('Lamps test'))
+        item?.click()
+        await wait(400)
+        return { areas, labels, author, headline: document.querySelector('.verdict h2')?.textContent, rows: document.querySelectorAll('.criteria-table tbody tr').length }
+      })()`)
+      check(
+        'Judge A vs B prefills from the panes',
+        fromSplit.areas?.[0]?.includes('mock-a') && fromSplit.areas?.[1]?.includes('mock-b') && fromSplit.labels?.[0] === 'mock-a' && fromSplit.author === 'Write the scene',
+        fromSplit
+      )
+      check('result screen shows the verdict, blind', fromSplit.headline === 'A is better written' && fromSplit.rows === 10, fromSplit)
+      await new Promise((r) => setTimeout(r, 200))
+      writeFileSync(join(outDir, 'e2e-judge.png'), (await win.webContents.capturePage()).toPNG())
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {

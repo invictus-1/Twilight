@@ -1,6 +1,7 @@
 import { memo, useState, type DragEvent, type ReactNode } from 'react'
 import type { ChatFolder, ConversationSummary, DocEntry } from '@shared/types'
 import { modelName, useStore } from '../store'
+import { useJudge } from '../judgeStore'
 import { useWriting } from '../writingStore'
 import { ChevronDown, ChevronRight, FolderIcon, FolderPlusIcon, PinIcon, PlusIcon, SettingsIcon, SlidersIcon, TrashIcon } from './Icons'
 import { WorkspaceDialog } from './WorkspaceDialog'
@@ -432,6 +433,34 @@ function DocList({ creating, onCreated }: { creating: boolean; onCreated: () => 
   )
 }
 
+// ——— Judge ———
+
+const WINNER_TEXT = { A: 'A won', B: 'B won', tie: 'Tie', close: 'Too close to call' } as const
+
+function JudgeList() {
+  const list = useJudge((s) => s.list)
+  const currentId = useJudge((s) => s.current?.id)
+  return (
+    <div className="sidebar-list">
+      {list.map((j) => (
+        <div
+          key={j.id}
+          className="tw-conv judgment-item"
+          aria-current={j.id === currentId ? 'true' : undefined}
+          onClick={() => void useJudge.getState().open(j.id)}
+        >
+          <span className="tw-conv-title">{j.title}</span>
+          <span className="tw-conv-meta">
+            {j.status === 'running' ? 'Judging…' : j.status === 'error' ? 'Failed' : j.winner ? WINNER_TEXT[j.winner] : 'No verdict'} ·{' '}
+            {relativeTime(j.createdAt)}
+          </span>
+        </div>
+      ))}
+      {list.length === 0 && <p className="sidebar-empty">No comparisons yet.</p>}
+    </div>
+  )
+}
+
 export function Sidebar() {
   const mode = useStore((s) => s.mode)
   const setMode = useStore((s) => s.setMode)
@@ -456,7 +485,9 @@ export function Sidebar() {
             className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
             aria-label={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
             title={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
-            onClick={() => void (mode === 'chat' ? newChat() : useWriting.getState().newDoc())}
+            onClick={() =>
+              void (mode === 'chat' ? newChat() : mode === 'write' ? useWriting.getState().newDoc() : useJudge.getState().newDraft())
+            }
           >
             <PlusIcon />
           </button>
@@ -486,11 +517,25 @@ export function Sidebar() {
         >
           Writing
         </button>
+        <button
+          role="tab"
+          data-mode="judge"
+          aria-selected={mode === 'judge'}
+          onClick={() => {
+            setCreating(false)
+            setMode('judge')
+            void useJudge.getState().refresh()
+          }}
+        >
+          Judge
+        </button>
       </div>
       {mode === 'chat' ? (
         <ChatList creating={creating} onCreated={() => setCreating(false)} />
-      ) : (
+      ) : mode === 'write' ? (
         <DocList creating={creating} onCreated={() => setCreating(false)} />
+      ) : (
+        <JudgeList />
       )}
       <div className="sidebar-foot">
         <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setSettingsOpen(true)}>

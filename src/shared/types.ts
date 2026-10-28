@@ -1,5 +1,7 @@
 // Types shared by the main process, the preload bridge and the renderer.
 
+import type { JudgeInput, Judgment, JudgmentSummary, Rubric } from './judge'
+
 export type ProviderKind = 'anthropic' | 'openai'
 
 export interface ProviderConfig {
@@ -201,6 +203,16 @@ export interface WritingRequest {
 }
 
 export interface TwilightApi {
+  listRubrics(): Promise<Rubric[]>
+  saveRubric(rubric: Rubric): Promise<Rubric[]>
+  deleteRubric(id: string): Promise<Rubric[]>
+  listJudgments(): Promise<JudgmentSummary[]>
+  getJudgment(id: string): Promise<Judgment>
+  /** Starts judging; runs stream as StreamEvents with conversationId "judge" and nodeId "<judgment id>:<run index>". */
+  runJudge(input: JudgeInput): Promise<Judgment>
+  stopJudge(id: string): Promise<void>
+  deleteJudgment(id: string): Promise<void>
+
   listConversations(): Promise<ConversationSummary[]>
   createConversation(folderId?: string | null): Promise<ConversationView>
   listFolders(): Promise<ChatFolder[]>

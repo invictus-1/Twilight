@@ -7,6 +7,14 @@ const invoke =
     ipcRenderer.invoke(`twilight:${name}`, ...args)
 
 const methods: Exclude<keyof TwilightApi, 'onStream'>[] = [
+  'listRubrics',
+  'saveRubric',
+  'deleteRubric',
+  'listJudgments',
+  'getJudgment',
+  'runJudge',
+  'stopJudge',
+  'deleteJudgment',
   'listConversations',
   'createConversation',
   'listFolders',

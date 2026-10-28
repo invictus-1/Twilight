@@ -21,7 +21,9 @@ What's done, what's next, and ideas we haven't committed to. Updated with every 
 - [x] Effort levels read from the Anthropic Models API per model; OpenRouter parameters read from its model list
 - [x] Attach text files to a message (full text injected)
 - [x] Workspaces: pinned / workspaces / recent, drag to file, default system prompt + model + color per workspace
-- [x] Full markdown (tables, task lists, footnotes, code blocks with copy)
+- [x] Full markdown (tables, task lists, footnotes, code blocks with copy and collapse) plus safe HTML: collapsible `<details>` blocks (status cards), with scripts, images and event handlers stripped
+- [x] Game Format: copy a reply for RPG Maker with paragraphs joined, dividers optional, code and HTML blocks untouched
+- [x] **Judge**: two passages scored blind against a rubric by a judge model you choose, run in both orders, with shared context (system prompt, author prompt, reference files) cached across runs; "Judge A vs B" from split compare; a built-in General fiction rubric and editable copies; reveal who wrote which after scoring
 - [x] 240Hz scrolling on a 350k-token chat (measured with `TWILIGHT_SELFTEST`)
 
 ### Writing
@@ -33,12 +35,8 @@ What's done, what's next, and ideas we haven't committed to. Updated with every 
 - [x] Send a chat reply to Writing
 
 ## Next
-- [ ] **Judge**: compare two passages' writing quality with a judge model you choose
-  - Inputs: passage A and passage B (paste, attach a file, or "Judge A vs B" straight from split compare), plus shared context for the judge: the writing system prompt both models had, the prompt, character docs
-  - A real rubric, not a one-line ask: per-criterion scores with evidence quoted from the text (prose, dialogue, character fidelity, language, following the system prompt, content handling, pacing, and more), then pros and cons and an overall verdict
-  - Your own rubric too, built from your writing system prompt (send it over); rubrics saved and reusable
-  - Fairer verdicts: passages shown blind as X and Y, and judged twice with the order swapped, since judges favour whichever comes first
-  - Results saved, with which model wrote what revealed only after scoring; over time, a personal leaderboard
+- [ ] Judge follow-ups: a personal leaderboard across judgments; judge more than two passages
+- [ ] Game Format in the Writing editor too, and a "copy as game format" for a whole chat
 - [ ] Undo toast for destructive actions (delete, move)
 - [ ] Command menu (Ctrl+K) and the full shortcut sheet (Ctrl+/), rebindable shortcuts
 - [ ] Search across all chats and documents (Ctrl+Shift+F)

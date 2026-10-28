@@ -1,5 +1,7 @@
 import { memo, useState, useSyncExternalStore } from 'react'
+import { gameFormat } from '@shared/gameFormat'
 import { costOf, formatCost, formatTokens } from '@shared/pricing'
+import { readGameFormat } from '../gameFormatSettings'
 import type { NodeView } from '@shared/types'
 import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
@@ -103,6 +105,24 @@ function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking:
   )
 }
 
+/** Copies the reply reflowed for a game's text boxes (see shared/gameFormat.ts). */
+function GameFormatButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      className="tw-btn tw-btn-ghost tw-btn-sm game-format-btn"
+      title="Copy for a game: paragraphs joined with single line breaks; code and HTML blocks kept as they are (options in Settings)"
+      onClick={() => {
+        void navigator.clipboard.writeText(gameFormat(text, readGameFormat()))
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1200)
+      }}
+    >
+      {copied ? 'Copied' : 'Game Format'}
+    </button>
+  )
+}
+
 function UsageLine({ node }: { node: NodeView }) {
   const models = useStore((s) => s.models)
   const u = node.usage
@@ -177,6 +197,7 @@ function AssistantMessage({ node }: { node: NodeView }) {
             >
               <RefreshIcon />
             </button>
+            {node.text && <GameFormatButton text={node.text} />}
             {node.text && (
               <button
                 className="tw-btn tw-btn-ghost tw-btn-icon"

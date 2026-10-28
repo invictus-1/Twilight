@@ -17,8 +17,10 @@ import type {
 import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
+import * as judge from './judge'
 import * as logs from './logs'
 import * as workspaces from './workspaces'
+import type { JudgeInput, Rubric } from '@shared/judge'
 import * as writing from './writing'
 import * as providers from './providers'
 import { runE2E } from './e2e'
@@ -177,6 +179,14 @@ function registerIpc(): void {
     listModels: (_e, refresh?: boolean) => providers.listModels(refresh),
     getDefaults: () => chat.getDefaults(),
     setDefaults: (_e, patch) => chat.setDefaults(patch),
+    listRubrics: () => judge.listRubrics(),
+    saveRubric: (_e, rubric: Rubric) => judge.saveRubric(rubric),
+    deleteRubric: (_e, id: string) => judge.deleteRubric(id),
+    listJudgments: () => judge.listJudgments(),
+    getJudgment: (_e, id: string) => judge.getJudgment(id),
+    runJudge: (e, input: JudgeInput) => judge.runJudge(e.sender, input),
+    stopJudge: (_e, id: string) => judge.stopJudge(id),
+    deleteJudgment: (_e, id: string) => judge.deleteJudgment(id),
     getWritingFolder: () => docs.writingFolder(),
     chooseWritingFolder: (e) => docs.chooseWritingFolder(BrowserWindow.fromWebContents(e.sender)),
     listDocs: () => docs.listDocs(),
