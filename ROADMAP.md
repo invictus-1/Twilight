@@ -4,7 +4,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
-### 0.5.0 · In progress
+### 0.5.0 · October 2026
 - [x] **Command menu** · Core — Ctrl+K for everything, Ctrl+/ for the shortcut sheet, rebindable keys
 - [x] **Search everything** · Core — every chat and document at once (Ctrl+Shift+F)
 - [x] **Context meter** · Chat — tokens used against the model's window
