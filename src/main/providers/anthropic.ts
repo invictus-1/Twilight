@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
 import type { NodeRow } from '../db'
 import { CHOICES_TOOL } from '@shared/choices'
+import { isContextText } from '@shared/attachments'
 import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 // Prompt caching is a prefix match, so every request is built to be the previous request plus
@@ -19,8 +20,7 @@ type Message = { role: 'user' | 'assistant'; content: Block[] }
 
 /** Block types replayed from a stored reply; anything else (another provider's bookkeeping) is left out. */
 const REPLAYED = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use'])
-const isDocument = (b: Block): boolean =>
-  b.type === 'image' || b.type === 'document' || (b.type === 'text' && typeof b.text === 'string' && b.text.startsWith('<document name='))
+const isDocument = (b: Block): boolean => b.type === 'image' || b.type === 'document' || (b.type === 'text' && typeof b.text === 'string' && isContextText(b.text))
 
 export function toMessages(history: NodeRow[]): Message[] {
   const messages: Message[] = []

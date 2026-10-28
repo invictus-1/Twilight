@@ -158,10 +158,27 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
         {current.started && (
           <span className="field-note">
             Editable any time. Sent with every message; a change restarts the prompt cache for this chat
-            {current.split ? ' pane' : ''}.
+            {current.split ? ' pane' : ''}. To keep the cache, add a change below instead.
           </span>
         )}
       </label>
+
+      {current.started && (
+        <label className="field">
+          <span className="field-label">Change the instructions from the next message on</span>
+          <textarea
+            key={`${shown}-pending`}
+            className="pending-instruction"
+            rows={3}
+            defaultValue={settings.pendingInstruction}
+            placeholder="For example: from now on, answer in Spanish."
+            onBlur={(e) => e.currentTarget.value !== settings.pendingInstruction && void update({ pendingInstruction: e.currentTarget.value })}
+          />
+          <span className="field-note">
+            Goes into your next message instead of the system prompt, so everything before it stays cached. The message shows it was there.
+          </span>
+        </label>
+      )}
 
       <label className="check">
         <input type="checkbox" checked={settings.choiceCards} onChange={(e) => void update({ choiceCards: e.target.checked })} />

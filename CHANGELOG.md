@@ -12,6 +12,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 **Chat**
 - **Context meter:** the cache bar shows how much of the model's context window the chat fills, with a bar that turns amber at 70% and red at 90%. Split panes show it in their footers.
 - **Branch into a new chat:** a new button on every reply starts a new chat with everything up to there. Messages are copied exactly, so the branch's first message still reads from the prompt cache.
+- **Change instructions without losing the cache:** Model settings has a new box for instructions that apply from your next message on. They go into that message instead of the system prompt, so everything before it stays cached. The composer shows the change is queued, and the message carries an "Instructions updated" chip.
 - **Choice card keys:** press 1–9 to pick (Alt+1–9 while typing). With several decisions, each number fills the next one and Enter sends. **More options** asks the model for different ones.
 - **Adventure workspaces:** a workspace can start its new chats with choice cards on.
 - **Images and PDFs:** attach them with the paperclip, drop them on the composer, or paste a screenshot. They go to the model as the files themselves (Claude reads both natively; OpenAI-compatible servers get image and file parts), and replay unchanged so the cache holds. Images show a thumbnail before sending.

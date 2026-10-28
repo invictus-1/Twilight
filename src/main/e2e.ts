@@ -203,6 +203,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
 `)
   }
   const log: LoggedRequest[] = []
+  // Keep timers and frames running when the test window is behind others.
+  win.webContents.setBackgroundThrottling(false)
 
   win.webContents.once('did-finish-load', async () => {
     let server: Server | undefined
@@ -303,7 +305,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // 9. Open the ~108k-word manuscript in the editor, time it, and scroll it.
       const big100k = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        const frame = () => new Promise((r) => requestAnimationFrame(r))
+        // A hidden or covered window gets no animation frames; the timer keeps the run moving.
+        const frame = () => new Promise((r) => { requestAnimationFrame(r); setTimeout(r, 100) })
         document.querySelector('[data-mode="write"]').click()
         for (let i = 0; i < 500 && !document.querySelector('.doc-item[data-path="Big manuscript.md"]'); i++) await wait(10)
         await wait(300)
@@ -1774,6 +1777,28 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('Phosphor, Nightshade and Ember apply their colours', themesUi.nights.phosphor === '#030604' && themesUi.nights.nightshade === '#07050b' && themesUi.nights.ember === '#0a0505', themesUi.nights)
       check('the window frame follows the theme', frameTheme === 'ember', frameTheme)
       await key('Escape')
+
+      // 35. Changing the instructions mid-chat rides in the next message; the system prompt stays.
+      const c35 = chat.create().id
+      chat.updateSettings(c35, { providerId: 'mock', modelId: 'mock-a', systemPrompt: 'Stay brief.' })
+      chat.send(contents, c35, 'First')
+      await idle(c35)
+      chat.updateSettings(c35, { pendingInstruction: 'Answer in French.' })
+      const before35 = log.length
+      chat.send(contents, c35, 'Second')
+      await idle(c35)
+      const instrReq = log[before35]
+      const instrUser = instrReq?.messages.at(-1)?.content ?? ''
+      check(
+        'an instruction change goes into the next message, and the system prompt stays',
+        instrReq?.messages[0]?.content === 'Stay brief.' && instrUser.startsWith('<instruction_update>') && instrUser.includes('Answer in French.') && instrUser.endsWith('Second'),
+        instrUser.slice(0, 200)
+      )
+      const v35 = chat.view(c35)
+      check('the change is sent once and shown on its message', v35.settings.pendingInstruction === '' && v35.path.at(-2)?.instructionUpdate === 'Answer in French.' && v35.path.at(-2)?.text === 'Second', v35.path.at(-2))
+      chat.send(contents, c35, 'Third')
+      await idle(c35)
+      check('later requests replay it unchanged, so the cache holds', JSON.stringify(log.at(-1)?.messages.slice(0, 4)) === JSON.stringify(instrReq?.messages.slice(0, 4)) && instrReq?.messages.length === 4)
 
       // 34. The rail: every section with its name; the current one hides and shows the sidebar.
       const railUi = await js<{ labels: string[]; selected: string | null; closed: boolean; railStill: boolean; reopened: boolean; head: string }>(`(async () => {

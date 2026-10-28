@@ -3,7 +3,7 @@ import { attachmentKind, formatBytes, tooBig } from '@shared/attachments'
 import { formatTokens } from '@shared/pricing'
 import type { Attachment, SendTarget } from '@shared/types'
 import { useStore } from '../store'
-import { CloseIcon, DocIcon, PaperclipIcon, SendIcon, StopIcon } from './Icons'
+import { CloseIcon, DocIcon, PaperclipIcon, SendIcon, SlidersIcon, StopIcon } from './Icons'
 import { DocPicker } from './DocPicker'
 import { ModelPicker } from './ModelPicker'
 import { Hint, ToolsMenu } from './ToolsMenu'
@@ -57,6 +57,9 @@ export function Composer() {
   const stop = useStore((s) => s.stop)
   const currentId = useStore((s) => s.current?.id)
   const choiceCards = useStore((s) => s.current?.settings.choiceCards ?? false)
+  const pendingA = useStore((s) => s.current?.settings.pendingInstruction ?? '')
+  const pendingB = useStore((s) => s.current?.split?.settings.pendingInstruction ?? '')
+  const pending = (target === 'b' ? pendingB : target === 'both' ? pendingA || pendingB : pendingA).trim()
 
   // Grow with the text up to MAX_LINES, then scroll.
   useLayoutEffect(() => {
@@ -115,6 +118,23 @@ export function Composer() {
         }}
       >
         {dragging && <div className="drop-hint">Drop to attach: text, images and PDFs</div>}
+        {pending && (
+          <div className="pending-chip" title={pending}>
+            <SlidersIcon size={13} />
+            <span>Instruction change goes with this message: {pending}</span>
+            <button
+              className="attach-remove"
+              aria-label="Drop the instruction change"
+              onClick={() => {
+                const s = useStore.getState()
+                if (target !== 'b') void s.updateSettings({ pendingInstruction: '' }, 'a')
+                if (target !== 'a' && split) void s.updateSettings({ pendingInstruction: '' }, 'b')
+              }}
+            >
+              <CloseIcon size={11} />
+            </button>
+          </div>
+        )}
         {attachments.length > 0 && (
           <div className="tw-attach">
             {attachments.map((a, i) => (

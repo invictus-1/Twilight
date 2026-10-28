@@ -107,6 +107,11 @@ export interface ChatSettings {
   choicePlain: boolean
   /** Add Twilight's short how-to to the system prompt: for the tool if it's on, else for choices blocks. */
   choiceInstructions: boolean
+  /**
+   * Instructions to add from the next message on. They go into that message (not the system
+   * prompt), so the cached conversation before it stays valid.
+   */
+  pendingInstruction: string
 }
 
 /** A saved set of model settings. */
@@ -170,6 +175,8 @@ export interface NodeView {
   attachments?: { name: string; chars: number; kind?: AttachmentKind; bytes?: number }[]
   /** Choices the model offered with a present_choices tool call. */
   toolChoices?: ChoiceSet
+  /** Instructions added mid-chat with this message. */
+  instructionUpdate?: string
 }
 
 export interface ConversationSummary {

@@ -1,4 +1,5 @@
 import { CHOICES_TOOL } from '@shared/choices'
+import { isContextText } from '@shared/attachments'
 import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
 import type { NodeRow } from '../db'
 import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
@@ -121,10 +122,10 @@ export const openaiProvider: Provider = {
       if (node.role === 'user' && pendingCalls.length) {
         // The reader's answer to a present_choices call goes back as the call's result; attached
         // documents follow as an ordinary user message.
-        const answer = blocks.filter((b) => !b.text.startsWith('<document name=')).map((b) => b.text).join('\n\n') || node.text
+        const answer = blocks.filter((b) => !isContextText(b.text)).map((b) => b.text).join('\n\n') || node.text
         pendingCalls.forEach((call, i) => messages.push({ role: 'tool', tool_call_id: call.id, content: i === 0 ? answer : 'Answered with the first call.' }))
         pendingCalls = []
-        const docs = blocks.filter((b) => b.text.startsWith('<document name=')).map((b) => b.text).join('\n\n')
+        const docs = blocks.filter((b) => isContextText(b.text)).map((b) => b.text).join('\n\n')
         if (docs || mediaParts(node).length) messages.push({ role: 'user', content: withMedia(node, docs) })
         continue
       }

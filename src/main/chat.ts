@@ -7,6 +7,7 @@ import { appendLog } from './logs'
 import { describeAnthropicError } from './providers/anthropic'
 import { toWorkspace, workspaceSystemPrompt } from './workspaces'
 import { CHOICES_INSTRUCTION, CHOICES_TOOL_INSTRUCTION } from '@shared/choices'
+import { instructionBlock, isContextText } from '@shared/attachments'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -25,7 +26,8 @@ const DEFAULT_SETTINGS: ChatSettings = {
   choiceTool: false,
   choiceFenced: true,
   choicePlain: true,
-  choiceInstructions: true
+  choiceInstructions: true,
+  pendingInstruction: ''
 }
 
 /** The system prompt actually sent: the pane's own, plus the choice how-to when choices are on and it's wanted. */
@@ -185,6 +187,9 @@ export function send(
   ]
   const nodes = db.loadNodes(id)
   const userNodes = targets.map((pane) => {
+    // A queued instruction change goes in front of this message, once, in this pane.
+    const pending = settingsFor(conv, pane).pendingInstruction.trim()
+    if (pending) updateSettings(id, { pendingInstruction: '' }, pane)
     const user = db.insertNode(
       {
         id: randomUUID(),
@@ -192,7 +197,7 @@ export function send(
         parent_id: leafOf(conv, nodes, pane),
         role: 'user',
         text,
-        content: JSON.stringify(content),
+        content: JSON.stringify(pending ? [{ type: 'text', text: instructionBlock(pending) }, ...content] : content),
         thinking: null,
         model: null,
         provider_id: null,
@@ -338,7 +343,7 @@ export function editMessage(contents: WebContents, id: string, nodeId: string, t
   if (node.role === 'user') {
     // Keep its attached documents; replace what was typed.
     const blocks = node.content ? (JSON.parse(node.content) as { type: string; text?: string }[]) : []
-    const docs = blocks.filter((b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && b.text?.startsWith('<document name=')))
+    const docs = blocks.filter((b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text)))
     edited = db.insertNode(
       { ...base, role: 'user', content: JSON.stringify([...docs, ...(text ? [{ type: 'text', text }] : [])]), model: null, provider_id: null, attachments: node.attachments ?? null },
       { activate: pane === 'a' }

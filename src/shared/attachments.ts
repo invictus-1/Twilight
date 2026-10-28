@@ -35,5 +35,16 @@ export function tooBig(kind: AttachmentKind, bytes: number, name: string): strin
   return kind === 'image' ? `${name} is over ${mb} MB, the limit for an image.` : `${name} is over ${mb} MB.`
 }
 
+/**
+ * Text blocks that ride along with a message rather than being what was typed: attached documents
+ * and mid-chat instruction updates. After a tool call they follow the tool result.
+ */
+export const INSTRUCTION_OPEN = '<instruction_update>'
+export const isContextText = (text: string): boolean => text.startsWith('<document name=') || text.startsWith(INSTRUCTION_OPEN)
+export const instructionBlock = (text: string): string => `${INSTRUCTION_OPEN}\nFrom this message on, also follow these instructions; where they conflict with earlier ones, these win.\n\n${text.trim()}\n</instruction_update>`
+/** The instruction text inside a stored block, for showing it. */
+export const instructionOf = (block: string): string =>
+  block.slice(block.indexOf('\n\n') + 2).replace(/\n<\/instruction_update>$/, '')
+
 export const formatBytes = (n: number): string =>
   n < 1024 ? `${n} B` : n < 1024 * 1024 ? `${Math.round(n / 1024)} KB` : `${(n / 1024 / 1024).toFixed(1)} MB`

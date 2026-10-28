@@ -1,3 +1,4 @@
+import { INSTRUCTION_OPEN, instructionOf } from '@shared/attachments'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { CHOICES_TOOL_NAME, choicesFromTool, type ChoiceSet } from '@shared/choices'
@@ -392,8 +393,15 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
     siblingIndex: siblings.findIndex((s) => s.id === node.id),
     siblingCount: siblings.length,
     attachments: node.attachments ? JSON.parse(node.attachments) : undefined,
-    toolChoices: node.role === 'assistant' ? (toolChoicesOf(node.content) ?? undefined) : undefined
+    toolChoices: node.role === 'assistant' ? (toolChoicesOf(node.content) ?? undefined) : undefined,
+    instructionUpdate: node.role === 'user' ? instructionUpdateOf(node.content) : undefined
   }
+}
+
+function instructionUpdateOf(content: string | null): string | undefined {
+  if (!content || !content.includes(INSTRUCTION_OPEN)) return undefined
+  const block = (JSON.parse(content) as { type: string; text?: string }[]).find((b) => b.type === 'text' && b.text?.startsWith(INSTRUCTION_OPEN))
+  return block?.text ? instructionOf(block.text) : undefined
 }
 
 /** Choices offered by a present_choices call, in Claude's blocks or an OpenAI-style tool_calls block. */

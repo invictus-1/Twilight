@@ -10,7 +10,7 @@ import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
-import { AlertIcon, BranchIcon, ChevronLeft, ImageIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
+import { AlertIcon, BranchIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -125,6 +125,14 @@ function UserMessage({ node }: { node: NodeView }) {
       </span>
       <BranchSwitcher node={node} />
       <div className="tw-msg-user">
+        {node.instructionUpdate && (
+          <div className="msg-attachments">
+            <span className="tw-badge attach-chip instruction-chip" title={node.instructionUpdate}>
+              <SlidersIcon size={13} />
+              Instructions updated
+            </span>
+          </div>
+        )}
         {node.attachments && node.attachments.length > 0 && (
           <div className="msg-attachments">
             {node.attachments.map((a, i) => (

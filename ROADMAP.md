@@ -11,6 +11,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Branch into a new chat** · Chat — start a new chat from any reply, cache intact
 - [x] **Choice card keys** · Chat — pick with 1–9, ask for more options, and a default for adventure workspaces
 - [x] **Syntax highlighting** · Chat — for code blocks, in every theme
+- [x] **Instruction changes mid-chat** · Chat — change the instructions from the next message on, cache intact
 - [x] **PDFs and images** · Chat — attach them (Claude reads them natively), drop files on the composer, paste screenshots
 - [x] **Document picker** · Writing — attach documents from the writing folder
 - [x] **Folder management** · Writing — rename and remove documents and folders in Twilight
@@ -69,7 +70,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 0.4** · Core — fixes from real use of Writer insights, the updater and the Tools menu
-- [ ] **Instruction changes mid-chat** · Chat — change the instructions without breaking the cache
 - [ ] **Your own prices** · Chat — an editable price list, and OpenRouter's reported cost
 - [ ] **Judge leaderboard** · Judge — a running tally across judgments, and more than two passages at once
 - [ ] **Code signing** · Core — a signed installer, so Windows doesn't warn
