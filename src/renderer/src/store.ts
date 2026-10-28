@@ -21,6 +21,7 @@ interface State {
   defaults: ChatSettings | null
   /** Where the composer sends while split compare is open. */
   target: SendTarget
+  mode: 'chat' | 'write'
   sidebarOpen: boolean
   settingsOpen: boolean
   error: string | null
@@ -38,6 +39,8 @@ interface State {
   cloneIntoSplit(nodeId?: string): Promise<void>
   closeSplit(keep: Pane): Promise<void>
   setTarget(target: SendTarget): void
+  setMode(mode: 'chat' | 'write'): void
+  setDefaultModel(providerId: string, modelId: string): Promise<void>
   deleteChat(id: string): Promise<void>
   renameChat(id: string, title: string): Promise<void>
   applyDone(conversationId: string, node: NodeView): void
@@ -72,6 +75,7 @@ export const useStore = create<State>((set, get) => {
     providers: [],
     defaults: null,
     target: 'both',
+    mode: 'chat',
     sidebarOpen: true,
     settingsOpen: false,
     error: null,
@@ -142,6 +146,10 @@ export const useStore = create<State>((set, get) => {
     cloneIntoSplit: (nodeId) => withCurrent((id) => api.cloneIntoSplit(id, nodeId)),
     closeSplit: (keep) => withCurrent((id) => api.closeSplit(id, keep)),
     setTarget: (target) => set({ target }),
+    setMode: (mode) => set({ mode }),
+    async setDefaultModel(providerId, modelId) {
+      set({ defaults: await api.setDefaults({ providerId, modelId }) })
+    },
 
     async deleteChat(id) {
       await api.deleteConversation(id)

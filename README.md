@@ -27,6 +27,16 @@ Add an Anthropic API key, or start Ollama / LM Studio, under **Settings → Prov
 
 Each chat is a tree of messages under a hidden root that holds the system prompt. Regenerating adds a sibling instead of overwriting, and the thread is the path of "active" children. That keeps every request append-only.
 
+### Split compare
+
+Pane B is a second branch of the same tree: "Clone into split" (Ctrl+Shift+S, or the split icon on a reply) copies the conversation at that point, history, system prompt and settings included. Change B's model, then send to A, B or Both (Alt+1/2/3). B's branches never move pane A; "Keep A" or "Keep B" closes the split and continues on that branch, with the other still reachable from the version switcher. When both panes use the same model, B waits for A's first token so it reads A's prompt cache.
+
+### Writing
+
+Documents are plain `.md` files in a folder you choose (it defaults to `Documents\Twilight`; an Obsidian vault works as is, and both apps can edit the same files). The editor is CodeMirror 6, the engine Obsidian uses; it loads on first use, opens a 115k-word manuscript in about 35ms, autosaves atomically, and picks up edits made outside Twilight when the window regains focus.
+
+Select text for the writing tools: Ask (Ctrl+J), Rewrite, Tighten, Expand and Tone. The result streams in as a suggestion: a word diff shown in place, which changes nothing until you accept it (Alt+Enter) or reject it (Alt+Backspace or Esc). The tools use the default model at low effort with about 1,000 words of surrounding context.
+
 ### Prompt caching
 
 Caching is a prefix match, so requests are built to be the previous request plus new turns:
@@ -43,4 +53,9 @@ Every reply shows its cost, token count and how much of the prompt was read from
 
 Messages render with `content-visibility: auto` and an estimated height so huge chats open fast, inside a plain block container (not flex: a flex column re-lays out every sibling when one message changes size). Once the chat has painted, everything is laid out in one idle pass, so scrolling afterwards does no layout at all.
 
-`TWILIGHT_SELFTEST=<folder> npx electron .` (after `npm run build`) seeds a ~350k-token chat into a throwaway profile, scrolls it top to bottom one step per frame, and writes `selftest.json` and `selftest.png` to the folder.
+### Tests
+
+After `npm run build`, both run in a throwaway profile and never touch your real data:
+
+- `TWILIGHT_SELFTEST=<folder> npx electron .` seeds a ~350k-token chat, scrolls it top to bottom one step per frame, and writes `selftest.json` (frame timings) and `selftest.png`.
+- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (28 checks) and screenshots.

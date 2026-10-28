@@ -4,6 +4,7 @@ import type { AddressInfo } from 'node:net'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import * as chat from './chat'
+import * as docs from './docs'
 import * as providers from './providers'
 
 // Dev-only end-to-end check, run with TWILIGHT_E2E=<output folder> (and a throwaway profile, see
@@ -32,7 +33,11 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       const entry: LoggedRequest = { model: parsed.model, messages: parsed.messages, startedAt: Date.now() }
       log.push(entry)
       const lastUser = [...parsed.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
-      const words = `**${parsed.model}** replying to "${lastUser}". Here is a short answer with a list:\n\n- one\n- two\n\nDone.`.split(/(?<= )/)
+      // Writing tools get a plausible edit of the passage; chats get an echo.
+      const reply = parsed.messages[0]?.content.startsWith('You are a line editor')
+        ? `No one ever saw who lit them (${parsed.model}).`
+        : `**${parsed.model}** replying to "${lastUser}". Here is a short answer with a list:\n\n- one\n- two\n\nDone.`
+      const words = reply.split(/(?<= )/)
       res.writeHead(200, { 'content-type': 'text/event-stream' })
       for (const w of words) {
         await new Promise((r) => setTimeout(r, 8))
@@ -139,12 +144,95 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       v = chat.closeSplit(id, 'b')
       check('keep B: A now follows B', !v.split && v.path.map((n) => n.id).join() === bPath)
       check('keep B: B settings carried over', v.settings.modelId === 'mock-a')
+
+      // 8. Documents: create without overwriting, save, list, and refuse paths outside the folder.
+      const para = 'The lamps came on one street at a time, as if the town were remembering itself. '
+      const chapters: string[] = []
+      for (let c = 1; c <= 40; c++) chapters.push(`# Chapter ${c}\n\n` + Array.from({ length: 60 }, () => para.repeat(3)).join('\n\n'))
+      const big = await docs.createDoc('Big manuscript')
+      await docs.writeDoc(big.path, chapters.join('\n\n'))
+      const scene = await docs.createDoc('Scene')
+      await docs.writeDoc(scene.path, 'Nobody had ever seen who lit them. Wren stopped on the bridge to count them.\n')
+      const second = await docs.createDoc('Scene')
+      check('new doc never overwrites', second.path === 'Scene 2.md', second.path)
+      const listed = (await docs.listDocs()).map((d) => d.path)
+      check('docs listed', ['Big manuscript.md', 'Scene.md', 'Scene 2.md'].every((p) => listed.includes(p)), listed)
+      check('reading outside the folder is refused', await docs.readDoc('../twilight.db').then(() => false, () => true))
+      check('writing a non-markdown file is refused', await docs.writeDoc('notes.txt', 'x').then(() => false, () => true))
+
+      // 9. Open the ~108k-word manuscript in the editor, time it, and scroll it.
+      const big100k = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const frame = () => new Promise((r) => requestAnimationFrame(r))
+        document.querySelector('[data-mode="write"]').click()
+        for (let i = 0; i < 500 && !document.querySelector('.doc-item[data-path="Big manuscript.md"]'); i++) await wait(10)
+        await wait(300)
+        const t0 = performance.now()
+        document.querySelector('.doc-item[data-path="Big manuscript.md"]').click()
+        while (!document.querySelector('.cm-content .cm-line')) await wait(1)
+        await frame()
+        const openMs = performance.now() - t0
+        await wait(400)
+        const el = document.querySelector('.cm-scroller')
+        const times = []
+        let prev = performance.now()
+        while (el.scrollTop + el.clientHeight < el.scrollHeight - 1 && times.length < 5000) {
+          el.scrollTop += 200; await frame(); const now = performance.now(); times.push(now - prev); prev = now
+        }
+        const s = [...times].sort((a, b) => a - b)
+        return {
+          openMs: Math.round(openMs), status: document.querySelector('.doc-status')?.textContent,
+          frames: times.length, p50: +s[Math.floor(s.length * 0.5)].toFixed(2), p99: +s[Math.floor(s.length * 0.99)].toFixed(2),
+          max: +s[s.length - 1].toFixed(2), framesOver6ms: times.filter((t) => t > 6.3).length, reachedEnd: el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+        }
+      })()`)
+      check('100k-word manuscript opens fast', big100k.openMs < 500, big100k)
+      const expectedWords = chapters.join('\n\n').match(/\S+/g)!.length
+      check('word count shown', (big100k.status ?? '').startsWith(`${expectedWords.toLocaleString('en-US')} words`), [big100k.status, expectedWords])
+
+      // 10. Writing tool round trip: select a sentence, Tighten, see the diff, accept, autosave.
+      const tool = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('.doc-item[data-path="Scene.md"]').click()
+        for (let i = 0; i < 500 && !(window.__twilightEditor && window.__twilightEditor.state.doc.toString().startsWith('Nobody')); i++) await wait(10)
+        const v = window.__twilightEditor
+        v.focus()
+        v.dispatch({ selection: { anchor: 0, head: 34 } })
+        await wait(150)
+        const btn = [...document.querySelectorAll('.tw-seltool button')].find((b) => b.textContent === 'Tighten')
+        if (!btn) return { step: 'no toolbar' }
+        btn.click()
+        for (let i = 0; i < 500 && !document.querySelector('.tw-btn-accept'); i++) await wait(10)
+        if (!document.querySelector('.tw-btn-accept')) return { step: 'no suggestion', bar: document.querySelector('.tw-suggest')?.textContent }
+        await wait(300)
+        return {
+          step: 'ready', del: !!document.querySelector('.tw-del'), ins: !!document.querySelector('.tw-ins'),
+          docUnchanged: v.state.doc.toString().startsWith('Nobody had ever seen'),
+          barText: document.querySelector('.tw-suggest')?.textContent
+        }
+      })()`)
+      check('suggestion bar settles on Accept', /Accept/.test(tool.barText ?? '') && !/Stop/.test(tool.barText ?? ''), tool.barText)
+      check('tool streams a suggestion', tool.step === 'ready', tool)
+      check('suggestion shows a diff', tool.del && tool.ins, tool)
+      check('manuscript unchanged until accept', tool.docUnchanged === true)
+      writeFileSync(join(outDir, 'e2e-writing.png'), (await win.webContents.capturePage()).toPNG())
+      await win.webContents.executeJavaScript(`document.querySelector('.tw-btn-accept').click()`)
+      await new Promise((r) => setTimeout(r, 1500))
+      const saved = await docs.readDoc(scene.path)
+      check(
+        'accepted text autosaved to disk',
+        saved.text.startsWith('No one ever saw who lit them (mock-a). Wren stopped on the bridge'),
+        saved.text.slice(0, 120)
+      )
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {
       server?.close()
       const failed = checks.filter((c) => !c.pass).length
-      writeFileSync(join(outDir, 'e2e.json'), JSON.stringify({ passed: checks.length - failed, failed, checks }, null, 2))
+      writeFileSync(
+        join(outDir, 'e2e.json'),
+        JSON.stringify({ passed: checks.length - failed, failed, failures: checks.filter((c) => !c.pass), checks }, null, 2)
+      )
       app.quit()
     }
   })

@@ -25,6 +25,14 @@ const methods: Exclude<keyof TwilightApi, 'onStream'>[] = [
   'listModels',
   'getDefaults',
   'setDefaults',
+  'getWritingFolder',
+  'chooseWritingFolder',
+  'listDocs',
+  'readDoc',
+  'writeDoc',
+  'createDoc',
+  'runWritingTool',
+  'stopWritingTool',
   'openExternal'
 ]
 

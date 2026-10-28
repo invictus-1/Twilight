@@ -98,6 +98,29 @@ export type StreamEvent =
   | { kind: 'thinking'; conversationId: string; nodeId: string; delta: string }
   | { kind: 'done'; conversationId: string; nodeId: string; node: NodeView }
 
+/** A markdown file in the writing folder. `path` is relative to the folder, with forward slashes. */
+export interface DocEntry {
+  path: string
+  name: string
+  mtime: number
+  size: number
+}
+
+export interface DocContent {
+  path: string
+  text: string
+  mtime: number
+}
+
+/** A writing-tool run on a selected passage. */
+export interface WritingRequest {
+  instruction: string
+  passage: string
+  before: string
+  after: string
+  title: string
+}
+
 export interface TwilightApi {
   listConversations(): Promise<ConversationSummary[]>
   createConversation(): Promise<ConversationView>
@@ -121,6 +144,17 @@ export interface TwilightApi {
   listModels(refresh?: boolean): Promise<ModelInfo[]>
   getDefaults(): Promise<ChatSettings>
   setDefaults(patch: Partial<ChatSettings>): Promise<ChatSettings>
+
+  getWritingFolder(): Promise<string>
+  chooseWritingFolder(): Promise<string | null>
+  listDocs(): Promise<DocEntry[]>
+  readDoc(path: string): Promise<DocContent>
+  /** Saves atomically; returns the new modified time. */
+  writeDoc(path: string, text: string): Promise<number>
+  createDoc(name: string): Promise<DocEntry>
+  /** Streams a rewrite of the passage as StreamEvents with conversationId "writing" and nodeId = requestId. */
+  runWritingTool(requestId: string, request: WritingRequest): Promise<void>
+  stopWritingTool(requestId: string): Promise<void>
 
   openExternal(url: string): Promise<void>
 }

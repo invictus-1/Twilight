@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import type { ConversationSummary } from '@shared/types'
 import { modelName, useStore } from '../store'
+import { useWriting } from '../writingStore'
 import { PlusIcon, SettingsIcon, TrashIcon } from './Icons'
 
 function relativeTime(ts: number): string {
@@ -62,27 +63,92 @@ const Row = memo(function Row({ c, active, model }: { c: ConversationSummary; ac
   )
 })
 
-export function Sidebar() {
+function ChatList() {
   const conversations = useStore((s) => s.conversations)
   const currentId = useStore((s) => s.current?.id)
   const models = useStore((s) => s.models)
+  return (
+    <div className="sidebar-list">
+      {conversations.map((c) => (
+        <Row key={c.id} c={c} active={c.id === currentId} model={modelName(models, c.modelId)} />
+      ))}
+      {conversations.length === 0 && <p className="sidebar-empty">No chats yet.</p>}
+    </div>
+  )
+}
+
+function DocList() {
+  const docs = useWriting((s) => s.docs)
+  const openPath = useWriting((s) => s.open?.path)
+  const folder = useWriting((s) => s.folder)
+  const error = useWriting((s) => s.error)
+  return (
+    <>
+      <div className="sidebar-list">
+        {docs.map((d) => {
+          const dir = d.path.includes('/') ? d.path.slice(0, d.path.lastIndexOf('/')) : ''
+          return (
+            <div
+              key={d.path}
+              className="tw-conv doc-item"
+              data-path={d.path}
+              aria-current={d.path === openPath ? 'true' : undefined}
+              onClick={() => void useWriting.getState().openDoc(d.path)}
+            >
+              <span className="tw-conv-title">{d.name}</span>
+              <span className="tw-conv-meta">
+                {dir ? `${dir} · ` : ''}
+                {relativeTime(d.mtime)}
+              </span>
+            </div>
+          )
+        })}
+        {docs.length === 0 && <p className="sidebar-empty">{error ?? 'No documents yet.'}</p>}
+      </div>
+      <button className="folder-btn" title={`${folder}\nClick to choose another folder (an Obsidian vault works)`} onClick={() => void useWriting.getState().chooseFolder()}>
+        <span className="folder-label">Folder</span>
+        <span className="folder-path">{folder}</span>
+      </button>
+    </>
+  )
+}
+
+export function Sidebar() {
+  const mode = useStore((s) => s.mode)
+  const setMode = useStore((s) => s.setMode)
   const newChat = useStore((s) => s.newChat)
   const setSettingsOpen = useStore((s) => s.setSettingsOpen)
 
   return (
-    <nav className="sidebar" aria-label="Conversations">
+    <nav className="sidebar" aria-label={mode === 'chat' ? 'Conversations' : 'Documents'}>
       <div className="sidebar-head drag">
         <span className="brand">Twilight</span>
-        <button className="tw-btn tw-btn-ghost tw-btn-icon no-drag" aria-label="New chat (Ctrl+N)" title="New chat (Ctrl+N)" onClick={() => void newChat()}>
+        <button
+          className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
+          aria-label={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
+          title={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
+          onClick={() => void (mode === 'chat' ? newChat() : useWriting.getState().newDoc())}
+        >
           <PlusIcon />
         </button>
       </div>
-      <div className="sidebar-list">
-        {conversations.map((c) => (
-          <Row key={c.id} c={c} active={c.id === currentId} model={modelName(models, c.modelId)} />
-        ))}
-        {conversations.length === 0 && <p className="sidebar-empty">No chats yet.</p>}
+      <div className="mode-tabs" role="tablist">
+        <button role="tab" data-mode="chat" aria-selected={mode === 'chat'} onClick={() => setMode('chat')}>
+          Chats
+        </button>
+        <button
+          role="tab"
+          data-mode="write"
+          aria-selected={mode === 'write'}
+          onClick={() => {
+            setMode('write')
+            void useWriting.getState().refresh()
+          }}
+        >
+          Writing
+        </button>
       </div>
+      {mode === 'chat' ? <ChatList /> : <DocList />}
       <div className="sidebar-foot">
         <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setSettingsOpen(true)}>
           <SettingsIcon />

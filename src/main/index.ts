@@ -1,8 +1,10 @@
 import { app, BrowserWindow, ipcMain, Menu, session, shell } from 'electron'
 import { join } from 'node:path'
-import type { Pane, SendTarget, TwilightApi } from '@shared/types'
+import type { Pane, SendTarget, TwilightApi, WritingRequest } from '@shared/types'
 import * as chat from './chat'
 import * as db from './db'
+import * as docs from './docs'
+import * as writing from './writing'
 import * as providers from './providers'
 import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
@@ -55,8 +57,10 @@ function createWindow(): BrowserWindow {
     return { action: 'deny' }
   })
   win.webContents.on('will-navigate', (event) => event.preventDefault())
-  if (devUrl) void win.loadURL(devUrl)
-  else void win.loadFile(join(__dirname, '../renderer/index.html'))
+  // "#e2e" lets the end-to-end test reach the editor; it does nothing otherwise.
+  const hash = e2eDir ? 'e2e' : undefined
+  if (devUrl) void win.loadURL(hash ? `${devUrl}#${hash}` : devUrl)
+  else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash })
   return win
 }
 
@@ -92,6 +96,14 @@ function registerIpc(): void {
     listModels: (_e, refresh?: boolean) => providers.listModels(refresh),
     getDefaults: () => chat.getDefaults(),
     setDefaults: (_e, patch) => chat.setDefaults(patch),
+    getWritingFolder: () => docs.writingFolder(),
+    chooseWritingFolder: (e) => docs.chooseWritingFolder(BrowserWindow.fromWebContents(e.sender)),
+    listDocs: () => docs.listDocs(),
+    readDoc: (_e, path: string) => docs.readDoc(path),
+    writeDoc: (_e, path: string, text: string) => docs.writeDoc(path, text),
+    createDoc: (_e, name: string) => docs.createDoc(name),
+    runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
+    stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
     openExternal: async (_e, url: string) => {
       if (isWebUrl(url)) await shell.openExternal(url)
     }
@@ -103,6 +115,8 @@ function registerIpc(): void {
 
 app.whenReady().then(() => {
   db.openDatabase(join(app.getPath('userData'), 'twilight.db'))
+  // Tests keep their documents in the throwaway profile, never in the real Documents folder.
+  if (selfTestDir || e2eDir) db.kvSet('writingFolder', join(app.getPath('userData'), 'vault'))
   if (!devUrl) Menu.setApplicationMenu(null)
   lockDownNetwork()
   registerIpc()
