@@ -248,6 +248,7 @@ function registerIpc(): void {
     runFocus: () => insightsAi.runFocus(),
     runNotes: () => insightsAi.runNotes(),
     stopAi: () => insightsAi.stop(),
+    forgetAiResult: (_e, kind: 'story' | 'focus' | 'notes', at: number) => insightsAi.forget(kind, at),
     exportReport: async (_e, kind: reports.ReportKind, includeAi: boolean, open: boolean) => {
       const file = await reports.exportReport(kind, includeAi)
       if (open) await reports.openReport(file)

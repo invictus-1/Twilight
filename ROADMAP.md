@@ -4,6 +4,11 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 0.5.0 · In progress
+- [x] **Earlier results** · Writing — every AI page keeps its past results to read again
+- [x] **Parallel deep scans** · Writing — 1 to 10 calls at once, finished by the same model
+- [x] **Cheaper rescans** · Writing — parts are cut by the text itself, so an edit only re-reads its own part
+
 ### 0.4.0 · October 2026
 - [x] **Writer insights** · Writing — dashboard, heatmap, word analysis and characters for the whole writing folder, counted as files grow
 - [x] **Achievements** · Writing — 43 of them, earned quietly, one notice at a time

@@ -23,7 +23,7 @@ import { describeAnthropicError } from './providers/anthropic'
 const CHUNK_WORDS = 15_000
 const SAMPLE_EXCERPTS = 10
 const EXCERPT_WORDS = 2_500
-const CONCURRENCY = 3
+const HISTORY = 30
 
 const CATEGORIES = ['Adult Content', 'Drama', 'Action', 'Romance', 'Slice of Life', 'War/Conflict', 'Worldbuilding', 'Sci-Fi', 'Fantasy', 'Mystery', 'Horror', 'Comedy']
 
@@ -74,14 +74,39 @@ let running: AiState['running'] = null
 let lastError: string | null = null
 
 function config(): AiConfig {
-  const saved = db.kvGet<AiConfig>('insights.ai.config')
-  if (saved) return saved
+  const saved = db.kvGet<Partial<AiConfig>>('insights.ai.config')
   const d = getDefaults()
-  return { providerId: d.providerId, modelId: d.modelId, effort: null }
+  return { providerId: d.providerId, modelId: d.modelId, effort: null, parallel: 3, ...saved }
 }
 
 export function setConfig(cfg: AiConfig): AiState {
-  db.kvSet('insights.ai.config', cfg)
+  db.kvSet('insights.ai.config', { ...cfg, parallel: Math.min(10, Math.max(1, Math.round(cfg.parallel || 3))) })
+  return state()
+}
+
+type History = AiState['history']
+
+/** Every result kept, newest first; results from before history existed are folded in once. */
+function history(): History {
+  const saved = db.kvGet<History>('insights.ai.history')
+  if (saved) return saved
+  const latest = db.kvGet<Record<string, StoryAnalysis>>('insights.ai.story') ?? {}
+  const focus = db.kvGet<FocusResult>('insights.ai.focus')
+  const notes = db.kvGet<WritingNotes>('insights.ai.notes')
+  return { story: Object.values(latest).sort((a, b) => b.at - a.at), focus: focus ? [focus] : [], notes: notes ? [notes] : [] }
+}
+
+function remember<K extends keyof History>(kind: K, result: History[K][number]): void {
+  const h = history()
+  // The first time, the folded-in latest result can be this very one: keep it once.
+  const rest = (h[kind] as { at: number }[]).filter((r) => r.at !== result.at)
+  db.kvSet('insights.ai.history', { ...h, [kind]: [result, ...rest].slice(0, HISTORY) })
+}
+
+/** Forgets one earlier result (by its time); the latest of each kind stays until replaced. */
+export function forget(kind: keyof History, at: number): AiState {
+  const h = history()
+  db.kvSet('insights.ai.history', { ...h, [kind]: (h[kind] as { at: number }[]).filter((r) => r.at !== at) })
   return state()
 }
 
@@ -91,6 +116,7 @@ export function state(): AiState {
     story: db.kvGet<Record<string, StoryAnalysis>>('insights.ai.story') ?? {},
     focus: db.kvGet<FocusResult>('insights.ai.focus') ?? null,
     notes: db.kvGet<WritingNotes>('insights.ai.notes') ?? null,
+    history: history(),
     running,
     error: lastError
   }
@@ -193,23 +219,37 @@ function progress(done: number, total: number): void {
 
 const countWords = (s: string): number => s.split(/\s+/).filter(Boolean).length
 
-/** Splits text into chunks of about CHUNK_WORDS words at paragraph breaks. */
+/** A quick 32-bit hash of a paragraph (FNV-1a), for choosing where chunks end. */
+function fnv(text: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 0x01000193)
+  return h >>> 0
+}
+
+/**
+ * Splits text into chunks of about `size` words at paragraph breaks. Where a chunk ends is decided
+ * by the paragraphs themselves (one whose hash hits a pattern, once the chunk is big enough), not
+ * by counting from the top, so an edit only changes the chunk it's in: the rest keep their exact
+ * text, and a rescan doesn't pay for them again.
+ */
 function chunk(text: string, size: number): string[] {
+  const min = size * 0.6
+  const max = size * 1.5
   const out: string[] = []
   let current: string[] = []
   let words = 0
   for (const para of text.split(/\n\s*\n/)) {
-    const n = countWords(para)
-    if (words && words + n > size) {
+    if (!para.trim()) continue
+    current.push(para)
+    words += countWords(para)
+    if (words >= max || (words >= min && fnv(para) % 12 === 0)) {
       out.push(current.join('\n\n'))
       current = []
       words = 0
     }
-    current.push(para)
-    words += n
   }
   if (current.length) out.push(current.join('\n\n'))
-  return out.filter((c) => c.trim())
+  return out
 }
 
 async function sources(scope: string): Promise<{ path: string; text: string }[]> {
@@ -333,7 +373,7 @@ export function runStory(mode: 'quick' | 'deep', scope: string): Promise<AiState
           progress(++done, chunks.length + 1)
         }
       }
-      await Promise.all(Array.from({ length: CONCURRENCY }, worker))
+      await Promise.all(Array.from({ length: cfg.parallel }, worker))
       if (signal.aborted) throw new Error('Stopped.')
 
       // Merge: categories weighted by words; genres by the share of words they appear in.
@@ -377,6 +417,7 @@ export function runStory(mode: 'quick' | 'deep', scope: string): Promise<AiState
     }
     const all = db.kvGet<Record<string, StoryAnalysis>>('insights.ai.story') ?? {}
     db.kvSet('insights.ai.story', { ...all, [scope]: result })
+    remember('story', result)
   })
 }
 
@@ -430,6 +471,7 @@ export function runFocus(): Promise<AiState> {
         : []
     }
     db.kvSet('insights.ai.focus', result)
+    remember('focus', result)
     progress(1, 1)
   })
 }
@@ -464,6 +506,7 @@ export function runNotes(): Promise<AiState> {
       nextStep: String(j.nextStep ?? '')
     }
     db.kvSet('insights.ai.notes', result)
+    remember('notes', result)
     progress(1, 1)
   })
 }

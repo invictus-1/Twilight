@@ -103,7 +103,8 @@ export function analyzeText(raw: string, characters: TrackedCharacter[] = []): D
       const lower = w.toLowerCase()
       if (!/^\p{N}+$/u.test(w)) result.vocab[lower] = (result.vocab[lower] ?? 0) + 1
       if (lower.length > 4 && lower.endsWith('ly') && !NOT_ADVERBS.has(lower)) result.adverbs++
-      if (!sentenceStart && /^\p{Lu}\p{Ll}+$/u.test(w) && !NOT_NAMES.has(w)) result.names[w] = (result.names[w] ?? 0) + 1
+      // Common words ("The" after an opening quote, say) are capitalised mid-sentence too; they're never names.
+      if (!sentenceStart && /^\p{Lu}\p{Ll}+$/u.test(w) && !NOT_NAMES.has(w) && !STOPWORDS.has(lower)) result.names[w] = (result.names[w] ?? 0) + 1
       sentenceStart = false
     }
     // Tracked characters: mentions, and who shares a paragraph with whom.
@@ -240,6 +241,8 @@ export interface AiConfig {
   providerId: string
   modelId: string
   effort: string | null
+  /** Deep scan calls sent at once, 1–10. */
+  parallel: number
 }
 
 export interface StoryAnalysis {
@@ -277,9 +280,12 @@ export interface WritingNotes {
 
 export interface AiState {
   config: AiConfig
+  /** The latest result of each kind (story by scope). */
   story: Record<string, StoryAnalysis>
   focus: FocusResult | null
   notes: WritingNotes | null
+  /** Earlier results too, newest first, to look back on. */
+  history: { story: StoryAnalysis[]; focus: FocusResult[]; notes: WritingNotes[] }
   running: { kind: 'story' | 'focus' | 'notes'; done: number; total: number; scope?: string } | null
   error: string | null
 }

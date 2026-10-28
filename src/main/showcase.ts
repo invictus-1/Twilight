@@ -382,7 +382,7 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
       db.kvSet('insights.since', insights.dayOf(new Date(today.getFullYear(), today.getMonth(), today.getDate() - 34)))
       db.kvSet('insights.hours', [120, 40, 0, 0, 0, 0, 0, 80, 300, 420, 380, 260, 180, 220, 310, 290, 340, 520, 760, 1480, 2210, 2650, 1890, 640])
       await insights.scan()
-      insightsAi.setConfig({ providerId: 'demo', modelId: 'demo-editor', effort: null })
+      insightsAi.setConfig({ providerId: 'demo', modelId: 'demo-editor', effort: null, parallel: 3 })
       await insightsAi.runStory('quick', '')
       await insightsAi.runFocus()
       await insightsAi.runNotes()

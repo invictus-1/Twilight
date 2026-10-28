@@ -1,7 +1,7 @@
 import { app, type BrowserWindow } from 'electron'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { writeFileSync } from 'node:fs'
+import { appendFileSync, writeFileSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { logsFolder } from './logs'
 import { join } from 'node:path'
@@ -188,7 +188,12 @@ async function idle(id: string): Promise<void> {
 
 export function runE2E(win: BrowserWindow, outDir: string): void {
   const checks: { name: string; pass: boolean; detail?: unknown }[] = []
-  const check = (name: string, pass: boolean, detail?: unknown): void => void checks.push({ name, pass, detail })
+  // Each check is also appended to progress.log as it happens, so a run that hangs shows where.
+  const check = (name: string, pass: boolean, detail?: unknown): void => {
+    checks.push({ name, pass, detail })
+    appendFileSync(join(outDir, 'progress.log'), `${pass ? 'ok  ' : 'FAIL'} ${name}
+`)
+  }
   const log: LoggedRequest[] = []
 
   win.webContents.once('did-finish-load', async () => {
@@ -1022,7 +1027,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards > 10 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-roadmap.png'), img.toPNG()), () => undefined)
 
@@ -1143,7 +1148,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
 
       // 34. Insights AI pages: deep scan in chunks (cached by text), quick sample, focus, notes;
       // reports; and the Ultraviolet theme.
-      insightsAi.setConfig({ providerId: 'mock', modelId: 'mock-a', effort: null })
+      insightsAi.setConfig({ providerId: 'mock', modelId: 'mock-a', effort: null, parallel: 4 })
       const est1 = await insightsAi.estimate('deep', '')
       check('deep scan estimate counts chunks plus the closing call', est1.calls >= 3 && est1.cached === 0 && est1.words > 100000, est1)
       const beforeDeep = log.length
@@ -1155,6 +1160,13 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('genres, tags and themes merged', (deep?.genres.length ?? 0) >= 2 && deep?.tags[0]?.subtags.length > 0 && deep?.themes.length === 2 && !!deep?.summary, deep)
       const est2 = await insightsAi.estimate('deep', '')
       check('a rescan only pays for text that changed', est2.cached === est1.calls - 1 && est2.calls === 1, est2)
+      // An edit near the top of a long manuscript changes the part it's in, not every part after it.
+      const bigText = (await docs.readDoc(big.path)).text
+      await docs.writeDoc(big.path, `A new opening line, added after the scan.\n\n${bigText}`)
+      const est3 = await insightsAi.estimate('deep', '')
+      check('an early edit re-reads one part, not the rest', est3.calls <= 3 && est3.cached >= est1.calls - 3, { calls: est3.calls, cached: est3.cached, total: est1.calls - 1 })
+      await docs.writeDoc(big.path, bigText)
+      check('the parallel setting is kept', insightsAi.state().config.parallel === 4)
       const beforeQuick = log.length
       aiState = await insightsAi.runStory('quick', '')
       check('quick sample is one call', log.length - beforeQuick === 1 && aiState.story['']?.mode === 'quick' && aiState.story['']?.genres[0]?.name === 'Fantasy', aiState.story[''])
@@ -1165,6 +1177,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const notesReq = JSON.stringify(log[beforeNotes]?.messages ?? [])
       check('insights notes come back', (aiState.notes?.observations.length ?? 0) === 2 && !!aiState.notes?.nextStep, aiState.notes)
       check('insights notes send numbers, not manuscript text', notesReq.includes('words written') && !notesReq.includes('Wren started here') && !notesReq.includes('climbed the stair'))
+      const hist = insightsAi.state().history
+      check('earlier results are kept', hist.story.length === 2 && hist.story[0].mode === 'quick' && hist.story[1].mode === 'deep' && hist.focus.length === 1 && hist.notes.length === 1, { story: hist.story.length })
+      check('an earlier result can be removed', insightsAi.forget('story', hist.story[1].at).history.story.length === 1 && !!insightsAi.state().story[''])
+      await insightsAi.runStory('quick', '')
       const reportFile = await reports.exportReport('week', true)
       const reportHtml = await readFile(reportFile, 'utf8')
       check('a report is one self-contained file', reportHtml.includes('Week in Writing') && !/<script/i.test(reportHtml) && !/https?:\/\//.test(reportHtml.replace(/xmlns="[^"]*"/g, '')), reportFile)

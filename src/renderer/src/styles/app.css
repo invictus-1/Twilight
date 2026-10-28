@@ -393,7 +393,7 @@ body.resizing .resize-handle { pointer-events: auto; }
 
 /* Mode tabs (Chats / Writing) */
 .mode-tabs { display: flex; gap: 2px; margin: 0 var(--space-2) var(--space-2); padding: 2px; background: var(--surface); border-radius: var(--radius-sm); flex: none; }
-.mode-tabs button { flex: 1; height: 26px; border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ink-muted); font-size: 12px; font-weight: 500; cursor: pointer; }
+.mode-tabs button { flex: 1; min-width: 0; padding: 0 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; height: 26px; border: 0; border-radius: var(--radius-xs); background: transparent; color: var(--ink-muted); font-size: 12px; font-weight: 500; cursor: pointer; }
 .mode-tabs button[aria-selected='true'] { background: var(--surface-overlay); color: var(--ink); }
 .mode-tabs button:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .folder-btn { flex: none; display: flex; flex-direction: column; gap: 1px; text-align: left; margin: 0 var(--space-2) var(--space-2); padding: var(--space-2) var(--space-3); background: transparent; border: 1px dashed var(--line); border-radius: var(--radius-sm); cursor: pointer; }
@@ -891,3 +891,11 @@ body.resizing .resize-handle { pointer-events: auto; }
 
 .ins-grid3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); }
 @media (max-width: 1100px) { .ins-grid3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Insights AI: earlier results and parallel calls */
+.ai-history { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.ai-history-pick { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--ink-muted); }
+.ai-history-pick select { height: var(--control-sm); background: var(--surface-raised); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0 var(--space-2); font-size: 13px; }
+.ai-history-viewing { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--warning); }
+.ai-parallel { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--ink-muted); }
+.ai-parallel input { width: 56px; height: var(--control-md); background: var(--surface); color: var(--ink); border: 1px solid var(--line-strong); border-radius: var(--radius-sm); padding: 0 var(--space-2); }

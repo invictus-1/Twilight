@@ -45,9 +45,12 @@ export function App() {
     const t = setTimeout(() => useStore.getState().dismissUndo(), 8000)
     return () => clearTimeout(t)
   }, [undo])
-  const [sidebarWidth, setSidebarWidth] = usePersistentNumber('twilight.sidebarWidth', 264)
+  const [savedSidebarWidth, setSidebarWidth] = usePersistentNumber('twilight.sidebarWidth', 264)
+  // Narrower than this and the four tabs (Chats, Writing, Judge, Insights) no longer fit.
+  const SIDEBAR_MIN = 236
+  const sidebarWidth = Math.max(SIDEBAR_MIN, savedSidebarWidth)
   const sidebarDrag = useDragResize({
-    onMove: (x) => setSidebarWidth(Math.round(Math.min(560, Math.max(200, x)))),
+    onMove: (x) => setSidebarWidth(Math.round(Math.min(560, Math.max(SIDEBAR_MIN, x)))),
     onReset: () => setSidebarWidth(264)
   })
 

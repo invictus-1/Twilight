@@ -3,7 +3,7 @@ import type { AiState, InsightsSummary, StoryAnalysis, StoryEstimate } from '@sh
 import { formatCost } from '@shared/pricing'
 import { useInsights, type InsightsPage } from '../insightsStore'
 import { modelName, optionsFor, useStore } from '../store'
-import { BulbIcon, ChevronDown, ChevronRight, SparkIcon, StopIcon, TargetIcon } from './Icons'
+import { BulbIcon, ChevronDown, ChevronRight, HistoryIcon, SparkIcon, StopIcon, TargetIcon } from './Icons'
 import { ReportsPage as Reports } from './InsightsReports'
 
 // The AI pages of Writer insights: story analysis, focus and insights. Nothing runs until asked,
@@ -97,6 +97,57 @@ function Head({ title, sub, children }: { title: string; sub: string; children?:
     </header>
   )
 }
+
+/** Earlier results of one kind: pick one to read it again, or remove it. */
+function History<T extends { at: number; model: string }>(props: {
+  items: T[]
+  viewing: number | null
+  onView: (at: number | null) => void
+  onForget: (at: number) => void
+  describe?: (item: T) => string
+}) {
+  const { items, viewing } = props
+  if (items.length < 2) return null
+  const models = useStore.getState().models
+  const viewed = items.find((i) => i.at === viewing)
+  return (
+    <div className="ai-history">
+      <label className="ai-history-pick">
+        <HistoryIcon size={14} />
+        <span>Earlier results</span>
+        <select value={viewing ?? items[0].at} onChange={(e) => props.onView(Number(e.target.value) === items[0].at ? null : Number(e.target.value))}>
+          {items.map((item, i) => (
+            <option key={item.at} value={item.at}>
+              {i === 0 ? 'Latest · ' : ''}
+              {ago(item.at)} · {modelName(models, item.model)}
+              {props.describe ? ` · ${props.describe(item)}` : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      {viewed && viewed.at !== items[0].at && (
+        <span className="ai-history-viewing">
+          Viewing an earlier result.
+          <button className="link-btn" onClick={() => props.onView(null)}>
+            Back to the latest
+          </button>
+          <button
+            className="link-btn danger-text"
+            onClick={() => {
+              props.onForget(viewed.at)
+              props.onView(null)
+            }}
+          >
+            Remove it
+          </button>
+        </span>
+      )}
+    </div>
+  )
+}
+
+const forget = (kind: 'story' | 'focus' | 'notes', at: number): void =>
+  void window.twilight.forgetAiResult(kind, at).then((state) => useInsights.setState({ ai: state }))
 
 // ——— Story analysis ———
 
@@ -229,7 +280,12 @@ function StoryPage({ ai, s }: { ai: AiState; s: InsightsSummary }) {
   const [scope, setScope] = useState('')
   const [estimate, setEstimate] = useState<Record<'quick' | 'deep', StoryEstimate | null>>({ quick: null, deep: null })
   const busy = !!ai.running
-  const result = ai.story[scope]
+  const [viewing, setViewing] = useState<number | null>(null)
+  const earlier = ai.history.story.filter((r) => r.scope === scope)
+  const result = (viewing && earlier.find((r) => r.at === viewing)) || ai.story[scope]
+  useEffect(() => setViewing(null), [scope, ai.story[scope]?.at])
+  const setParallel = (parallel: number): void =>
+    void window.twilight.setAiConfig({ ...ai.config, parallel }).then((state) => useInsights.setState({ ai: state }))
   useEffect(() => {
     let live = true
     setEstimate({ quick: null, deep: null })
@@ -264,14 +320,27 @@ function StoryPage({ ai, s }: { ai: AiState; s: InsightsSummary }) {
           <button className="tw-btn" disabled={busy} onClick={() => run('deep')}>
             Deep scan
           </button>
+          <label className="ai-parallel" title="How many parts of a deep scan are read at the same time. More is faster; some providers limit how many requests you can make at once.">
+            <span>Calls at once</span>
+            <input
+              type="number"
+              min={1}
+              max={10}
+              value={ai.config.parallel}
+              disabled={busy}
+              onChange={(e) => setParallel(Math.min(10, Math.max(1, Number(e.target.value) || 1)))}
+            />
+          </label>
         </div>
         <p className="field-note">
           Quick sample: one call reading {estimate.quick ? `${estimate.quick.words > 25000 ? 'about 25,000 words of excerpts' : `all ${estimate.quick.words.toLocaleString()} words`}` : '…'}, {cost(estimate.quick)}. Deep scan:{' '}
           {estimate.deep ? `${estimate.deep.calls} call${estimate.deep.calls === 1 ? '' : 's'} over ${estimate.deep.words.toLocaleString()} words` : '…'}
-          {estimate.deep && estimate.deep.cached > 0 ? ` (${estimate.deep.cached} parts already read, never billed twice)` : ''}, {cost(estimate.deep)}.
+          {estimate.deep && estimate.deep.cached > 0 ? ` (${estimate.deep.cached} parts already read, never billed twice)` : ''}, {cost(estimate.deep)}, {ai.config.parallel} at a
+          time; the same model writes the final themes.
         </p>
         <RunState ai={ai} kind="story" />
       </section>
+      <History items={earlier} viewing={viewing} onView={setViewing} onForget={(at) => forget('story', at)} describe={(r) => (r.mode === 'deep' ? 'deep scan' : 'quick sample')} />
       {result ? <StoryResult r={result} /> : !busy && <div className="ins-empty">No analysis of {scope ? 'this document' : 'the folder'} yet. A quick sample is a good start.</div>}
     </>
   )
@@ -280,7 +349,9 @@ function StoryPage({ ai, s }: { ai: AiState; s: InsightsSummary }) {
 // ——— Focus ———
 
 function FocusPage({ ai }: { ai: AiState }) {
-  const f = ai.focus
+  const [viewing, setViewing] = useState<number | null>(null)
+  useEffect(() => setViewing(null), [ai.focus?.at])
+  const f = (viewing && ai.history.focus.find((r) => r.at === viewing)) || ai.focus
   return (
     <>
       <Head title="Focus" sub="A few things to work on, chosen from your prose numbers and what you wrote most recently">
@@ -291,6 +362,7 @@ function FocusPage({ ai }: { ai: AiState }) {
       </Head>
       <ModelBar ai={ai} sends="your prose numbers and about 3,600 words from your most recently changed documents" />
       <RunState ai={ai} kind="focus" />
+      <History items={ai.history.focus} viewing={viewing} onView={setViewing} onForget={(at) => forget('focus', at)} />
       {f ? (
         <>
           <p className="ins-note">
@@ -330,7 +402,9 @@ function FocusPage({ ai }: { ai: AiState }) {
 // ——— Insights ———
 
 function NotesPage({ ai }: { ai: AiState }) {
-  const n = ai.notes
+  const [viewing, setViewing] = useState<number | null>(null)
+  useEffect(() => setViewing(null), [ai.notes?.at])
+  const n = (viewing && ai.history.notes.find((r) => r.at === viewing)) || ai.notes
   return (
     <>
       <Head title="Insights" sub="What your numbers say about how you write: habits, rhythms and trends">
@@ -341,6 +415,7 @@ function NotesPage({ ai }: { ai: AiState }) {
       </Head>
       <ModelBar ai={ai} sends="your statistics only (no manuscript text)" />
       <RunState ai={ai} kind="notes" />
+      <History items={ai.history.notes} viewing={viewing} onView={setViewing} onForget={(at) => forget('notes', at)} />
       {n ? (
         <>
           <p className="ins-note">

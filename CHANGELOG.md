@@ -2,6 +2,17 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## 0.5.0
+
+**Writer insights**
+- **Earlier results:** Story analysis, Focus and Insights keep up to 30 past results each. Pick one from "Earlier results" to read it again, or remove it.
+- **Calls at once:** a deep scan can read 1 to 10 parts of your manuscript at the same time. The same model still writes the final themes.
+- **Edits cost less to rescan:** where a deep scan cuts your text into parts now depends on the text itself, not on counting from the top. An edit only changes the part it's in, and the rest are never paid for twice.
+- Common words like "The" are no longer suggested as character names.
+
+**Fixes**
+- The sidebar can't be dragged so narrow that the tab names get cut off.
+
 ## 0.4.0
 
 **Writer insights** (a new tab)

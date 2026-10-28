@@ -407,6 +407,8 @@ export interface TwilightApi {
   runFocus(): Promise<AiState>
   runNotes(): Promise<AiState>
   stopAi(): Promise<void>
+  /** Removes one earlier AI result from the history. */
+  forgetAiResult(kind: 'story' | 'focus' | 'notes', at: number): Promise<AiState>
   /** Saves a recap as an HTML file (and opens it when asked); returns its path. */
   exportReport(kind: 'week' | 'month' | 'year' | 'all', includeAi: boolean, open: boolean): Promise<string>
   openReportsFolder(): Promise<void>
