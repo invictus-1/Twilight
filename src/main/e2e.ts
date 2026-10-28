@@ -15,6 +15,9 @@ import * as judge from './judge'
 import { anthropicOptions } from './providers/anthropic'
 import * as workspaces from './workspaces'
 import * as providers from './providers'
+import * as updates from './updates'
+import { createHash } from 'node:crypto'
+import { existsSync } from 'node:fs'
 
 // Dev-only end-to-end check, run with TWILIGHT_E2E=<output folder> (and a throwaway profile, see
 // selftest.ts). Starts a fake OpenAI-compatible model server in-process, then drives a chat,
@@ -29,8 +32,61 @@ interface LoggedRequest {
   firstTokenAt?: number
 }
 
+// A stand-in for GitHub's releases API: one release newer than this build, this build, one older,
+// and a newer one whose checksum is wrong.
+const bump = (v: string, by: number): string => {
+  const [a, b] = v.split('.').map(Number)
+  return `${a}.${b + by}.0`
+}
+const installerBytes = (version: string): Buffer => Buffer.from(`MZ fake installer for ${version}`.repeat(4000))
+
+function mockGithub(url: string, base: string, res: import('node:http').ServerResponse): void {
+  const current = app.getVersion()
+  const [newer, older, broken] = [bump(current, 1), current === '0.0.0' ? '0.0.0' : bump(current, -1), bump(current, 2)]
+  if (url.startsWith('/gh/releases?')) {
+    const release = (v: string, notes: string) => ({
+      tag_name: `v${v}`,
+      name: `Twilight ${v}`,
+      body: notes,
+      draft: false,
+      prerelease: false,
+      published_at: new Date(Date.UTC(2026, 9, 1 + Number(v.split('.')[1]))).toISOString(),
+      html_url: `${base}/tag/v${v}`,
+      assets: [
+        { name: `Twilight-Setup-${v}.exe`, size: installerBytes(v).length, browser_download_url: `${base}/download/${v}/Twilight-Setup-${v}.exe` },
+        { name: 'latest.yml', size: 100, browser_download_url: `${base}/download/${v}/latest.yml` }
+      ]
+    })
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify([release(broken, '- Broken checksum'), release(newer, '**New:** something shiny'), release(current, 'This one'), release(older, 'Older'), { ...release('9.9.9-beta', 'beta'), tag_name: 'v9.9.9-beta', prerelease: true }]))
+    return
+  }
+  const m = /^\/gh\/download\/([\d.]+)\/(.+)$/.exec(url)
+  if (!m) {
+    res.statusCode = 404
+    res.end()
+    return
+  }
+  const [, v, file] = m
+  if (file === 'latest.yml') {
+    const sha = createHash('sha512').update(v === broken ? Buffer.from('other') : installerBytes(v)).digest('base64')
+    res.end(`version: ${v}
+files:
+  - url: Twilight-Setup-${v}.exe
+    sha512: ${sha}
+path: Twilight-Setup-${v}.exe
+sha512: ${sha}
+`)
+    return
+  }
+  const bytes = installerBytes(v)
+  res.setHeader('content-length', String(bytes.length))
+  res.end(bytes)
+}
+
 function startMockServer(log: LoggedRequest[]): Promise<Server> {
   const server = createServer((req, res) => {
+    if (req.url?.startsWith('/gh/')) return mockGithub(req.url, `http://${req.headers.host}/gh`, res)
     if (req.url?.endsWith('/models')) {
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ data: [{ id: 'mock-a' }, { id: 'mock-b' }] }))
@@ -567,7 +623,24 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await new Promise((r) => setTimeout(r, 200))
       writeFileSync(join(outDir, 'e2e-statuscard.png'), (await win.webContents.capturePage()).toPNG())
 
-      // 24. The Judge: blind, both orders, scores mapped back to A and B.
+      // 24. The Judge: blind, both orders, scores mapped back to A and B. A rubric of your own is
+      // imported from a file (none ship with the app beyond the general one).
+      check('only the general rubric ships', judge.listRubrics().map((r) => r.id).join() === 'general-fiction')
+      const imported = judge.parseRubric(JSON.stringify({ twilightRubric: 1, id: 'test-serial', name: 'Test serial', description: 'From a file', criteria: [
+        { id: 'prose', name: 'Prose', weight: 2, guide: 'Specific language.' },
+        { id: 'explicit', name: 'Explicit scenes', weight: 2, guide: 'Only when present.' },
+        { name: 'No id here', weight: 'x', guide: 'Gets a slug id and weight 1.' }
+      ] }))
+      check('imported rubric fills in ids and weights', imported.criteria[2].id === 'no-id-here' && imported.criteria[2].weight === 1)
+      judge.saveRubric(imported)
+      check('imported rubric round-trips through export', judge.parseRubric(judge.rubricFile('test-serial')).criteria.length === 3)
+      let badRubric = ''
+      try {
+        judge.parseRubric('{"name": "x", "criteria": []}')
+      } catch (err) {
+        badRubric = String(err)
+      }
+      check('a rubric without criteria is refused', /at least one criterion/.test(badRubric))
       const beforeJudge = log.length
       const judgment = judge.runJudge(contents, {
         title: 'Lamps test',
@@ -582,7 +655,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         judgeProviderId: 'mock',
         judgeModelId: 'mock-a',
         effort: null,
-        rubricId: 'general-fiction',
+        rubricId: 'test-serial',
         bothOrders: true
       })
       for (let i = 0; i < 400 && judge.getJudgment(judgment.id).runs.some((r) => r.status === 'streaming'); i++) await new Promise((r) => setTimeout(r, 25))
@@ -636,7 +709,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         fromSplit.areas?.[0]?.includes('mock-a') && fromSplit.areas?.[1]?.includes('mock-b') && fromSplit.labels?.[0] === 'mock-a' && fromSplit.author === 'Write the scene',
         fromSplit
       )
-      check('result screen shows the verdict, blind', fromSplit.headline === 'A is better written' && fromSplit.rows === 10, fromSplit)
+      check('result screen shows the verdict, blind', fromSplit.headline === 'A is better written' && fromSplit.rows === 3, fromSplit)
       await new Promise((r) => setTimeout(r, 200))
       writeFileSync(join(outDir, 'e2e-judge.png'), (await win.webContents.capturePage()).toPNG())
 
@@ -829,6 +902,58 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('undo brings the message back', actionsUi.afterUndo.includes('A rewritten reply.') && !actionsUi.afterDelete.includes('A rewritten reply.'), actionsUi)
       check('recently deleted panel lists and shows deletions', actionsUi.headCount === '1' && actionsUi.panelItems === 1 && actionsUi.viewShown === 1, actionsUi)
       writeFileSync(join(outDir, 'e2e-deleted.png'), (await win.webContents.capturePage()).toPNG())
+
+      // 29. Updates: the releases list, a checksum-verified download, a backup first, and
+      // rolling back. In tests the installer is never run.
+      updates.setUpdateSource(`http://127.0.0.1:${port}/gh`)
+      const cur = app.getVersion()
+      let us = await updates.check()
+      check('update check lists stable releases newest first', us.releases.map((r) => r.version).join() === [bump(cur, 2), bump(cur, 1), cur, bump(cur, -1)].join(), us.releases.map((r) => r.version))
+      check('newest release offered', us.latest === bump(cur, 2) && !us.error, us.latest)
+      check('running version recorded', us.history.at(-1)?.version === cur)
+      let checksumError = ''
+      try {
+        await updates.install(bump(cur, 2))
+      } catch (err) {
+        checksumError = String(err)
+      }
+      us = updates.state()
+      check('a download that fails its checksum is refused and discarded', /checksum/.test(checksumError) && !us.cached.includes(bump(cur, 2)), checksumError)
+      await updates.install(bump(cur, 1))
+      us = updates.state()
+      check('update downloads and verifies the installer', !!updates.lastTestInstall()?.endsWith(`Twilight-Setup-${bump(cur, 1)}.exe`) && existsSync(updates.lastTestInstall()!) && us.cached.includes(bump(cur, 1)))
+      const backups = await readdir(join(app.getPath('userData'), 'backups'))
+      check('database backed up before switching', backups.some((f) => f.endsWith('.db')), backups)
+      await updates.install(bump(cur, -1))
+      check('rolling back downloads the older installer', !!updates.lastTestInstall()?.endsWith(`Twilight-Setup-${bump(cur, -1)}.exe`))
+      check('daily check can be turned off', updates.setAutoCheck(false).autoCheck === false && updates.setAutoCheck(true).autoCheck === true)
+
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 900))
+      const updUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const out = { toast: document.querySelector('.update-toast')?.textContent ?? null, chip: document.querySelector('.update-chip')?.textContent ?? null }
+        document.querySelector('.update-chip')?.click()
+        await wait(300)
+        out.heading = document.querySelector('.settings-content .t-title')?.textContent ?? null
+        out.rows = [...document.querySelectorAll('.release-row')].map((r) => r.dataset.version)
+        out.installedBadge = document.querySelector('.release-row[data-version="${cur}"]')?.textContent.includes('Installed') ?? false
+        out.status = document.querySelector('.update-status-text')?.textContent ?? null
+        const rollback = [...document.querySelectorAll('.release-row[data-version="${bump(cur, -1)}"] button')].find((b) => b.textContent === 'Roll back')
+        rollback?.click()
+        await wait(100)
+        out.confirm = [...document.querySelectorAll('.release-row[data-version="${bump(cur, -1)}"] button')].map((b) => b.textContent)
+        return out
+      })()`)
+      check('update toast and sidebar chip appear', /is available/.test(updUi.toast ?? '') && (updUi.chip ?? '').includes(bump(cur, 2)), updUi)
+      check('chip opens Settings at Updates', updUi.heading === 'Updates', updUi.heading)
+      check('updates page lists newer, current and older versions', updUi.rows.join() === [bump(cur, 2), bump(cur, 1), cur, bump(cur, -1)].join() && updUi.installedBadge, updUi.rows)
+      check('updates page says what is available', /is available/.test(updUi.status ?? ''), updUi.status)
+      check('rolling back asks to confirm', updUi.confirm.includes(`Roll back to ${bump(cur, -1)}`), updUi.confirm)
+      await new Promise((r) => setTimeout(r, 300))
+      // A screenshot is a convenience; a capture hiccup shouldn't fail the run.
+      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-updates.png'), img.toPNG()), () => undefined)
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {

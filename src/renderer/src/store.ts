@@ -12,7 +12,8 @@ import type {
   NodeView,
   Pane,
   ProviderConfig,
-  SendTarget
+  SendTarget,
+  UpdateState
 } from '@shared/types'
 import { clearStream } from './stream'
 
@@ -33,6 +34,9 @@ interface State {
   mode: Mode
   sidebarOpen: boolean
   settingsOpen: boolean
+  /** The Settings section to open on. */
+  settingsSection: string | null
+  updates: UpdateState | null
   error: string | null
   /** The current chat's recently deleted messages, newest first. */
   deletions: DeletionView[]
@@ -76,7 +80,7 @@ interface State {
   applyDone(conversationId: string, node: NodeView): void
   setProviders(providers: ProviderConfig[]): void
   toggleSidebar(): void
-  setSettingsOpen(open: boolean): void
+  setSettingsOpen(open: boolean, section?: string): void
   setError(error: string | null): void
 }
 
@@ -110,6 +114,8 @@ export const useStore = create<State>((set, get) => {
     mode: 'chat',
     sidebarOpen: true,
     settingsOpen: false,
+    settingsSection: null,
+    updates: null,
     error: null,
     deletions: [],
     undo: null,
@@ -122,6 +128,8 @@ export const useStore = create<State>((set, get) => {
         api.getDefaults()
       ])
       set({ conversations, folders, providers, defaults })
+      window.twilight.onUpdate((updates) => set({ updates }))
+      void api.getUpdateState().then((updates) => set({ updates }))
       void get().refreshTrash()
       if (conversations[0]) await get().open(conversations[0].id)
       void get().refreshModels()
@@ -292,7 +300,7 @@ export const useStore = create<State>((set, get) => {
 
     setProviders: (providers) => set({ providers }),
     toggleSidebar: () => set({ sidebarOpen: !get().sidebarOpen }),
-    setSettingsOpen: (open) => set({ settingsOpen: open }),
+    setSettingsOpen: (open, section) => set({ settingsOpen: open, settingsSection: section ?? null }),
     setError: (error) => set({ error })
   }
 })

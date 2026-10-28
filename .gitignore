@@ -5,3 +5,4 @@ release/
 *.tsbuildinfo
 build/*.preview.png
 .DS_Store
+private/

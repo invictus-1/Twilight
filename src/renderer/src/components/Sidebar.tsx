@@ -466,6 +466,7 @@ export function Sidebar() {
   const setMode = useStore((s) => s.setMode)
   const newChat = useStore((s) => s.newChat)
   const setSettingsOpen = useStore((s) => s.setSettingsOpen)
+  const latestUpdate = useStore((s) => s.updates?.latest)
   const [creating, setCreating] = useState(false)
 
   return (
@@ -542,6 +543,12 @@ export function Sidebar() {
           <SettingsIcon />
           Settings
         </button>
+        {latestUpdate && (
+          <button className="tw-btn tw-btn-ghost tw-btn-sm update-chip" title="Open Settings > Updates" onClick={() => setSettingsOpen(true, 'updates')}>
+            <span className="update-dot" />
+            Update {latestUpdate}
+          </button>
+        )}
       </div>
     </nav>
   )

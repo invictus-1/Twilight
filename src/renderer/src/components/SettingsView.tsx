@@ -4,12 +4,13 @@ import { readGameFormat, writeGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
 import { useWriting } from '../writingStore'
 import { readHidden, writeHidden } from './ChatSettingsPanel'
+import { UpdatesSection } from './UpdatesSection'
 import { ChevronDown, ChevronRight, ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIcon } from './Icons'
 
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'general' | 'writing' | 'data' | 'shortcuts' | 'about'
+type Section = 'providers' | 'general' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'about'
 
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
   { id: 'general', group: 'App', label: 'General', description: 'How chats behave and look: the cache status line, Game Format, and the safety net.' },
@@ -17,6 +18,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats, settings and request logs on this machine.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows.' },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
+  { id: 'updates', group: 'About', label: 'Updates', description: 'Your version, new releases, and rolling back to an earlier one. The daily check is the only request Twilight makes on its own.' },
   { id: 'about', group: 'About', label: 'About', description: 'Version and where Twilight lives.' }
 ]
 
@@ -493,8 +495,13 @@ function AboutSection() {
   )
 }
 
+function UpdateDot() {
+  const latest = useStore((s) => s.updates?.latest)
+  return latest ? <span className="update-dot" title={`Twilight ${latest} is available`} /> : null
+}
+
 export function SettingsView() {
-  const [section, setSection] = useState<Section>('providers')
+  const [section, setSection] = useState<Section>(() => (useStore.getState().settingsSection as Section | null) ?? 'providers')
   const current = SECTIONS.find((s) => s.id === section)!
   const groups = [...new Set(SECTIONS.map((s) => s.group))]
   return (
@@ -514,6 +521,7 @@ export function SettingsView() {
               {SECTIONS.filter((s) => s.group === g).map((s) => (
                 <button key={s.id} className="settings-nav-item" aria-current={s.id === section ? 'true' : undefined} onClick={() => setSection(s.id)}>
                   {s.label}
+                  {s.id === 'updates' && <UpdateDot />}
                 </button>
               ))}
             </div>
@@ -527,6 +535,7 @@ export function SettingsView() {
           {section === 'writing' && <WritingSection />}
           {section === 'data' && <DataSection />}
           {section === 'shortcuts' && <ShortcutsSection />}
+          {section === 'updates' && <UpdatesSection />}
           {section === 'about' && <AboutSection />}
         </div>
       </div>

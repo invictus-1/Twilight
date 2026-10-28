@@ -200,6 +200,39 @@ export interface ConversationView {
   split: PaneView | null
 }
 
+/** A published version on the releases repo. */
+export interface ReleaseInfo {
+  version: string
+  name: string
+  /** Release notes, markdown. */
+  notes: string
+  publishedAt: number
+  url: string
+  installer: { name: string; size: number; url: string } | null
+  /** electron-builder's latest.yml, which carries the installer's sha512. */
+  checksumUrl: string | null
+}
+
+export interface UpdateState {
+  current: string
+  /** Versions this install has run as, oldest first, with when each started. */
+  history: { version: string; installedAt: number }[]
+  autoCheck: boolean
+  lastChecked: number | null
+  checking: boolean
+  error: string | null
+  /** Newest first. */
+  releases: ReleaseInfo[]
+  /** The newest version above the current one, if any. */
+  latest: string | null
+  downloading: { version: string; received: number; total: number } | null
+  /** Versions whose installer is already on disk. */
+  cached: string[]
+  /** False in a dev build: installers download but don't run. */
+  canInstall: boolean
+  releasesPage: string
+}
+
 export type StreamEvent =
   | { kind: 'text'; conversationId: string; nodeId: string; delta: string }
   | { kind: 'thinking'; conversationId: string; nodeId: string; delta: string }
@@ -244,6 +277,10 @@ export interface TwilightApi {
   listRubrics(): Promise<Rubric[]>
   saveRubric(rubric: Rubric): Promise<Rubric[]>
   deleteRubric(id: string): Promise<Rubric[]>
+  /** Picks a rubric file and saves it as one of yours; null if cancelled. */
+  importRubric(): Promise<{ rubrics: Rubric[]; id: string } | null>
+  /** Saves a rubric to a file you choose; false if cancelled. */
+  exportRubric(id: string): Promise<boolean>
   listJudgments(): Promise<JudgmentSummary[]>
   getJudgment(id: string): Promise<Judgment>
   /** Starts judging; runs stream as StreamEvents with conversationId "judge" and nodeId "<judgment id>:<run index>". */
@@ -328,4 +365,12 @@ export interface TwilightApi {
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
   openDataFolder(): Promise<void>
   openExternal(url: string): Promise<void>
+
+  getUpdateState(): Promise<UpdateState>
+  checkForUpdates(): Promise<UpdateState>
+  setAutoUpdateCheck(on: boolean): Promise<UpdateState>
+  /** Installs any listed version, newer or older; Twilight closes and the installer takes over. */
+  installVersion(version: string): Promise<UpdateState>
+  openBackupsFolder(): Promise<void>
+  onUpdate(listener: (state: UpdateState) => void): () => void
 }

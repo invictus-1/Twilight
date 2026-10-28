@@ -522,3 +522,26 @@ body.resizing .resize-handle { pointer-events: auto; }
 .deleted-user .md { background: var(--iris-soft); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); }
 .deleted-role { font-size: 12px; font-weight: 500; color: var(--ink-faint); }
 .toast-info { background: var(--surface-overlay); }
+
+/* Updates */
+.update-dot { display: inline-block; width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--dusk); margin-left: var(--space-2); vertical-align: 1px; flex: none; }
+.update-chip { margin-top: var(--space-1); color: var(--dusk); }
+.update-chip .update-dot { margin-left: 0; }
+.update-status { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.update-status-text { font-size: 13px; font-weight: 500; }
+.update-status .tw-btn { margin-left: auto; }
+.status-dot { width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--ink-faint); flex: none; }
+.status-ok { background: var(--success); }
+.status-warn { background: var(--dusk); }
+.status-error { background: var(--danger); }
+.spinning { animation: tw-spin 900ms linear infinite; }
+.release-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-2); }
+.release-row { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); display: flex; flex-direction: column; gap: var(--space-2); }
+.release-head { display: flex; align-items: center; gap: var(--space-2); min-height: var(--control-md); }
+.release-version { font-weight: 600; font-variant-numeric: tabular-nums; }
+.release-date { font-size: 12px; color: var(--ink-faint); margin-right: auto; }
+.release-confirm { display: inline-flex; gap: var(--space-1); }
+.release-progress { width: 160px; height: 6px; border-radius: var(--radius-full); background: var(--surface-hover); overflow: hidden; }
+.release-progress > span { display: block; height: 100%; background: var(--dusk); transition: width 150ms linear; }
+.release-notes summary { cursor: pointer; font-size: 12px; color: var(--ink-muted); }
+.release-notes .md { margin-top: var(--space-2); font-size: 13px; }

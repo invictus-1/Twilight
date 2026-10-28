@@ -155,6 +155,11 @@ export function openDatabase(file: string): void {
   db.prepare(`UPDATE nodes SET status = 'stopped' WHERE status = 'streaming'`).run()
 }
 
+/** A consistent copy of the whole database, taken while it stays open. */
+export async function backupDatabase(file: string): Promise<void> {
+  await db.backup(file)
+}
+
 export function kvGet<T>(key: string): T | undefined {
   const row = db.prepare('SELECT value FROM kv WHERE key = ?').get(key) as { value: string } | undefined
   return row ? (JSON.parse(row.value) as T) : undefined

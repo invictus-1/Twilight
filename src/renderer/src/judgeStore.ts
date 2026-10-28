@@ -29,6 +29,15 @@ interface JudgeState {
 const message = (err: unknown): string =>
   (err instanceof Error ? err.message : String(err)).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
+/** The rubric used last, so a rubric of your own stays the default once you've picked it. */
+function lastRubric(): string {
+  try {
+    return localStorage.getItem('twilight.judgeRubric') ?? 'general-fiction'
+  } catch {
+    return 'general-fiction'
+  }
+}
+
 function emptyInput(): JudgeInput {
   const defaults = useStore.getState().defaults
   return {
@@ -44,7 +53,7 @@ function emptyInput(): JudgeInput {
     judgeProviderId: defaults?.providerId ?? 'anthropic',
     judgeModelId: defaults?.modelId ?? 'claude-opus-5-5',
     effort: null,
-    rubricId: 'general-fiction',
+    rubricId: lastRubric(),
     bothOrders: true
   }
 }
@@ -80,6 +89,13 @@ export const useJudge = create<JudgeState>((set, get) => ({
   updateDraft(patch) {
     const draft = get().draft
     if (draft) set({ draft: { ...draft, ...patch } })
+    if (patch.rubricId) {
+      try {
+        localStorage.setItem('twilight.judgeRubric', patch.rubricId)
+      } catch {
+        // Storage unavailable: the default just isn't remembered.
+      }
+    }
   },
 
   async run() {

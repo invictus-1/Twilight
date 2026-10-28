@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import { useStore } from '../store'
 import { useJudge } from '../judgeStore'
 import { clearStream, handleStreamEvent } from '../stream'
@@ -16,9 +16,26 @@ import { Sidebar } from './Sidebar'
 export function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
   const settingsOpen = useStore((s) => s.settingsOpen)
+  const settingsSection = useStore((s) => s.settingsSection)
   const mode = useStore((s) => s.mode)
   const error = useStore((s) => s.error)
   const undo = useStore((s) => s.undo)
+  const latestUpdate = useStore((s) => s.updates?.latest ?? null)
+  const [noticed, setNoticed] = useState(() => {
+    try {
+      return localStorage.getItem('twilight.updateNoticed')
+    } catch {
+      return null
+    }
+  })
+  const dismissUpdate = (): void => {
+    try {
+      localStorage.setItem('twilight.updateNoticed', latestUpdate ?? '')
+    } catch {
+      // Private storage unavailable: the notice just comes back next launch.
+    }
+    setNoticed(latestUpdate)
+  }
   useEffect(() => {
     if (!undo) return
     const t = setTimeout(() => useStore.getState().dismissUndo(), 8000)
@@ -92,7 +109,7 @@ export function App() {
         />
       )}
       {settingsOpen ? (
-        <SettingsView />
+        <SettingsView key={settingsSection ?? ''} />
       ) : mode === 'chat' ? (
         <ChatView />
       ) : mode === 'judge' ? (
@@ -101,6 +118,24 @@ export function App() {
         <Suspense fallback={<main className="chat" />}>
           <WritingView />
         </Suspense>
+      )}
+      {latestUpdate && latestUpdate !== noticed && !settingsOpen && !undo && !error && (
+        <div className="toast toast-info update-toast" role="status">
+          <span className="update-dot" />
+          <span>Twilight {latestUpdate} is available</span>
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-sm"
+            onClick={() => {
+              dismissUpdate()
+              useStore.getState().setSettingsOpen(true, 'updates')
+            }}
+          >
+            View
+          </button>
+          <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Dismiss" onClick={dismissUpdate}>
+            <CloseIcon />
+          </button>
+        </div>
       )}
       {undo && !error && (
         <div className="toast toast-info" role="status">

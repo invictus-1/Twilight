@@ -26,6 +26,8 @@ const GENERAL: Rubric = {
   ]
 }
 
+// Rubrics of your own (say, one built from your writing system prompt) live only in your
+// database: export one to a file to keep or move it, import it on another install.
 const BUILT_IN = [GENERAL]
 
 export function listRubrics(): Rubric[] {
@@ -37,6 +39,35 @@ export function saveRubric(rubric: Rubric): Rubric[] {
   custom.push({ ...rubric, builtIn: false })
   db.kvSet('rubrics', custom)
   return listRubrics()
+}
+
+/** Reads a rubric file (as exported, or written by hand) and checks its shape. */
+export function parseRubric(text: string): Rubric {
+  let raw: Partial<Rubric>
+  try {
+    raw = JSON.parse(text) as Partial<Rubric>
+  } catch {
+    throw new Error("That file isn't valid JSON.")
+  }
+  const criteria = Array.isArray(raw.criteria) ? raw.criteria : []
+  if (typeof raw.name !== 'string' || !raw.name.trim() || criteria.length === 0) throw new Error('A rubric needs a name and at least one criterion.')
+  const slug = (t: string): string => t.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+  return {
+    id: typeof raw.id === 'string' && raw.id.trim() ? raw.id : slug(raw.name),
+    name: raw.name.trim(),
+    description: typeof raw.description === 'string' ? raw.description : '',
+    criteria: criteria.map((c, i) => {
+      if (typeof c?.name !== 'string' || typeof c?.guide !== 'string') throw new Error(`Criterion ${i + 1} needs a name and a guide.`)
+      return { id: typeof c.id === 'string' && c.id ? c.id : slug(c.name), name: c.name, weight: Number(c.weight) > 0 ? Number(c.weight) : 1, guide: c.guide }
+    })
+  }
+}
+
+export function rubricFile(id: string): string {
+  const rubric = listRubrics().find((r) => r.id === id)
+  if (!rubric) throw new Error('That rubric no longer exists.')
+  const { builtIn: _builtIn, ...rest } = rubric
+  return JSON.stringify({ twilightRubric: 1, ...rest }, null, 2)
 }
 
 export function deleteRubric(id: string): Rubric[] {

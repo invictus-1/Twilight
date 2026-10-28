@@ -1,7 +1,7 @@
 {
   "name": "twilight",
   "productName": "Twilight",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A fast, local-first desktop front end for language models, agents and writing.",
   "private": true,
   "main": "out/main/index.js",
@@ -12,7 +12,8 @@
     "start": "electron-vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "postinstall": "electron-builder install-app-deps",
-    "dist": "electron-vite build && electron-builder --win"
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "release": "node scripts/release.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.133.0",
@@ -83,6 +84,10 @@
       "runAfterFinish": true,
       "artifactName": "Twilight-Setup-${version}.${ext}"
     },
-    "publish": null
+    "publish": {
+      "provider": "github",
+      "owner": "invictus-1",
+      "repo": "twilight-releases"
+    }
   }
 }

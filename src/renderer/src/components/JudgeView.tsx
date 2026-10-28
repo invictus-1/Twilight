@@ -175,6 +175,27 @@ function JudgeForm() {
                 {rubric.builtIn ? 'View or copy' : 'Edit'}
               </button>
             )}
+            {rubric && !rubric.builtIn && (
+              <button className="link-btn" title="Save this rubric to a file" onClick={() => void window.twilight.exportRubric(rubric.id).catch(() => undefined)}>
+                Export
+              </button>
+            )}
+            <button
+              className="link-btn"
+              title="Add a rubric from a file"
+              onClick={async () => {
+                try {
+                  const result = await window.twilight.importRubric()
+                  if (!result) return
+                  useJudge.getState().setRubrics(result.rubrics)
+                  update({ rubricId: result.id })
+                } catch (err) {
+                  useStore.getState().setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err))
+                }
+              }}
+            >
+              Import
+            </button>
           </span>
           <select value={draft.rubricId} onChange={(e) => update({ rubricId: e.target.value })}>
             {rubrics.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}

@@ -1,6 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
 import { join } from 'node:path'
-import { mkdir, readFile, stat } from 'node:fs/promises'
+import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type {
   Attachment,
@@ -23,6 +23,7 @@ import * as workspaces from './workspaces'
 import type { JudgeInput, Rubric } from '@shared/judge'
 import * as writing from './writing'
 import * as providers from './providers'
+import * as updates from './updates'
 import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 
@@ -141,6 +142,23 @@ function registerIpc(): void {
     renameFolder: (_e, id: string, name: string) => (name.trim() && db.updateFolder(id, { name: name.trim() }), folders()),
     updateWorkspace: (_e, id: string, patch: WorkspacePatch) => (workspaces.updateWorkspace(id, patch), folders()),
     pickAttachments: (e) => pickAttachments(BrowserWindow.fromWebContents(e.sender)),
+    importRubric: async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const options: Electron.OpenDialogOptions = { title: 'Import a rubric', properties: ['openFile'], filters: [{ name: 'Rubric', extensions: ['json'] }] }
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      if (result.canceled || !result.filePaths[0]) return null
+      const rubric = judge.parseRubric(await readFile(result.filePaths[0], 'utf8'))
+      return { rubrics: judge.saveRubric(rubric), id: rubric.id }
+    },
+    exportRubric: async (e, id: string) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const text = judge.rubricFile(id)
+      const options: Electron.SaveDialogOptions = { title: 'Export rubric', defaultPath: `${id}.rubric.json`, filters: [{ name: 'Rubric', extensions: ['json'] }] }
+      const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
+      if (result.canceled || !result.filePath) return false
+      await writeFile(result.filePath, text)
+      return true
+    },
     listPresets: () => db.kvGet<SettingsPreset[]>('presets') ?? [],
     savePreset: (_e, preset: SettingsPreset) => {
       const list = (db.kvGet<SettingsPreset[]>('presets') ?? []).filter((p) => p.name !== preset.name)
@@ -212,6 +230,13 @@ function registerIpc(): void {
     },
     openExternal: async (_e, url: string) => {
       if (isWebUrl(url)) await shell.openExternal(url)
+    },
+    getUpdateState: (e) => updates.subscribe(e.sender),
+    checkForUpdates: () => updates.check(),
+    setAutoUpdateCheck: (_e, on: boolean) => updates.setAutoCheck(on),
+    installVersion: (_e, version: string) => updates.install(version),
+    openBackupsFolder: async () => {
+      await shell.openPath(await updates.openBackups())
     }
   }
   for (const [name, handler] of Object.entries(handlers)) {
@@ -226,6 +251,9 @@ app.whenReady().then(() => {
   if (!devUrl) Menu.setApplicationMenu(null)
   lockDownNetwork()
   registerIpc()
+  updates.recordRunningVersion()
+  // Tests never reach GitHub; the e2e run checks against its own mock.
+  if (!selfTestDir && !e2eDir) updates.startDailyCheck()
   if (selfTestDir) seedSelfTest()
   const win = createWindow()
   if (selfTestDir) runSelfTest(win, selfTestDir)
