@@ -7,6 +7,7 @@ import type {
   WorkspacePatch,
   ConversationSummary,
   ConversationView,
+  DeletionView,
   ModelInfo,
   NodeView,
   Pane,
@@ -33,6 +34,10 @@ interface State {
   sidebarOpen: boolean
   settingsOpen: boolean
   error: string | null
+  /** The current chat's recently deleted messages, newest first. */
+  deletions: DeletionView[]
+  /** The last deletion, offered for undo in a toast until it times out. */
+  undo: { deletionId: string; pane: Pane; label: string } | null
 
   init(): Promise<void>
   refreshList(): Promise<void>
@@ -50,6 +55,11 @@ interface State {
   updateWorkspace(id: string, patch: WorkspacePatch): Promise<void>
   regenerate(nodeId: string, pane: Pane): Promise<void>
   switchBranch(nodeId: string, direction: -1 | 1, pane: Pane): Promise<void>
+  deleteMessage(nodeId: string, kind: 'single' | 'below', pane: Pane): Promise<void>
+  restoreDeletion(deletionId: string, pane?: Pane): Promise<void>
+  refreshDeletions(): Promise<void>
+  editMessage(nodeId: string, text: string, pane: Pane): Promise<void>
+  dismissUndo(): void
   stop(target?: SendTarget): Promise<void>
   updateSettings(patch: Partial<ChatSettings>, pane?: Pane): Promise<void>
   cloneIntoSplit(nodeId?: string): Promise<void>
@@ -101,6 +111,8 @@ export const useStore = create<State>((set, get) => {
     sidebarOpen: true,
     settingsOpen: false,
     error: null,
+    deletions: [],
+    undo: null,
 
     async init() {
       const [conversations, folders, providers, defaults] = await Promise.all([
@@ -125,7 +137,10 @@ export const useStore = create<State>((set, get) => {
 
     async open(id) {
       const view = await guard(set, () => api.openConversation(id))
-      if (view) set({ current: view })
+      if (view) {
+        set({ current: view, undo: null })
+        void get().refreshDeletions()
+      }
     },
 
     async newChat(folderId = null) {
@@ -138,7 +153,7 @@ export const useStore = create<State>((set, get) => {
       }
       const view = await guard(set, () => api.createConversation(folderId))
       if (!view) return
-      set({ current: view })
+      set({ current: view, deletions: [], undo: null })
       await get().refreshList()
     },
 
@@ -182,6 +197,26 @@ export const useStore = create<State>((set, get) => {
     regenerate: (nodeId, pane) => withCurrent((id) => api.regenerate(id, nodeId, pane)),
     switchBranch: (nodeId, direction, pane) => withCurrent((id) => api.switchBranch(id, nodeId, direction, pane)),
 
+    async deleteMessage(nodeId, kind, pane) {
+      await withCurrent((id) => api.deleteMessage(id, nodeId, kind, pane))
+      await get().refreshDeletions()
+      const latest = get().deletions[0]
+      if (latest) set({ undo: { deletionId: latest.id, pane, label: kind === 'below' ? `Deleted ${latest.count} messages` : 'Message deleted' } })
+    },
+    async restoreDeletion(deletionId, pane = 'a') {
+      set({ undo: null })
+      await withCurrent((id) => api.restoreDeletion(id, deletionId, pane))
+      await get().refreshDeletions()
+    },
+    async refreshDeletions() {
+      const current = get().current
+      if (!current) return set({ deletions: [] })
+      const deletions = await guard(set, () => api.listDeletions(current.id))
+      if (deletions && get().current?.id === current.id) set({ deletions })
+    },
+    editMessage: (nodeId, text, pane) => withCurrent((id) => api.editMessage(id, nodeId, text, pane)),
+    dismissUndo: () => set({ undo: null }),
+
     async stop(target = 'both') {
       const current = get().current
       if (current) await api.stop(current.id, target)
@@ -212,7 +247,7 @@ export const useStore = create<State>((set, get) => {
       set({ conversations })
       await get().refreshTrash()
       if (get().current?.id === id) {
-        set({ current: null })
+        set({ current: null, deletions: [], undo: null })
         if (conversations[0]) await get().open(conversations[0].id)
       }
     },

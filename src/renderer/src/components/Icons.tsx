@@ -37,7 +37,10 @@ export const SettingsIcon = (p: Props) => (
 export const SlidersIcon = (p: Props) => (
   <Icon {...p}><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></Icon>
 )
-export const PaperclipIcon = (p: Props) => (
+export const DocIcon = (p: Props) => (
+  <Icon {...p}><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4" /></Icon>
+)
+export const PaperclipIcon =(p: Props) => (
   <Icon {...p}><path d="M21 11l-8.5 8.5a5 5 0 0 1-7-7L14 4a3.5 3.5 0 0 1 5 5l-8.5 8.5a2 2 0 0 1-3-3L15 7" /></Icon>
 )
 export const PenIcon =(p: Props) => <Icon {...p}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4" /></Icon>

@@ -1,6 +1,8 @@
 import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import type { Pane } from '@shared/types'
 import { PaneContext } from '../pane'
+import { useRef } from 'react'
+import { useDragResize, usePersistentNumber } from '../resize'
 import { optionsFor, paneOf, useStore } from '../store'
 import { cacheStatus } from './CacheBar'
 import { CloseIcon } from './Icons'
@@ -68,10 +70,28 @@ function PaneColumn({ pane }: { pane: Pane }) {
   )
 }
 
+/** Two panes with a draggable divider between them (double-click it to go back to half and half). */
 export function SplitView() {
+  const box = useRef<HTMLDivElement>(null)
+  const [share, setShare] = usePersistentNumber('twilight.splitShare', 0.5)
+  const drag = useDragResize({
+    onMove: (x) => {
+      const rect = box.current?.getBoundingClientRect()
+      if (rect) setShare(Math.min(0.8, Math.max(0.2, (x - rect.left) / rect.width)))
+    },
+    onReset: () => setShare(0.5)
+  })
   return (
-    <div className="tw-split">
+    <div className="tw-split" ref={box} style={{ gridTemplateColumns: `minmax(0, ${share}fr) 6px minmax(0, ${1 - share}fr)` }}>
       <PaneColumn pane="a" />
+      <div
+        className="resize-handle split-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize the panes (double-click for half and half)"
+        title="Drag to resize · double-click for half and half"
+        {...drag}
+      />
       <PaneColumn pane="b" />
     </div>
   )

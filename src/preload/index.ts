@@ -45,6 +45,11 @@ const methods: Exclude<keyof TwilightApi, 'onStream'>[] = [
   'updateChatSettings',
   'send',
   'regenerate',
+  'deleteMessage',
+  'listDeletions',
+  'viewDeletion',
+  'restoreDeletion',
+  'editMessage',
   'switchBranch',
   'stop',
   'cloneIntoSplit',
@@ -53,6 +58,7 @@ const methods: Exclude<keyof TwilightApi, 'onStream'>[] = [
   'saveProvider',
   'deleteProvider',
   'listModels',
+  'testProvider',
   'getDefaults',
   'setDefaults',
   'getWritingFolder',
@@ -65,6 +71,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream'>[] = [
   'setDocContext',
   'runWritingTool',
   'stopWritingTool',
+  'getAppInfo',
+  'openDataFolder',
   'openExternal'
 ]
 

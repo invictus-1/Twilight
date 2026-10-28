@@ -9,7 +9,8 @@ import { JudgeView } from './JudgeView'
 const WritingView = lazy(() => import('./WritingView').then((m) => ({ default: m.WritingView })))
 import { ChatView } from './ChatView'
 import { CloseIcon } from './Icons'
-import { SettingsDialog } from './SettingsDialog'
+import { SettingsView } from './SettingsView'
+import { useDragResize, usePersistentNumber } from '../resize'
 import { Sidebar } from './Sidebar'
 
 export function App() {
@@ -17,6 +18,17 @@ export function App() {
   const settingsOpen = useStore((s) => s.settingsOpen)
   const mode = useStore((s) => s.mode)
   const error = useStore((s) => s.error)
+  const undo = useStore((s) => s.undo)
+  useEffect(() => {
+    if (!undo) return
+    const t = setTimeout(() => useStore.getState().dismissUndo(), 8000)
+    return () => clearTimeout(t)
+  }, [undo])
+  const [sidebarWidth, setSidebarWidth] = usePersistentNumber('twilight.sidebarWidth', 264)
+  const sidebarDrag = useDragResize({
+    onMove: (x) => setSidebarWidth(Math.round(Math.min(560, Math.max(200, x)))),
+    onReset: () => setSidebarWidth(264)
+  })
 
   useEffect(() => {
     const store = useStore.getState()
@@ -66,9 +78,22 @@ export function App() {
   }, [])
 
   return (
-    <div className={`app ${sidebarOpen ? '' : 'sidebar-closed'}`}>
+    <div className={`app ${sidebarOpen ? '' : 'sidebar-closed'}`} style={sidebarOpen ? { gridTemplateColumns: `${sidebarWidth}px minmax(0, 1fr)` } : undefined}>
       <Sidebar />
-      {mode === 'chat' ? (
+      {sidebarOpen && (
+        <div
+          className="resize-handle sidebar-handle"
+          style={{ left: sidebarWidth - 3 }}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize the sidebar (double-click to reset)"
+          title="Drag to resize · double-click to reset"
+          {...sidebarDrag}
+        />
+      )}
+      {settingsOpen ? (
+        <SettingsView />
+      ) : mode === 'chat' ? (
         <ChatView />
       ) : mode === 'judge' ? (
         <JudgeView />
@@ -77,7 +102,17 @@ export function App() {
           <WritingView />
         </Suspense>
       )}
-      {settingsOpen && <SettingsDialog />}
+      {undo && !error && (
+        <div className="toast toast-info" role="status">
+          <span>{undo.label}</span>
+          <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => void useStore.getState().restoreDeletion(undo.deletionId, undo.pane)}>
+            Undo
+          </button>
+          <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Dismiss" onClick={() => useStore.getState().dismissUndo()}>
+            <CloseIcon />
+          </button>
+        </div>
+      )}
       {error && (
         <div className="toast" role="alert">
           <span>{error}</span>

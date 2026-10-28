@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import type { Attachment, ChatSettings, ConversationView, Pane, SendTarget, StreamEvent } from '@shared/types'
+import type { Attachment, ChatSettings, ConversationView, DeletionView, Pane, SendTarget, StreamEvent } from '@shared/types'
 import * as db from './db'
 import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { appendLog } from './logs'
@@ -213,6 +213,129 @@ export function regenerate(contents: WebContents, id: string, assistantNodeId: s
   return view(id)
 }
 
+// ——— Deleting, restoring and editing messages ———
+// Deletion is soft and recorded, so it can always be undone. "single" removes one message and
+// moves its replies up to its parent; "below" removes it and everything under it. Because the
+// conversation is a tree, a restore never collides with what was written since: a restored
+// branch simply comes back as another version beside it.
+
+export function deleteMessage(id: string, nodeId: string, kind: 'single' | 'below', pane: Pane = 'a'): ConversationView {
+  if (isRunning(id)) throw new Error('Wait for the reply to finish (or stop it) before deleting.')
+  const conv = db.getConversation(id)
+  const nodes = db.loadNodes(id)
+  const node = nodes.get(nodeId)
+  if (!node?.parent_id) throw new Error('That message is already gone.')
+  const parentId = node.parent_id
+  const moved = kind === 'single' ? db.childrenOf(nodes, nodeId).map((c) => c.id) : []
+  for (const child of moved) db.setParent(child, parentId)
+  db.recordDeletion({
+    id: randomUUID(),
+    conversation_id: id,
+    node_id: nodeId,
+    kind,
+    moved_children: moved.length ? JSON.stringify(moved) : null,
+    created_at: Date.now()
+  })
+  // Keep each pane's thread pointing at messages that still exist.
+  const after = db.loadNodes(id)
+  if (nodes.get(parentId)?.active_child_id === nodeId) {
+    const keep = node.active_child_id && moved.includes(node.active_child_id) ? node.active_child_id : db.childrenOf(after, parentId).at(-1)?.id
+    if (keep) db.setActiveChild(parentId, keep)
+    else db.clearActiveChild(parentId)
+  }
+  const split = splitOf(conv)
+  if (split && !after.has(split.leafId)) setSplit(id, { ...split, leafId: parentId })
+  return view(id)
+}
+
+export function listDeletions(id: string): DeletionView[] {
+  const all = db.loadAllNodes(id)
+  const subtreeSize = (nodeId: string): number => {
+    let n = 1
+    for (const row of all.values()) if (row.parent_id === nodeId) n += subtreeSize(row.id)
+    return n
+  }
+  return db.listDeletions(id).flatMap((d) => {
+    const node = all.get(d.node_id)
+    if (!node || (node.role !== 'user' && node.role !== 'assistant')) return []
+    const text = node.text.replace(/\s+/g, ' ').trim()
+    return [
+      {
+        id: d.id,
+        kind: d.kind,
+        createdAt: d.created_at,
+        role: node.role,
+        preview: text.length > 140 ? `${text.slice(0, 137)}…` : text || '(empty)',
+        count: d.kind === 'single' ? 1 : subtreeSize(d.node_id)
+      }
+    ]
+  })
+}
+
+export function viewDeletion(id: string, deletionId: string): ConversationView['path'] {
+  const d = db.getDeletion(deletionId)
+  if (!d || d.conversation_id !== id) throw new Error('That deletion no longer exists.')
+  const all = db.loadAllNodes(id)
+  const path: db.NodeRow[] = []
+  for (let n = all.get(d.node_id); n; n = d.kind === 'below' && n.active_child_id ? all.get(n.active_child_id) : undefined) path.push(n)
+  return path.map((n) => db.toView(n, all))
+}
+
+export function restoreDeletion(id: string, deletionId: string, pane: Pane = 'a'): ConversationView {
+  if (isRunning(id)) throw new Error('Wait for the reply to finish before restoring.')
+  const d = db.getDeletion(deletionId)
+  if (!d || d.conversation_id !== id || d.restored_at) return view(id)
+  const all = db.loadAllNodes(id)
+  const node = all.get(d.node_id)
+  if (!node?.parent_id) return view(id)
+  db.markRestored(d)
+  // Put moved replies back under it, unless something else has adopted them since.
+  for (const child of d.moved_children ? (JSON.parse(d.moved_children) as string[]) : []) {
+    if (all.get(child)?.parent_id === node.parent_id) db.setParent(child, node.id)
+  }
+  // Show what came back: it becomes the active version where it was.
+  const split = splitOf(db.getConversation(id))
+  if (pane === 'b' && split) setSplit(id, { ...split, leafId: db.descend(db.loadNodes(id), node.id) })
+  else for (let n: db.NodeRow | undefined = node; n?.parent_id; n = all.get(n.parent_id)) db.setActiveChild(n.parent_id, n.id)
+  return view(id)
+}
+
+export function editMessage(contents: WebContents, id: string, nodeId: string, text: string, pane: Pane = 'a'): ConversationView {
+  if (isRunning(id, pane)) throw new Error('Wait for the reply to finish before editing.')
+  const nodes = db.loadNodes(id)
+  const node = nodes.get(nodeId)
+  if (!node?.parent_id || (node.role !== 'user' && node.role !== 'assistant')) throw new Error("That message can't be edited.")
+  const base = {
+    id: randomUUID(),
+    conversation_id: id,
+    parent_id: node.parent_id,
+    text,
+    thinking: null,
+    usage: null,
+    status: 'done' as const,
+    error: null
+  }
+  let edited: db.NodeRow
+  if (node.role === 'user') {
+    // Keep its attached documents; replace what was typed.
+    const blocks = node.content ? (JSON.parse(node.content) as { type: string; text?: string }[]) : []
+    const docs = blocks.filter((b) => b.type === 'text' && b.text?.startsWith('<document name='))
+    edited = db.insertNode(
+      { ...base, role: 'user', content: JSON.stringify([...docs, ...(text ? [{ type: 'text', text }] : [])]), model: null, provider_id: null, attachments: node.attachments ?? null },
+      { activate: pane === 'a' }
+    )
+  } else {
+    edited = db.insertNode(
+      { ...base, role: 'assistant', content: JSON.stringify([{ type: 'text', text }]), model: node.model, provider_id: node.provider_id },
+      { activate: pane === 'a' }
+    )
+  }
+  const split = splitOf(db.getConversation(id))
+  if (pane === 'b' && split) setSplit(id, { ...split, leafId: edited.id })
+  if (node.role === 'user') generate(contents, id, edited.id, pane)
+  return view(id)
+}
+
 export function switchBranch(id: string, nodeId: string, direction: -1 | 1, pane: Pane = 'a'): ConversationView {
   const conv = db.getConversation(id)
   const nodes = db.loadNodes(id)
@@ -304,6 +427,12 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
         settings.messageLimit
       )
       const config = getProvider(settings.providerId)
+      const requestedAt = Date.now()
+      let firstTokenAt = 0
+      const first = (): void => {
+        if (!firstTokenAt) firstTokenAt = Date.now()
+        markStarted()
+      }
       const result = await implFor(config).generate({
         config,
         apiKey: getApiKey(config.id),
@@ -314,12 +443,12 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
         settings,
         signal: controller.signal,
         onText: (delta) => {
-          markStarted()
+          first()
           text += delta
           emit({ kind: 'text', conversationId, nodeId: assistant.id, delta })
         },
         onThinking: (delta) => {
-          markStarted()
+          first()
           thinking += delta
           emit({ kind: 'thinking', conversationId, nodeId: assistant.id, delta })
         }
@@ -329,7 +458,7 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
         thinking: result.thinking ?? null,
         content: result.content ? JSON.stringify(result.content) : null,
         model: result.modelId,
-        usage: JSON.stringify({ ...result.usage, cacheTtl: settings.cacheTtl }),
+        usage: JSON.stringify({ ...result.usage, cacheTtl: settings.cacheTtl, ttftMs: firstTokenAt ? firstTokenAt - requestedAt : undefined }),
         status: controller.signal.aborted ? 'stopped' : result.error ? 'error' : 'done',
         error: result.error ?? null
       })

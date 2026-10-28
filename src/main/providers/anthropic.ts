@@ -77,10 +77,32 @@ export function anthropicOptions(id: string, caps: Capabilities | undefined, max
   }
 }
 
+const CAP_LABELS: Record<string, string> = {
+  image_input: 'Vision',
+  pdf_input: 'PDF input',
+  thinking: 'Thinking',
+  effort: 'Effort',
+  structured_outputs: 'Structured output',
+  citations: 'Citations',
+  code_execution: 'Code execution',
+  context_management: 'Context editing',
+  batch: 'Batch'
+}
+
+/** Every ability the Models API marks supported, in readable names (unknown keys prettified). */
+function capabilityLabels(caps: Capabilities | undefined): string[] {
+  const listed = caps
+    ? Object.entries(caps)
+        .filter(([, v]) => typeof v === 'object' && v?.supported)
+        .map(([k]) => CAP_LABELS[k] ?? k.replace(/_/g, ' ').replace(/^\w/, (c) => c.toUpperCase()))
+    : []
+  return ['Text', 'Streaming', ...listed]
+}
+
 export const anthropicProvider: Provider = {
   async listModels(config: ProviderConfig, apiKey?: string): Promise<ModelInfo[]> {
     if (!apiKey) return []
-    const client = new Anthropic({ apiKey })
+    const client = anthropicClient(config, apiKey)
     const models: ModelInfo[] = []
     for await (const m of client.models.list({ limit: 100 })) {
       const extra = m as unknown as { max_input_tokens?: number; max_tokens?: number; capabilities?: Capabilities }
@@ -90,7 +112,8 @@ export const anthropicProvider: Provider = {
         name: m.display_name,
         local: false,
         contextWindow: extra.max_input_tokens,
-        options: anthropicOptions(m.id, extra.capabilities, extra.max_tokens)
+        options: anthropicOptions(m.id, extra.capabilities, extra.max_tokens),
+        capabilities: capabilityLabels(extra.capabilities)
       })
     }
     return models
@@ -98,7 +121,7 @@ export const anthropicProvider: Provider = {
 
   async generate(req: GenerateRequest): Promise<GenerateResult> {
     if (!req.apiKey) throw new Error('Add an Anthropic API key in Settings → Providers.')
-    const client = new Anthropic({ apiKey: req.apiKey })
+    const client = anthropicClient(req.config, req.apiKey)
     const { settings } = req
     const model = settings.modelId
     const options = req.options ?? anthropicOptions(model, undefined)
@@ -182,8 +205,20 @@ export const anthropicProvider: Provider = {
   }
 }
 
+export const ANTHROPIC_DEFAULT_URL = 'https://api.anthropic.com'
+
+/**
+ * Every Anthropic client is built from Twilight's own settings only. The SDK otherwise reads
+ * ANTHROPIC_BASE_URL / ANTHROPIC_AUTH_TOKEN from the environment, which other tools (Claude Code
+ * among them) set for themselves; inherited, they'd send Twilight's key to the wrong place.
+ */
+export function anthropicClient(config: ProviderConfig, apiKey: string): Anthropic {
+  return new Anthropic({ apiKey, authToken: null, baseURL: config.baseUrl?.trim() || ANTHROPIC_DEFAULT_URL })
+}
+
 export function describeAnthropicError(err: unknown): string | undefined {
-  if (err instanceof Anthropic.AuthenticationError) return 'The Anthropic API key was rejected. Check it in Settings → Providers.'
+  if (err instanceof Anthropic.AuthenticationError)
+    return `The Anthropic API key was rejected (${err.status}: ${err.message}). Check it in Settings → Providers, where "Test connection" shows what Anthropic says.`
   if (err instanceof Anthropic.RateLimitError) return 'Rate limited by Anthropic. Wait a moment and regenerate.'
   if (err instanceof Anthropic.BadRequestError) return `Anthropic rejected the request: ${err.message}`
   if (err instanceof Anthropic.APIConnectionError) return "Couldn't reach Anthropic. Check your connection."

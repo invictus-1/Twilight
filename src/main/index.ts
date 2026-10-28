@@ -168,6 +168,11 @@ function registerIpc(): void {
     send: (e, id: string, text: string, target?: SendTarget, attachments?: Attachment[]) =>
       chat.send(e.sender, id, text, target, attachments),
     regenerate: (e, id: string, nodeId: string, pane?: Pane) => chat.regenerate(e.sender, id, nodeId, pane),
+    deleteMessage: (_e, id: string, nodeId: string, kind: 'single' | 'below', pane?: Pane) => chat.deleteMessage(id, nodeId, kind, pane),
+    listDeletions: (_e, id: string) => chat.listDeletions(id),
+    viewDeletion: (_e, id: string, deletionId: string) => chat.viewDeletion(id, deletionId),
+    restoreDeletion: (_e, id: string, deletionId: string, pane?: Pane) => chat.restoreDeletion(id, deletionId, pane),
+    editMessage: (e, id: string, nodeId: string, text: string, pane?: Pane) => chat.editMessage(e.sender, id, nodeId, text, pane),
     switchBranch: (_e, id: string, nodeId: string, direction: -1 | 1, pane?: Pane) =>
       chat.switchBranch(id, nodeId, direction, pane),
     stop: (_e, id: string, target?: SendTarget) => chat.stop(id, target),
@@ -177,6 +182,7 @@ function registerIpc(): void {
     saveProvider: (_e, config, apiKey?: string) => providers.saveProvider(config, apiKey),
     deleteProvider: (_e, id: string) => providers.deleteProvider(id),
     listModels: (_e, refresh?: boolean) => providers.listModels(refresh),
+    testProvider: (_e, id: string) => providers.testProvider(id),
     getDefaults: () => chat.getDefaults(),
     setDefaults: (_e, patch) => chat.setDefaults(patch),
     listRubrics: () => judge.listRubrics(),
@@ -200,6 +206,10 @@ function registerIpc(): void {
     setDocContext: (_e, path: string, context: DocContext) => docs.setDocContext(path, context),
     runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
     stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
+    getAppInfo: () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), electron: process.versions.electron }),
+    openDataFolder: async () => {
+      await shell.openPath(app.getPath('userData'))
+    },
     openExternal: async (_e, url: string) => {
       if (isWebUrl(url)) await shell.openExternal(url)
     }

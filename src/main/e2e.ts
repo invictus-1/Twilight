@@ -57,6 +57,9 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply =
           `### Prose — X ${xGood ? 8 : 5} · Y ${xGood ? 5 : 8}\nX quotes "${x.slice(0, 20)}".\n\n### Verdict\n${xGood ? 'X' : 'Y'} is better.\n\n` +
           '```json\n' + JSON.stringify({ criteria, overall: { X: xGood ? 8 : 5, Y: xGood ? 5 : 8 }, winner: xGood ? 'X' : 'Y', confidence: 'high' }) + '\n```'
+      } else if (lastUser.includes('PLAINCHOICES')) {
+        // Choices the way a system prompt of your own might ask for them: a plain numbered list.
+        reply = 'The corridor splits three ways.\n\n**What do you do?**\n\n1. Take the left stair\n2. Follow the draft\n3. Wait for the guard'
       } else if (system.includes('Interactive choices:')) {
         reply = `The door creaks open on "${lastUser}".\n\n\`\`\`choices\nWhat do you do?\n1. Light the lamp\n2. Wait in the rain\n3. Call out\n4. Run for the bridge\n\`\`\``
       } else if (lastUser.includes('STATUSCARD')) {
@@ -716,6 +719,116 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('answered cards show the pick and go quiet', answered.firstPicked === 'Wait in the rain' && !answered.firstActive && answered.lastActive, answered)
       writeFileSync(join(outDir, 'e2e-choices.png'), (await win.webContents.capturePage()).toPNG())
+
+      // 27. Plain-text choices: a numbered list at the end becomes a card when Choices is on.
+      const plain = extractChoices('Rain.\n\n*What now?*\n\n**1.** Run\n**2.** Hide\n\n<details>\n<summary>Day</summary>\nx\n</details>', true)
+      check('plain numbered options parsed', plain.choices?.question === 'What now?' && plain.choices?.options.join() === 'Run,Hide' && plain.body.includes('<details>') && !plain.body.includes('Hide'), plain)
+      check('plain options ignored with Choices off', extractChoices('Rain.\n\n1. Run\n2. Hide').choices === null)
+      check('lists mid-reply are not choices', extractChoices('1. a\n2. b\n\nThe story goes on.', true).choices === null)
+      check('lists not numbered from 1 are not choices', extractChoices('Text\n\n2. a\n3. b', true).choices === null)
+      const c4 = chat.create(null).id
+      chat.updateSettings(c4, { choiceCards: true })
+      chat.send(contents, c4, 'PLAINCHOICES')
+      await idle(c4)
+      await new Promise((r) => setTimeout(r, 400))
+      const plainCard = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'PLAINCHOICES')
+        row?.click()
+        await wait(500)
+        const c = document.querySelector('.choice-card')
+        const md = [...document.querySelectorAll('.tw-msg-ai .md')].at(-1)
+        return {
+          question: c?.querySelector('.choice-question')?.textContent ?? null,
+          options: [...(c?.querySelectorAll('.choice-text') ?? [])].map((e) => e.textContent),
+          listHidden: !md?.textContent.includes('Follow the draft'),
+          storyShown: !!md?.textContent.includes('corridor splits')
+        }
+      })()`)
+      check('plain-text options show as a card', plainCard.question === 'What do you do?' && plainCard.options?.join('|') === 'Take the left stair|Follow the draft|Wait for the guard', plainCard)
+      check('plain list moves out of the reply', plainCard.listHidden && plainCard.storyShown, plainCard)
+
+      // 28. Message actions: delete one, delete below, view, restore (also after writing more), edit, tok/s.
+      const c5 = chat.create(null).id
+      for (const t of ['one', 'two', 'three']) {
+        chat.send(contents, c5, t)
+        await idle(c5)
+      }
+      let p5 = chat.view(c5).path
+      const [, a1, u2, , u3] = p5
+      check('ttft recorded for tok/s', typeof p5[1].usage?.ttftMs === 'number' && p5[1].usage.ttftMs >= 0, p5[1].usage)
+      chat.deleteMessage(c5, a1.id, 'single')
+      p5 = chat.view(c5).path
+      check('delete one message keeps the rest', p5.length === 5 && p5[1].id === u2.id && p5[3].id === u3.id, p5.map((n) => n.id))
+      let dels = chat.listDeletions(c5)
+      check('deletion listed', dels.length === 1 && dels[0].count === 1 && dels[0].role === 'assistant', dels)
+      chat.restoreDeletion(c5, dels[0].id)
+      p5 = chat.view(c5).path
+      check('restore puts it back in place', p5.length === 6 && p5[1].id === a1.id && p5[2].id === u2.id, p5.map((n) => n.id))
+      check('restored deletion leaves the list', chat.listDeletions(c5).length === 0)
+      chat.deleteMessage(c5, u2.id, 'below')
+      p5 = chat.view(c5).path
+      dels = chat.listDeletions(c5)
+      check('delete below clears everything under it', p5.length === 2 && p5[1].id === a1.id, p5.length)
+      check('delete below counts what it took', dels[0]?.kind === 'below' && dels[0]?.count === 4, dels)
+      check('a deletion can be read', chat.viewDeletion(c5, dels[0].id).length === 4)
+      chat.send(contents, c5, 'four')
+      await idle(c5)
+      chat.restoreDeletion(c5, dels[0].id)
+      p5 = chat.view(c5).path
+      check('restore after writing more comes back as a version', p5.length === 6 && p5[2].id === u2.id && p5[2].siblingCount === 2, { len: p5.length, sib: p5[2]?.siblingCount })
+      const before28 = log.length
+      chat.editMessage(contents, c5, u3.id, 'three, edited')
+      await idle(c5)
+      p5 = chat.view(c5).path
+      check('editing a message makes a new version and replies', p5.at(-2)?.text === 'three, edited' && p5.at(-2)?.siblingCount === 2 && p5.at(-1)?.status === 'done', p5.at(-2))
+      check('the edit is what the model sees', [...(log[before28]?.messages ?? [])].reverse().find((m) => m.role === 'user')?.content === 'three, edited')
+      const sentBefore = log.length
+      chat.editMessage(contents, c5, p5.at(-1)!.id, 'A rewritten reply.')
+      p5 = chat.view(c5).path
+      check('editing a reply saves it without a request', p5.at(-1)?.text === 'A rewritten reply.' && log.length === sentBefore)
+
+      // The same actions in the interface: trash, right-click menu, undo toast, recently deleted.
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 700))
+      const actionsUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'one')
+        row?.click()
+        await wait(500)
+        const out = { trashButtons: document.querySelectorAll('.delete-btn').length, tokPerSec: [...document.querySelectorAll('.msg-usage')].some((e) => /tok\\/s/.test(e.textContent)) }
+        const lastTrash = [...document.querySelectorAll('.delete-btn')].at(-1)
+        lastTrash.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }))
+        await wait(100)
+        out.menu = [...document.querySelectorAll('.delete-menu .tw-menu-item')].map((e) => e.textContent)
+        document.querySelector('.delete-menu .tw-menu-item').click()
+        await wait(400)
+        out.toast = document.querySelector('.toast-info')?.textContent ?? null
+        const lastReply = () => [...document.querySelectorAll('.tw-msg-ai .md')].at(-1)?.textContent ?? ''
+        out.afterDelete = lastReply()
+        ;[...document.querySelectorAll('.toast-info button')].find((b) => b.textContent === 'Undo')?.click()
+        await wait(400)
+        out.afterUndo = lastReply()
+        ;[...document.querySelectorAll('.delete-btn')].at(-1).click()
+        await wait(400)
+        const head = [...document.querySelectorAll('.chat-head button')].find((b) => b.title.startsWith('Recently deleted'))
+        out.headCount = head?.textContent ?? null
+        head?.click()
+        await wait(200)
+        out.panelItems = document.querySelectorAll('.deleted-panel .deleted-item').length
+        ;[...document.querySelectorAll('.deleted-panel button')].find((b) => b.textContent === 'View')?.click()
+        await wait(200)
+        out.viewShown = document.querySelectorAll('.deleted-panel .deleted-msg').length
+        return out
+      })()`)
+      check('every message has a trash button', actionsUi.trashButtons >= 6, actionsUi.trashButtons)
+      check('tokens per second shown', actionsUi.tokPerSec === true)
+      check('right-click offers delete below', actionsUi.menu?.length === 2 && /everything below/.test(actionsUi.menu[1]), actionsUi.menu)
+      check('delete shows an undo toast', /Message deleted/.test(actionsUi.toast ?? ''), actionsUi.toast)
+      check('undo brings the message back', actionsUi.afterUndo.includes('A rewritten reply.') && !actionsUi.afterDelete.includes('A rewritten reply.'), actionsUi)
+      check('recently deleted panel lists and shows deletions', actionsUi.headCount === '1' && actionsUi.panelItems === 1 && actionsUi.viewShown === 1, actionsUi)
+      writeFileSync(join(outDir, 'e2e-deleted.png'), (await win.webContents.capturePage()).toPNG())
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {

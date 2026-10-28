@@ -13,6 +13,21 @@ export interface ProviderConfig {
   enabled: boolean
   /** True when an API key is stored (the key itself never leaves the main process). */
   hasKey?: boolean
+  /** Models hidden from the model picker (still listed on the Providers page). */
+  hiddenModels?: string[]
+  /** Your own names for models, by model id. */
+  labels?: Record<string, string>
+  /** Model ids added by hand (for servers that don't list everything). */
+  customModels?: string[]
+  /** The last time Twilight talked to this provider, and how it went. */
+  status?: ProviderStatus
+}
+
+export interface ProviderStatus {
+  ok: boolean
+  /** "12 models" or the provider's own error message. */
+  message: string
+  at: number
 }
 
 /**
@@ -43,6 +58,14 @@ export interface ModelInfo {
   local: boolean
   contextWindow?: number
   options?: ModelOptions
+  /** Abilities the provider reports for this model (Vision, Thinking, Tools, PDF input…). */
+  capabilities?: string[]
+  /** Hidden from the model picker (Providers page setting). */
+  hidden?: boolean
+  /** The provider's own name for the model, when a custom label replaced it. */
+  originalName?: string
+  /** Added by hand rather than listed by the provider. */
+  custom?: boolean
 }
 
 export type CacheTtl = '5m' | '1h'
@@ -91,6 +114,19 @@ export interface Usage {
   ms: number
   /** TTL the cache writes were billed at. */
   cacheTtl?: CacheTtl
+  /** Time to the first streamed token, for tokens-per-second. */
+  ttftMs?: number
+}
+
+/** A deleted message (or message and everything below it), restorable from "Recently deleted". */
+export interface DeletionView {
+  id: string
+  kind: 'single' | 'below'
+  createdAt: number
+  role: 'user' | 'assistant'
+  preview: string
+  /** How many messages it took out. */
+  count: number
 }
 
 export type NodeStatus = 'done' | 'streaming' | 'error' | 'stopped'
@@ -246,6 +282,14 @@ export interface TwilightApi {
   savePreset(preset: SettingsPreset): Promise<SettingsPreset[]>
   deletePreset(name: string): Promise<SettingsPreset[]>
   regenerate(id: string, assistantNodeId: string, pane?: Pane): Promise<ConversationView>
+  /** Deletes a message ("single": its replies move up to take its place) or it and everything below. */
+  deleteMessage(id: string, nodeId: string, kind: 'single' | 'below', pane?: Pane): Promise<ConversationView>
+  listDeletions(id: string): Promise<DeletionView[]>
+  /** The messages a deletion took out, read-only. */
+  viewDeletion(id: string, deletionId: string): Promise<NodeView[]>
+  restoreDeletion(id: string, deletionId: string, pane?: Pane): Promise<ConversationView>
+  /** Edits a message as a new version: a user message gets a fresh reply; a reply is saved as written. */
+  editMessage(id: string, nodeId: string, text: string, pane?: Pane): Promise<ConversationView>
   switchBranch(id: string, nodeId: string, direction: -1 | 1, pane?: Pane): Promise<ConversationView>
   stop(id: string, target?: SendTarget): Promise<void>
   /** Opens split compare with pane B as a copy of pane A at `nodeId` (default: A's latest message). */
@@ -258,6 +302,8 @@ export interface TwilightApi {
   saveProvider(config: ProviderConfig, apiKey?: string): Promise<ProviderConfig[]>
   deleteProvider(id: string): Promise<ProviderConfig[]>
   listModels(refresh?: boolean): Promise<ModelInfo[]>
+  /** Asks the provider for its models right now; returns the outcome (and remembers it). */
+  testProvider(id: string): Promise<ProviderStatus>
   getDefaults(): Promise<ChatSettings>
   setDefaults(patch: Partial<ChatSettings>): Promise<ChatSettings>
 
@@ -279,5 +325,7 @@ export interface TwilightApi {
   runWritingTool(requestId: string, request: WritingRequest): Promise<void>
   stopWritingTool(requestId: string): Promise<void>
 
+  getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
+  openDataFolder(): Promise<void>
   openExternal(url: string): Promise<void>
 }

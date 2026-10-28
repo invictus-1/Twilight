@@ -10,7 +10,7 @@ import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
-import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon } from './Icons'
+import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -25,15 +25,103 @@ function estimateHeight(text: string, chrome: number): number {
   return Math.round(lines * 22 * 0.87 + chrome)
 }
 
+/** Edits a message in place; saving makes a new version (the original stays in the switcher). */
+function EditBox({ node, onDone }: { node: NodeView; onDone: () => void }) {
+  const pane = usePane()
+  const [text, setText] = useState(node.text)
+  const save = (): void => {
+    if (!text.trim() || text === node.text) return onDone()
+    void useStore.getState().editMessage(node.id, text, pane)
+    onDone()
+  }
+  return (
+    <div className="edit-box">
+      <textarea
+        autoFocus
+        value={text}
+        rows={Math.min(16, Math.max(3, text.split('\n').length + 1))}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') onDone()
+          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) save()
+        }}
+      />
+      <div className="edit-box-actions">
+        <span className="field-note">Saved as a new version; the original stays in ‹ › .</span>
+        <button className="tw-btn tw-btn-sm tw-btn-ghost" onClick={onDone}>
+          Cancel
+        </button>
+        <button className="tw-btn tw-btn-sm tw-btn-primary" onClick={save}>
+          {node.role === 'user' ? 'Save and send (Ctrl+Enter)' : 'Save (Ctrl+Enter)'}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** Trash: click deletes this message; right-click offers deleting everything below too. Undoable. */
+function DeleteButton({ node }: { node: NodeView }) {
+  const pane = usePane()
+  const [menu, setMenu] = useState(false)
+  const run = (kind: 'single' | 'below'): void => {
+    setMenu(false)
+    void useStore.getState().deleteMessage(node.id, kind, pane)
+  }
+  return (
+    <span className="delete-wrap" onMouseLeave={() => setMenu(false)}>
+      <button
+        className="tw-btn tw-btn-ghost tw-btn-icon delete-btn"
+        aria-label="Delete this message"
+        title="Delete this message (right-click: delete everything below too)"
+        onClick={() => run('single')}
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setMenu(true)
+        }}
+      >
+        <TrashIcon />
+      </button>
+      {menu && (
+        <div className="tw-menu delete-menu" role="menu">
+          <div className="tw-menu-item" role="menuitem" onClick={() => run('single')}>
+            Delete this message
+          </div>
+          <div className="tw-menu-item danger-text" role="menuitem" onClick={() => run('below')}>
+            Delete this and everything below
+          </div>
+          <div className="delete-menu-note">Both can be restored from “Recently deleted”.</div>
+        </div>
+      )}
+    </span>
+  )
+}
+
 function UserMessage({ node }: { node: NodeView }) {
   const [expanded, setExpanded] = useState(false)
+  const [editing, setEditing] = useState(false)
   const long = node.text.length > COLLAPSE_AT
   const words = long ? node.text.split(/\s+/).length : 0
+  if (editing) {
+    return (
+      <div className="msg msg-user-row">
+        <EditBox node={node} onDone={() => setEditing(false)} />
+      </div>
+    )
+  }
   return (
     <div
       className="msg msg-user-row"
       style={{ containIntrinsicSize: `auto ${estimateHeight(long && !expanded ? node.text.slice(0, 1200) : node.text, 28)}px` }}
     >
+      <span className="user-actions">
+        <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Edit" title="Edit (makes a new version)" onClick={() => setEditing(true)}>
+          <PenIcon />
+        </button>
+        <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Copy" title="Copy" onClick={() => void navigator.clipboard.writeText(node.text)}>
+          <CopyIcon />
+        </button>
+        <DeleteButton node={node} />
+      </span>
       <BranchSwitcher node={node} />
       <div className="tw-msg-user">
         {node.attachments && node.attachments.length > 0 && (
@@ -134,11 +222,16 @@ function UsageLine({ node }: { node: NodeView }) {
   const prompt = u.input + u.cacheRead + u.cacheWrite
   const total = prompt + u.output
   const cachedPct = prompt ? Math.round((u.cacheRead / prompt) * 100) : 0
+  // Speed of generation itself: output tokens over the time after the first token arrived.
+  const genMs = u.ms - (u.ttftMs ?? 0)
+  const tps = u.output > 1 && genMs > 50 ? u.output / (genMs / 1000) : null
   const detail =
     `Input ${u.input.toLocaleString()} · cache read ${u.cacheRead.toLocaleString()} · ` +
-    `cache write ${u.cacheWrite.toLocaleString()} · output ${u.output.toLocaleString()} · ${(u.ms / 1000).toFixed(1)}s`
+    `cache write ${u.cacheWrite.toLocaleString()} · output ${u.output.toLocaleString()} · ${(u.ms / 1000).toFixed(1)}s` +
+    (u.ttftMs ? ` · first token after ${(u.ttftMs / 1000).toFixed(1)}s` : '')
   return (
     <span className="msg-usage" title={detail}>
+      {tps !== null && <>{tps.toFixed(1)} tok/s · </>}
       {cost !== null && <>{formatCost(cost)} · </>}
       {formatTokens(total)} tok
       {prompt > 0 && !local && <> · {cachedPct}% cached</>}
@@ -147,11 +240,21 @@ function UsageLine({ node }: { node: NodeView }) {
 }
 
 function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeView; isLast: boolean }) {
-  const { body, choices } = extractChoices(node.text)
-  const models = useStore((s) => s.models)
   const pane = usePane()
+  const plainChoices = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceCards : false))
+  const { body, choices } = extractChoices(node.text, plainChoices)
+  const models = useStore((s) => s.models)
   const showThinking = useStore((s) => (s.current ? paneOf(s.current, pane).settings.showThinking : false))
+  const [editing, setEditing] = useState(false)
   const streaming = node.status === 'streaming'
+  if (editing) {
+    return (
+      <div className="msg tw-msg-ai">
+        <div className="tw-msg-head">{modelName(models, node.modelId)} · editing</div>
+        <EditBox node={node} onDone={() => setEditing(false)} />
+      </div>
+    )
+  }
   return (
     <div className="msg tw-msg-ai" style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
       <div className="tw-msg-head">
@@ -203,6 +306,9 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
             >
               <RefreshIcon />
             </button>
+            <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Edit" title="Edit (saves as a new version)" onClick={() => setEditing(true)}>
+              <PenIcon />
+            </button>
             {body && <GameFormatButton text={body} />}
             {node.text && (
               <button
@@ -215,7 +321,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
                   void useWriting.getState().fromText(title, body)
                 }}
               >
-                <PenIcon />
+                <DocIcon />
               </button>
             )}
             {pane === 'a' && (
@@ -228,6 +334,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
                 <SplitIcon />
               </button>
             )}
+            <DeleteButton node={node} />
           </div>
           <UsageLine node={node} />
         </div>

@@ -5,7 +5,8 @@ import { modelName, useStore } from '../store'
 import { CacheBar } from './CacheBar'
 import { ChatSettingsPanel } from './ChatSettingsPanel'
 import { Composer } from './Composer'
-import { SidebarIcon, SlidersIcon, SplitIcon } from './Icons'
+import { DeletedPanel } from './DeletedPanel'
+import { SidebarIcon, SlidersIcon, SplitIcon, TrashIcon } from './Icons'
 import { SplitView } from './SplitView'
 import { Thread } from './Thread'
 
@@ -54,7 +55,8 @@ function JudgeSplitButton() {
 export function ChatView() {
   const current = useStore((s) => s.current)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
-  const [panelOpen, setPanelOpen] = useState(false)
+  const deleted = useStore((s) => s.deletions.length)
+  const [panel, setPanel] = useState<'settings' | 'deleted' | null>(null)
   const split = !!current?.split
   const empty = !current || (current.path.length === 0 && !split)
 
@@ -76,17 +78,29 @@ export function ChatView() {
           {split ? 'Close split' : 'Split'}
         </button>
         {split && <JudgeSplitButton />}
+        {deleted > 0 && (
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-sm no-drag"
+            aria-expanded={panel === 'deleted'}
+            title="Recently deleted messages: read or restore them"
+            onClick={() => setPanel((p) => (p === 'deleted' ? null : 'deleted'))}
+          >
+            <TrashIcon />
+            {deleted}
+          </button>
+        )}
         <button
           className="tw-btn tw-btn-ghost tw-btn-sm no-drag"
-          aria-expanded={panelOpen}
-          onClick={() => setPanelOpen((o) => !o)}
+          aria-expanded={panel === 'settings'}
+          onClick={() => setPanel((p) => (p === 'settings' ? null : 'settings'))}
           disabled={!current}
         >
           <SlidersIcon />
           Model settings
         </button>
       </header>
-      {panelOpen && current && <ChatSettingsPanel key={current.id} onClose={() => setPanelOpen(false)} />}
+      {panel === 'settings' && current && <ChatSettingsPanel key={current.id} onClose={() => setPanel(null)} />}
+      {panel === 'deleted' && current && <DeletedPanel key={current.id} onClose={() => setPanel(null)} />}
       {split ? (
         <SplitView key={current.id} />
       ) : empty ? (

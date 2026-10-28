@@ -23,6 +23,18 @@ interface ListedModel {
   /** OpenRouter lists the request parameters each model accepts. */
   supported_parameters?: string[]
   top_provider?: { max_completion_tokens?: number }
+  architecture?: { input_modalities?: string[] }
+}
+
+/** Abilities a server reports (OpenRouter lists them; most local servers don't). */
+function openaiCapabilities(m: ListedModel): string[] {
+  const caps = ['Text', 'Streaming']
+  const params = m.supported_parameters ?? []
+  if (m.architecture?.input_modalities?.includes('image')) caps.push('Vision')
+  if (params.includes('tools')) caps.push('Tools')
+  if (params.includes('reasoning')) caps.push('Reasoning')
+  if (params.includes('structured_outputs')) caps.push('Structured output')
+  return caps
 }
 
 /**
@@ -58,7 +70,8 @@ export const openaiProvider: Provider = {
         name: m.name ?? m.id,
         local: isLocal(base(config)),
         contextWindow: m.context_length,
-        options: openaiOptions(m, openRouter)
+        options: openaiOptions(m, openRouter),
+        capabilities: openaiCapabilities(m)
       }))
       .sort((a, b) => a.name.localeCompare(b.name))
   },

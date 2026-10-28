@@ -32,7 +32,7 @@ export function ModelPicker({ placement = 'up', scope = 'chat' }: { placement?: 
       .filter((p) => p.enabled)
       .map((p) => ({
         provider: p,
-        models: models.filter((m) => m.providerId === p.id && (!f || `${m.name} ${m.id}`.toLowerCase().includes(f)))
+        models: models.filter((m) => m.providerId === p.id && !m.hidden && (!f || `${m.name} ${m.id}`.toLowerCase().includes(f)))
       }))
       .filter((g) => g.models.length)
   }, [providers, models, filter])

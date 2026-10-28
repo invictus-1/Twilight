@@ -139,6 +139,18 @@ export function openDatabase(file: string): void {
   if (!folderColumns.includes('config')) db.exec('ALTER TABLE folders ADD COLUMN config TEXT')
   const nodeColumns = (db.prepare('PRAGMA table_info(nodes)').all() as { name: string }[]).map((c) => c.name)
   if (!nodeColumns.includes('attachments')) db.exec('ALTER TABLE nodes ADD COLUMN attachments TEXT')
+  if (!nodeColumns.includes('deleted_at')) db.exec('ALTER TABLE nodes ADD COLUMN deleted_at INTEGER')
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS deletions (
+      id TEXT PRIMARY KEY,
+      conversation_id TEXT NOT NULL REFERENCES conversations(id) ON DELETE CASCADE,
+      node_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      moved_children TEXT,
+      created_at INTEGER NOT NULL,
+      restored_at INTEGER
+    );
+  `)
   // A crash mid-stream leaves "streaming" rows behind; they are stopped, not lost.
   db.prepare(`UPDATE nodes SET status = 'stopped' WHERE status = 'streaming'`).run()
 }
@@ -214,9 +226,65 @@ export function deleteConversationForever(id: string): void {
   db.prepare('DELETE FROM conversations WHERE id = ? AND deleted_at IS NOT NULL').run(id)
 }
 
+/** The conversation's live nodes. A deleted node (and so everything under it) is left out. */
 export function loadNodes(conversationId: string): Map<string, NodeRow> {
-  const rows = db.prepare('SELECT * FROM nodes WHERE conversation_id = ? ORDER BY created_at').all(conversationId) as NodeRow[]
+  const rows = db
+    .prepare('SELECT * FROM nodes WHERE conversation_id = ? AND deleted_at IS NULL ORDER BY created_at')
+    .all(conversationId) as NodeRow[]
   return new Map(rows.map((r) => [r.id, r]))
+}
+
+/** Every node, deleted ones included (for restoring and viewing deletions). */
+export function loadAllNodes(conversationId: string): Map<string, NodeRow & { deleted_at: number | null }> {
+  const rows = db.prepare('SELECT * FROM nodes WHERE conversation_id = ? ORDER BY created_at').all(conversationId) as (NodeRow & {
+    deleted_at: number | null
+  })[]
+  return new Map(rows.map((r) => [r.id, r]))
+}
+
+export interface DeletionRow {
+  id: string
+  conversation_id: string
+  node_id: string
+  /** "single": only this message (its replies moved up to its parent); "below": it and everything under it. */
+  kind: 'single' | 'below'
+  moved_children: string | null
+  created_at: number
+  restored_at: number | null
+}
+
+export function recordDeletion(row: Omit<DeletionRow, 'restored_at'>): void {
+  db.transaction(() => {
+    db.prepare(
+      'INSERT INTO deletions (id, conversation_id, node_id, kind, moved_children, created_at) VALUES (@id, @conversation_id, @node_id, @kind, @moved_children, @created_at)'
+    ).run(row)
+    db.prepare('UPDATE nodes SET deleted_at = ? WHERE id = ?').run(row.created_at, row.node_id)
+  })()
+}
+
+export function listDeletions(conversationId: string): DeletionRow[] {
+  return db
+    .prepare('SELECT * FROM deletions WHERE conversation_id = ? AND restored_at IS NULL ORDER BY created_at DESC')
+    .all(conversationId) as DeletionRow[]
+}
+
+export function getDeletion(id: string): DeletionRow | undefined {
+  return db.prepare('SELECT * FROM deletions WHERE id = ?').get(id) as DeletionRow | undefined
+}
+
+export function markRestored(deletion: DeletionRow): void {
+  db.transaction(() => {
+    db.prepare('UPDATE deletions SET restored_at = ? WHERE id = ?').run(Date.now(), deletion.id)
+    db.prepare('UPDATE nodes SET deleted_at = NULL WHERE id = ?').run(deletion.node_id)
+  })()
+}
+
+export function setParent(nodeId: string, parentId: string): void {
+  db.prepare('UPDATE nodes SET parent_id = ? WHERE id = ?').run(parentId, nodeId)
+}
+
+export function clearActiveChild(parentId: string): void {
+  db.prepare('UPDATE nodes SET active_child_id = NULL WHERE id = ?').run(parentId)
 }
 
 /**
