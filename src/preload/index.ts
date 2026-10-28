@@ -76,6 +76,7 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'getAppInfo',
   'openDataFolder',
   'openExternal',
+  'setWindowTheme',
   'getUpdateState',
   'checkForUpdates',
   'setAutoUpdateCheck',
@@ -83,7 +84,16 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'openBackupsFolder',
   'getInsights',
   'rescanInsights',
-  'setCharacters'
+  'setCharacters',
+  'getAiState',
+  'setAiConfig',
+  'estimateStory',
+  'runStory',
+  'runFocus',
+  'runNotes',
+  'stopAi',
+  'exportReport',
+  'openReportsFolder'
 ]
 
 const api = Object.fromEntries(methods.map((m) => [m, invoke(m)])) as unknown as TwilightApi

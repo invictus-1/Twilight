@@ -36,7 +36,7 @@ let queued: Promise<void> | null = null
 let watcher: FSWatcher | null = null
 let watchTimer: NodeJS.Timeout | undefined
 
-function emit(event: InsightsEvent): void {
+export function emitInsights(event: InsightsEvent): void {
   for (const wc of listeners) {
     if (wc.isDestroyed()) listeners.delete(wc)
     else wc.send('twilight:insights', event)
@@ -127,9 +127,9 @@ export function scan(): Promise<void> {
     .catch((err) => console.error('insights scan failed', err))
     .finally(() => {
       scanning = null
-      emit({ kind: 'updated' })
+      emitInsights({ kind: 'updated' })
     })
-  emit({ kind: 'updated' })
+  emitInsights({ kind: 'updated' })
   return scanning
 }
 
@@ -171,7 +171,7 @@ async function runScan(): Promise<void> {
       else removed -= delta
     } else if (!baseline && analysis.words <= IMPORT_LIMIT) written += analysis.words
     upsert.run(d.path, d.mtime, d.size, analysis.words, key, JSON.stringify(analysis))
-    if (++done % 4 === 0 || done === todo.length) emit({ kind: 'progress', done, total: todo.length })
+    if (++done % 4 === 0 || done === todo.length) emitInsights({ kind: 'progress', done, total: todo.length })
   }
   const present = new Set(list.map((d) => d.path))
   for (const path of known.keys()) if (!present.has(path)) h.prepare('DELETE FROM doc_stats WHERE path = ?').run(path)
@@ -220,7 +220,7 @@ function unlockAchievements(quietly: boolean): void {
   db.kvSet('insights.achievements', unlocked)
   cache = null
   // What a first scan finds was earned before tracking began: it's unlocked without fanfare.
-  if (!quietly) emit({ kind: 'unlocked', names: fresh })
+  if (!quietly) emitInsights({ kind: 'unlocked', names: fresh })
 }
 
 // ——— The summary the pages show ———

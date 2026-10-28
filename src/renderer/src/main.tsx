@@ -4,6 +4,10 @@ import '@fontsource-variable/literata/opsz.css'
 import '@fontsource-variable/literata/opsz-italic.css'
 import './styles/tokens.css'
 import './styles/app.css'
+import './styles/themes.css'
+import { applyTheme, savedTheme } from './theme'
+
+applyTheme(savedTheme())
 import { createRoot } from 'react-dom/client'
 import { App } from './components/App'
 

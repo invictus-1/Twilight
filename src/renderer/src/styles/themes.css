@@ -1,0 +1,51 @@
+/* Themes beyond the default Twilight: the same tokens with other values, chosen in Settings →
+   General → Appearance. Contrast follows the design system: text tokens hold 4.5:1 on every
+   ground they're used on; control borders and focus hold 3:1. */
+
+/* Ultraviolet: near-black violet, violet for actions, magenta for tools, pink for writing. */
+:root[data-theme='ultraviolet'] {
+  --night: #0c0614;
+  --surface: #130a1f;
+  --surface-raised: #1b1029;
+  --surface-overlay: #251537;
+  --surface-hover: #ffffff0f;
+  --line: #2e1d45;
+  --line-strong: #8a6bb8;
+  --ink: #f4ecff;
+  --ink-muted: #c2b3dc;
+  --ink-faint: #9c8dba;
+  --iris: #b07cff;
+  --iris-soft: #2c1a4d;
+  --on-iris: #0c0614;
+  --dusk: #f07cff;
+  --dusk-soft: #3a1745;
+  --horizon: #ff8fc8;
+  --horizon-soft: #3d1630;
+  --on-horizon: #0c0614;
+  --selection: #b07cff47;
+  --shadow-lg: 0 12px 32px -4px #000000c0, 0 0 0 1px #3a2458;
+  --focus-ring: 0 0 0 2px #130a1f, 0 0 0 4px #b07cff;
+}
+
+/* Its one flourish: the glow and the violet-to-magenta primary actions. */
+:root[data-theme='ultraviolet'] .tw-btn-primary,
+:root[data-theme='ultraviolet'] .tw-send {
+  background: linear-gradient(90deg, #9b5cff, #f07cff);
+  border-color: transparent;
+}
+:root[data-theme='ultraviolet'] .chat {
+  background: radial-gradient(1100px 520px at 85% -12%, #2a1245 0%, transparent 62%), var(--surface);
+}
+:root[data-theme='ultraviolet'] .sidebar {
+  background: linear-gradient(180deg, #120821, var(--night) 40%);
+}
+
+/* Settings: the theme picker */
+.theme-picker { display: flex; gap: var(--space-3); flex-wrap: wrap; }
+.theme-option { display: flex; flex-direction: column; gap: var(--space-2); width: 200px; padding: var(--space-2); border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; }
+.theme-option[aria-pressed='true'] { border-color: var(--iris); box-shadow: 0 0 0 1px var(--iris); }
+.theme-option:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.theme-swatch { height: 72px; border-radius: var(--radius-sm); display: flex; align-items: flex-end; gap: 6px; padding: 10px; }
+.theme-swatch span { width: 18px; height: 18px; border-radius: 50%; }
+.theme-option b { font-size: 13px; font-weight: 600; }
+.theme-option small { font-size: 12px; color: var(--ink-faint); }

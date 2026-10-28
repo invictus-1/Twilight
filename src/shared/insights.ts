@@ -233,3 +233,60 @@ export interface InsightsSummary {
   suggestions: { name: string; count: number }[]
   achievements: { def: AchievementDef; value: number; unlockedAt: number | null }[]
 }
+
+// ——— The AI pages (run only when asked, with a model you choose) ———
+
+export interface AiConfig {
+  providerId: string
+  modelId: string
+  effort: string | null
+}
+
+export interface StoryAnalysis {
+  mode: 'quick' | 'deep'
+  /** '' for the whole writing folder, else one document's path. */
+  scope: string
+  model: string
+  at: number
+  words: number
+  calls: number
+  costUsd: number | null
+  /** What the writing is made of, in percent (sums to about 100). */
+  breakdown: { name: string; percent: number }[]
+  /** How strongly each genre is present, 0–100. */
+  genres: { name: string; percent: number }[]
+  tags: { name: string; subtags: string[] }[]
+  themes: { name: string; description: string }[]
+  tone: string
+  summary: string
+}
+
+export interface FocusResult {
+  model: string
+  at: number
+  strength: string
+  areas: { title: string; why: string; evidence: string[]; exercise: string }[]
+}
+
+export interface WritingNotes {
+  model: string
+  at: number
+  observations: { title: string; text: string }[]
+  nextStep: string
+}
+
+export interface AiState {
+  config: AiConfig
+  story: Record<string, StoryAnalysis>
+  focus: FocusResult | null
+  notes: WritingNotes | null
+  running: { kind: 'story' | 'focus' | 'notes'; done: number; total: number; scope?: string } | null
+  error: string | null
+}
+
+export interface StoryEstimate {
+  calls: number
+  cached: number
+  words: number
+  costUsd: number | null
+}

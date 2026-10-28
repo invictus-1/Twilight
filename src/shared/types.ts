@@ -1,7 +1,7 @@
 // Types shared by the main process, the preload bridge and the renderer.
 
 import type { ChoiceSet } from './choices'
-import type { InsightsSummary, TrackedCharacter } from './insights'
+import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
 import type { JudgeInput, Judgment, JudgmentSummary, Rubric } from './judge'
 
 export type ProviderKind = 'anthropic' | 'openai'
@@ -252,6 +252,7 @@ export type InsightsEvent =
   | { kind: 'progress'; done: number; total: number }
   | { kind: 'updated' }
   | { kind: 'unlocked'; names: string[] }
+  | { kind: 'ai'; state: AiState }
 
 export type StreamEvent =
   | { kind: 'text'; conversationId: string; nodeId: string; delta: string }
@@ -385,6 +386,8 @@ export interface TwilightApi {
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
   openDataFolder(): Promise<void>
   openExternal(url: string): Promise<void>
+  /** Matches the window frame and title bar to a theme. */
+  setWindowTheme(theme: 'twilight' | 'ultraviolet'): Promise<void>
 
   getUpdateState(): Promise<UpdateState>
   checkForUpdates(): Promise<UpdateState>
@@ -397,5 +400,15 @@ export interface TwilightApi {
   rescanInsights(): Promise<InsightsSummary>
   setCharacters(list: TrackedCharacter[]): Promise<InsightsSummary>
   onInsights(listener: (event: InsightsEvent) => void): () => void
+  getAiState(): Promise<AiState>
+  setAiConfig(config: AiConfig): Promise<AiState>
+  estimateStory(mode: 'quick' | 'deep', scope: string): Promise<StoryEstimate>
+  runStory(mode: 'quick' | 'deep', scope: string): Promise<AiState>
+  runFocus(): Promise<AiState>
+  runNotes(): Promise<AiState>
+  stopAi(): Promise<void>
+  /** Saves a recap as an HTML file (and opens it when asked); returns its path. */
+  exportReport(kind: 'week' | 'month' | 'year' | 'all', includeAi: boolean, open: boolean): Promise<string>
+  openReportsFolder(): Promise<void>
   onUpdate(listener: (state: UpdateState) => void): () => void
 }

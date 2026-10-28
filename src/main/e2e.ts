@@ -18,6 +18,8 @@ import * as workspaces from './workspaces'
 import * as providers from './providers'
 import * as updates from './updates'
 import * as insights from './insights'
+import * as insightsAi from './insightsAi'
+import * as reports from './reports'
 import { ACHIEVEMENTS, analyzeText } from '@shared/insights'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
@@ -135,6 +137,16 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply =
           `### Prose — X ${xGood ? 8 : 5} · Y ${xGood ? 5 : 8}\nX quotes "${x.slice(0, 20)}".\n\n### Verdict\n${xGood ? 'X' : 'Y'} is better.\n\n` +
           '```json\n' + JSON.stringify({ criteria, overall: { X: xGood ? 8 : 5, Y: xGood ? 5 : 8 }, winner: xGood ? 'X' : 'Y', confidence: 'high' }) + '\n```'
+      } else if (system.startsWith('You classify one passage')) {
+        reply = '```json\n' + JSON.stringify({ breakdown: { Drama: 60, Romance: 25, Worldbuilding: 15 }, genres: ['Drama', 'Romance'], tags: [{ name: 'Weather', sub: ['Rain', 'Wind'] }], themes: ['Belonging', 'Counting'], summary: 'Things happen in this part.' }) + '\n```'
+      } else if (system.startsWith('You analyse a long work')) {
+        reply = JSON.stringify({ breakdown: { Fantasy: 50, Drama: 50 }, genres: { Fantasy: 90, Drama: 60 }, tags: [{ name: 'Sea', sub: ['Tides'] }], themes: [{ name: 'Home', description: 'Two sentences.' }], tone: 'Quiet.', summary: 'A short summary.' })
+      } else if (system.startsWith('You write the closing analysis')) {
+        reply = JSON.stringify({ themes: [{ name: 'Belonging', description: 'Who gets to stay.' }, { name: 'Counting', description: 'Order against fear.' }], tone: 'Hushed and precise.', summary: 'A lighthouse keeper counts the world.' })
+      } else if (system.startsWith('You are a candid, encouraging writing coach')) {
+        reply = JSON.stringify({ strength: 'Clear scenes.', areas: [{ title: 'Vary openings', why: 'Many sentences start the same way.', evidence: ['Wren and Rowan climbed the stair'], exercise: 'Rewrite five openings.' }, { title: 'Trim adverbs', why: 'They pile up.', evidence: ['asked quietly'], exercise: 'Cut half.' }] })
+      } else if (system.startsWith("You read a writer's own statistics")) {
+        reply = JSON.stringify({ observations: [{ title: 'Steady mornings', text: 'Most words land before noon.' }, { title: 'Dialogue-heavy', text: 'A fifth of the words are spoken.' }], nextStep: 'Write one scene without dialogue.' })
       } else if (toolResult) {
         reply = `Answering the tool result: ${toolResult}`
       } else if (lastUser.includes('MULTICHOICE')) {
@@ -1122,6 +1134,68 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const c8settings = chat.view(c8).settings
       check('Tools menu turns on the choice tool', c8settings.choiceCards && c8settings.choiceTool, { cards: c8settings.choiceCards, tool: c8settings.choiceTool })
       await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-tools.png'), img.toPNG()), () => undefined)
+
+      // 34. Insights AI pages: deep scan in chunks (cached by text), quick sample, focus, notes;
+      // reports; and the Ultraviolet theme.
+      insightsAi.setConfig({ providerId: 'mock', modelId: 'mock-a', effort: null })
+      const est1 = await insightsAi.estimate('deep', '')
+      check('deep scan estimate counts chunks plus the closing call', est1.calls >= 3 && est1.cached === 0 && est1.words > 100000, est1)
+      const beforeDeep = log.length
+      let aiState = await insightsAi.runStory('deep', '')
+      const deep = aiState.story['']
+      const deepCalls = log.length - beforeDeep
+      check('deep scan reads every chunk, then writes the themes', deepCalls === est1.calls && deep?.mode === 'deep' && !aiState.error, { deepCalls, error: aiState.error })
+      check('content breakdown sums to 100', Math.abs((deep?.breakdown ?? []).reduce((a, b) => a + b.percent, 0) - 100) < 0.5 && deep?.breakdown[0]?.name === 'Drama', deep?.breakdown)
+      check('genres, tags and themes merged', (deep?.genres.length ?? 0) >= 2 && deep?.tags[0]?.subtags.length > 0 && deep?.themes.length === 2 && !!deep?.summary, deep)
+      const est2 = await insightsAi.estimate('deep', '')
+      check('a rescan only pays for text that changed', est2.cached === est1.calls - 1 && est2.calls === 1, est2)
+      const beforeQuick = log.length
+      aiState = await insightsAi.runStory('quick', '')
+      check('quick sample is one call', log.length - beforeQuick === 1 && aiState.story['']?.mode === 'quick' && aiState.story['']?.genres[0]?.name === 'Fantasy', aiState.story[''])
+      aiState = await insightsAi.runFocus()
+      check('focus gives areas with evidence and an exercise', (aiState.focus?.areas.length ?? 0) === 2 && !!aiState.focus?.areas[0].exercise && aiState.focus.areas[0].evidence.length === 1, aiState.focus)
+      const beforeNotes = log.length
+      aiState = await insightsAi.runNotes()
+      const notesReq = JSON.stringify(log[beforeNotes]?.messages ?? [])
+      check('insights notes come back', (aiState.notes?.observations.length ?? 0) === 2 && !!aiState.notes?.nextStep, aiState.notes)
+      check('insights notes send numbers, not manuscript text', notesReq.includes('words written') && !notesReq.includes('Wren started here') && !notesReq.includes('climbed the stair'))
+      const reportFile = await reports.exportReport('week', true)
+      const reportHtml = await readFile(reportFile, 'utf8')
+      check('a report is one self-contained file', reportHtml.includes('Week in Writing') && !/<script/i.test(reportHtml) && !/https?:\/\//.test(reportHtml.replace(/xmlns="[^"]*"/g, '')), reportFile)
+      check('reports include saved AI notes on request', reportHtml.includes('Steady mornings'))
+      const allTime = await reports.exportReport('all', false)
+      check('reports leave AI out unless asked', !(await readFile(allTime, 'utf8')).includes('Steady mornings'))
+
+      win.webContents.reload()
+      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+      await new Promise((r) => setTimeout(r, 800))
+      const aiUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="insights"]').click()
+        await wait(300)
+        const page = (label) => [...document.querySelectorAll('.insights-nav-item')].find((b) => b.textContent.startsWith(label))?.click()
+        page('Story analysis'); await wait(600)
+        const out = { donut: document.querySelectorAll('.donut circle').length, themes: document.querySelectorAll('.theme-card').length, estimate: document.querySelector('.ai-run .field-note')?.textContent ?? '' }
+        document.querySelector('.tag-head')?.click(); await wait(100)
+        out.subtags = document.querySelectorAll('.tag-subs .word-chip').length
+        page('Focus'); await wait(300)
+        out.focus = document.querySelectorAll('.focus-card').length
+        page('Insights'); await wait(300)
+        out.notes = document.querySelectorAll('.theme-card').length
+        page('Reports'); await wait(300)
+        out.reports = document.querySelectorAll('.report-card').length
+        document.querySelector('.sidebar-foot .tw-btn').click(); await wait(300)
+        ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('General'))?.click(); await wait(200)
+        ;[...document.querySelectorAll('.theme-option')].find((b) => b.textContent.includes('Ultraviolet'))?.click(); await wait(300)
+        out.theme = document.documentElement.dataset.theme ?? 'twilight'
+        out.night = getComputedStyle(document.documentElement).getPropertyValue('--night').trim()
+        return out
+      })()`)
+      check('story page shows the latest run: donut, themes and tags', aiUi.donut === 2 && aiUi.themes === 1 && aiUi.subtags > 0 && /parts already read/.test(aiUi.estimate), aiUi)
+      check('focus, insights and reports pages render', aiUi.focus === 2 && aiUi.notes === 2 && aiUi.reports === 4, aiUi)
+      check('Ultraviolet theme applies', aiUi.theme === 'ultraviolet' && aiUi.night === '#0c0614', aiUi)
+      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-ultraviolet.png'), img.toPNG()), () => undefined)
+      await win.webContents.executeJavaScript(`[...document.querySelectorAll('.theme-option')].find((b) => b.textContent.includes('Twilight'))?.click()`)
 
       // 28. Message actions: delete one, delete below, view, restore (also after writing more), edit, tok/s.
       const c5 = chat.create(null).id

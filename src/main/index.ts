@@ -21,10 +21,12 @@ import * as judge from './judge'
 import * as logs from './logs'
 import * as workspaces from './workspaces'
 import type { JudgeInput, Rubric } from '@shared/judge'
-import type { TrackedCharacter } from '@shared/insights'
+import type { AiConfig, TrackedCharacter } from '@shared/insights'
 import * as writing from './writing'
 import * as providers from './providers'
 import * as insights from './insights'
+import * as insightsAi from './insightsAi'
+import * as reports from './reports'
 import * as updates from './updates'
 import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
@@ -56,17 +58,24 @@ function lockDownNetwork(): void {
   session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
 }
 
+/** Window frame colours per theme: the title bar overlay sits outside the page, so it's set here. */
+const FRAMES: Record<string, { night: string; symbol: string }> = {
+  twilight: { night: '#0b0d1c', symbol: '#a6abd8' },
+  ultraviolet: { night: '#0c0614', symbol: '#c2b3dc' }
+}
+
 function createWindow(): BrowserWindow {
+  const frame = FRAMES[db.kvGet<string>('theme') ?? 'twilight'] ?? FRAMES.twilight
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
     minWidth: 720,
     minHeight: 480,
     show: false,
-    backgroundColor: '#0b0d1c',
+    backgroundColor: frame.night,
     title: 'Twilight',
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0b0d1c', symbolColor: '#a6abd8', height: 40 },
+    titleBarOverlay: { color: frame.night, symbolColor: frame.symbol, height: 40 },
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
@@ -232,6 +241,22 @@ function registerIpc(): void {
       return insights.summary()
     },
     setCharacters: (_e, list: TrackedCharacter[]) => insights.setCharacters(list),
+    getAiState: () => insightsAi.state(),
+    setAiConfig: (_e, config: AiConfig) => insightsAi.setConfig(config),
+    estimateStory: (_e, mode: 'quick' | 'deep', scope: string) => insightsAi.estimate(mode, scope),
+    runStory: (_e, mode: 'quick' | 'deep', scope: string) => insightsAi.runStory(mode, scope),
+    runFocus: () => insightsAi.runFocus(),
+    runNotes: () => insightsAi.runNotes(),
+    stopAi: () => insightsAi.stop(),
+    exportReport: async (_e, kind: reports.ReportKind, includeAi: boolean, open: boolean) => {
+      const file = await reports.exportReport(kind, includeAi)
+      if (open) await reports.openReport(file)
+      return file
+    },
+    openReportsFolder: async () => {
+      await mkdir(reports.reportsFolder(), { recursive: true })
+      await shell.openPath(reports.reportsFolder())
+    },
     listDocs: () => docs.listDocs(),
     listDocFolders: () => docs.listDocFolders(),
     createDocFolder: (_e, path: string) => docs.createDocFolder(path),
@@ -249,6 +274,13 @@ function registerIpc(): void {
     },
     openExternal: async (_e, url: string) => {
       if (isWebUrl(url)) await shell.openExternal(url)
+    },
+    setWindowTheme: (e, theme: 'twilight' | 'ultraviolet') => {
+      db.kvSet('theme', theme)
+      const frame = FRAMES[theme] ?? FRAMES.twilight
+      const win = BrowserWindow.fromWebContents(e.sender)
+      win?.setBackgroundColor(frame.night)
+      win?.setTitleBarOverlay({ color: frame.night, symbolColor: frame.symbol, height: 40 })
     },
     getUpdateState: (e) => updates.subscribe(e.sender),
     checkForUpdates: () => updates.check(),

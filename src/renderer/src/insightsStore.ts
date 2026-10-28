@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { InsightsSummary, TrackedCharacter } from '@shared/insights'
+import type { AiState, InsightsSummary, TrackedCharacter } from '@shared/insights'
 
 export type InsightsPage = 'dashboard' | 'heatmap' | 'words' | 'characters' | 'story' | 'focus' | 'insights' | 'achievements' | 'reports'
 
@@ -9,6 +9,8 @@ interface InsightsState {
   progress: { done: number; total: number } | null
   /** Achievements unlocked since the last look, for one quiet notice. */
   unlocked: string[]
+  /** The AI pages: chosen model, saved results, and a run in progress. */
+  ai: AiState | null
   init(): Promise<void>
   setPage(page: InsightsPage): void
   rescan(): Promise<void>
@@ -24,6 +26,7 @@ export const useInsights = create<InsightsState>((set, get) => ({
   page: 'dashboard',
   progress: null,
   unlocked: [],
+  ai: null,
 
   async init() {
     if (started) return
@@ -31,9 +34,11 @@ export const useInsights = create<InsightsState>((set, get) => ({
     api.onInsights((event) => {
       if (event.kind === 'progress') set({ progress: event.done < event.total ? { done: event.done, total: event.total } : null })
       else if (event.kind === 'unlocked') set({ unlocked: [...get().unlocked, ...event.names] })
+      else if (event.kind === 'ai') set({ ai: event.state })
       else void api.getInsights().then((summary) => set({ summary, progress: summary.scanning ? get().progress : null }))
     })
-    set({ summary: await api.getInsights() })
+    const [summary, ai] = await Promise.all([api.getInsights(), api.getAiState()])
+    set({ summary, ai })
   },
 
   setPage: (page) => set({ page }),

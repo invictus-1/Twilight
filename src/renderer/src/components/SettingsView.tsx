@@ -3,6 +3,7 @@ import type { ModelInfo, ProviderConfig } from '@shared/types'
 import { readGameFormat, writeGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
 import { useWriting } from '../writingStore'
+import { savedTheme, setTheme, type Theme } from '../theme'
 import { readHidden, writeHidden } from './ChatSettingsPanel'
 import { RoadmapSection } from './RoadmapSection'
 import { UpdatesSection } from './UpdatesSection'
@@ -14,7 +15,7 @@ import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIc
 type Section = 'providers' | 'general' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
 
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
-  { id: 'general', group: 'App', label: 'General', description: 'How chats behave and look: the cache status line, Game Format, and the safety net.' },
+  { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
   { id: 'writing', group: 'App', label: 'Writing', description: 'Where your documents live. Point it at an Obsidian vault and both apps edit the same files.' },
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats, settings and request logs on this machine.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows.' },
@@ -419,8 +420,36 @@ function GeneralSection() {
     writeGameFormat(next)
     setOptions(next)
   }
+  const [theme, setThemeState] = useState<Theme>(savedTheme)
+  const pick = (t: Theme): void => {
+    setTheme(t)
+    setThemeState(t)
+  }
   return (
     <>
+      <div className="settings-card">
+        <h3 className="t-heading">Appearance</h3>
+        <div className="theme-picker" role="group" aria-label="Theme">
+          <button className="theme-option" aria-pressed={theme === 'twilight'} onClick={() => pick('twilight')}>
+            <span className="theme-swatch" style={{ background: 'linear-gradient(180deg, #171a3d, #3a2245)' }}>
+              <span style={{ background: '#9497ff' }} />
+              <span style={{ background: '#c4a0ff' }} />
+              <span style={{ background: '#ffb48a' }} />
+            </span>
+            <b>Twilight</b>
+            <small>Blue dusk, iris and a warm horizon.</small>
+          </button>
+          <button className="theme-option" aria-pressed={theme === 'ultraviolet'} onClick={() => pick('ultraviolet')}>
+            <span className="theme-swatch" style={{ background: 'radial-gradient(circle at 80% 0%, #2a1245, #0c0614 70%)' }}>
+              <span style={{ background: '#b07cff' }} />
+              <span style={{ background: '#f07cff' }} />
+              <span style={{ background: '#ff8fc8' }} />
+            </span>
+            <b>Ultraviolet</b>
+            <small>Deep violet with magenta and pink.</small>
+          </button>
+        </div>
+      </div>
       <div className="settings-card">
         <h3 className="t-heading">Chat</h3>
         <label className="check">
