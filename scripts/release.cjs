@@ -16,7 +16,8 @@ const dry = process.argv.includes('--dry')
 const { version } = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const tag = `v${version}`
 
-const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], ...opts }).trim()
+// Commands run with stdio 'inherit' print straight to the terminal and return nothing.
+const run = (cmd, args, opts = {}) => (execFileSync(cmd, args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], ...opts }) ?? '').trim()
 const fail = (msg) => {
   console.error(`release: ${msg}`)
   process.exit(1)
