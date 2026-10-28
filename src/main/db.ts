@@ -37,6 +37,8 @@ export interface ConversationRow {
   split: string | null
   folder_id: string | null
   pinned: number
+  /** Set when the chat is in the trash. */
+  deleted_at: number | null
 }
 
 export interface FolderRow {
@@ -116,6 +118,7 @@ export function openDatabase(file: string): void {
   if (!columns.includes('split')) db.exec('ALTER TABLE conversations ADD COLUMN split TEXT')
   if (!columns.includes('folder_id')) db.exec('ALTER TABLE conversations ADD COLUMN folder_id TEXT')
   if (!columns.includes('pinned')) db.exec('ALTER TABLE conversations ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0')
+  if (!columns.includes('deleted_at')) db.exec('ALTER TABLE conversations ADD COLUMN deleted_at INTEGER')
   db.exec(`
     CREATE TABLE IF NOT EXISTS folders (
       id TEXT PRIMARY KEY,
@@ -145,7 +148,20 @@ export function kvDelete(key: string): void {
 }
 
 export function listConversations(): ConversationRow[] {
-  return db.prepare('SELECT * FROM conversations ORDER BY updated_at DESC').all() as ConversationRow[]
+  return db.prepare('SELECT * FROM conversations WHERE deleted_at IS NULL ORDER BY updated_at DESC').all() as ConversationRow[]
+}
+
+export function listTrash(): ConversationRow[] {
+  return db.prepare('SELECT * FROM conversations WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC').all() as ConversationRow[]
+}
+
+/** Deleting a chat moves it to the trash; nothing is lost until the trash is emptied. */
+export function trashConversation(id: string): void {
+  db.prepare('UPDATE conversations SET deleted_at = ? WHERE id = ?').run(Date.now(), id)
+}
+
+export function restoreConversation(id: string): void {
+  db.prepare('UPDATE conversations SET deleted_at = NULL WHERE id = ?').run(id)
 }
 
 export function getConversation(id: string): ConversationRow {
@@ -181,8 +197,9 @@ export function updateConversation(
   })
 }
 
-export function deleteConversation(id: string): void {
-  db.prepare('DELETE FROM conversations WHERE id = ?').run(id)
+/** Permanent. Only reachable from the trash. */
+export function deleteConversationForever(id: string): void {
+  db.prepare('DELETE FROM conversations WHERE id = ? AND deleted_at IS NOT NULL').run(id)
 }
 
 export function loadNodes(conversationId: string): Map<string, NodeRow> {

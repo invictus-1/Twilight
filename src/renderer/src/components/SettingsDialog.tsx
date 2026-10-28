@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ProviderConfig } from '@shared/types'
 import { useStore } from '../store'
 import { CloseIcon, TrashIcon } from './Icons'
@@ -75,6 +75,40 @@ function ProviderRow({ provider }: { provider: ProviderConfig }) {
   )
 }
 
+/** Request logs: every prompt and reply appended to daily files, as a safety net. */
+function RequestLogs() {
+  const [state, setState] = useState<{ enabled: boolean; folder: string } | null>(null)
+  useEffect(() => {
+    void window.twilight.getRequestLogs().then(setState)
+  }, [])
+  if (!state) return null
+  return (
+    <div className="provider">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={state.enabled}
+          onChange={async (e) => {
+            await window.twilight.setRequestLogs(e.target.checked)
+            setState({ ...state, enabled: e.target.checked })
+          }}
+        />
+        <span className="t-label">Keep request logs</span>
+      </label>
+      <p className="field-note">
+        Every prompt and reply, from chats and writing tools, is added to a daily file (one JSON object per line). Nothing is ever removed from
+        them, so a deleted chat or a lost edit can always be found again. API keys are never written.
+      </p>
+      <div className="field-inline">
+        <span className="folder-path log-path">{state.folder}</span>
+        <button className="tw-btn tw-btn-sm" onClick={() => void window.twilight.openLogsFolder()}>
+          Open folder
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function SettingsDialog() {
   const providers = useStore((s) => s.providers)
   const setOpen = useStore((s) => s.setSettingsOpen)
@@ -115,6 +149,8 @@ export function SettingsDialog() {
             </button>
           </div>
         </div>
+        <h3 className="t-heading section">Safety net</h3>
+        <RequestLogs />
       </div>
     </div>
   )

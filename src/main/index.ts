@@ -1,9 +1,11 @@
 import { app, BrowserWindow, ipcMain, Menu, session, shell } from 'electron'
 import { join } from 'node:path'
-import type { ChatFolder, Pane, SendTarget, TwilightApi, WritingRequest } from '@shared/types'
+import { mkdir } from 'node:fs/promises'
+import type { ChatFolder, ConversationSummary, DocContext, Pane, SendTarget, TwilightApi, WritingRequest } from '@shared/types'
 import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
+import * as logs from './logs'
 import * as writing from './writing'
 import * as providers from './providers'
 import { runE2E } from './e2e'
@@ -66,19 +68,31 @@ function createWindow(): BrowserWindow {
 
 const folders = (): ChatFolder[] => db.listFolders().map((f) => ({ id: f.id, name: f.name, collapsed: !!f.collapsed }))
 
+const summary = (c: db.ConversationRow): ConversationSummary => ({
+  id: c.id,
+  title: c.title,
+  updatedAt: c.updated_at,
+  modelId: (JSON.parse(c.settings) as { modelId: string }).modelId,
+  folderId: c.folder_id,
+  pinned: !!c.pinned,
+  deletedAt: c.deleted_at ?? undefined
+})
+
 type Handlers ={ [K in keyof TwilightApi]?: (event: Electron.IpcMainInvokeEvent, ...args: never[]) => unknown }
 
 function registerIpc(): void {
   const handlers: Handlers = {
-    listConversations: () =>
-      db.listConversations().map((c) => ({
-        id: c.id,
-        title: c.title,
-        updatedAt: c.updated_at,
-        modelId: (JSON.parse(c.settings) as { modelId: string }).modelId,
-        folderId: c.folder_id,
-        pinned: !!c.pinned
-      })),
+    listConversations: () => db.listConversations().map(summary),
+    listTrash: () => db.listTrash().map(summary),
+    restoreConversation: (_e, id: string) => db.restoreConversation(id),
+    deleteForever: (_e, id: string) => db.deleteConversationForever(id),
+    emptyTrash: () => db.listTrash().forEach((c) => db.deleteConversationForever(c.id)),
+    getRequestLogs: () => ({ enabled: logs.loggingEnabled(), folder: logs.logsFolder() }),
+    setRequestLogs: (_e, enabled: boolean) => db.kvSet('requestLogs', enabled),
+    openLogsFolder: async () => {
+      await mkdir(logs.logsFolder(), { recursive: true })
+      await shell.openPath(logs.logsFolder())
+    },
     createConversation: (_e, folderId?: string | null) => chat.create(folderId ?? null),
     listFolders: () => folders(),
     createFolder: (_e, name: string) => (db.createFolder(name.trim() || 'New folder'), folders()),
@@ -91,7 +105,7 @@ function registerIpc(): void {
     renameConversation: (_e, id: string, title: string) => db.updateConversation(id, { title }),
     deleteConversation: (_e, id: string) => {
       chat.stop(id, 'both')
-      db.deleteConversation(id)
+      db.trashConversation(id)
     },
     updateChatSettings: (_e, id: string, patch, pane?: Pane) => chat.updateSettings(id, patch, pane),
     send: (e, id: string, text: string, target?: SendTarget) => chat.send(e.sender, id, text, target),
@@ -116,6 +130,8 @@ function registerIpc(): void {
     readDoc: (_e, path: string) => docs.readDoc(path),
     writeDoc: (_e, path: string, text: string) => docs.writeDoc(path, text),
     createDoc: (_e, name: string, folder?: string) => docs.createDoc(name, folder),
+    getDocContext: (_e, path: string) => docs.getDocContext(path),
+    setDocContext: (_e, path: string, context: DocContext) => docs.setDocContext(path, context),
     runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
     stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
     openExternal: async (_e, url: string) => {

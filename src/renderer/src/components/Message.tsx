@@ -5,7 +5,8 @@ import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
 import { modelName, paneOf, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
-import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, RefreshIcon, SplitIcon } from './Icons'
+import { useWriting } from '../writingStore'
+import { AlertIcon, ChevronLeft, ChevronRight, CopyIcon, PenIcon, RefreshIcon, SplitIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -166,6 +167,20 @@ function AssistantMessage({ node }: { node: NodeView }) {
             >
               <RefreshIcon />
             </button>
+            {node.text && (
+              <button
+                className="tw-btn tw-btn-ghost tw-btn-icon"
+                aria-label="Send to Writing"
+                title="Send to Writing (opens it as a document you can edit section by section)"
+                onClick={() => {
+                  const title = useStore.getState().current?.title ?? 'From chat'
+                  useStore.getState().setMode('write')
+                  void useWriting.getState().fromText(title, node.text)
+                }}
+              >
+                <PenIcon />
+              </button>
+            )}
             {pane === 'a' && (
               <button
                 className="tw-btn tw-btn-ghost tw-btn-icon"

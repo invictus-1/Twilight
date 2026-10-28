@@ -1,8 +1,20 @@
 import { app, dialog, type BrowserWindow } from 'electron'
 import { promises as fs } from 'node:fs'
 import { basename, dirname, join, relative, resolve, sep } from 'node:path'
-import type { DocContent, DocEntry } from '@shared/types'
-import { kvGet, kvSet } from './db'
+import type { DocContent, DocContext, DocEntry } from '@shared/types'
+import { kvDelete, kvGet, kvSet } from './db'
+
+// A document's writing-tool context lives in Twilight's database, never in the user's files.
+const EMPTY_CONTEXT: DocContext = { instructions: '', references: [], wholeManuscript: false }
+const contextKey = (rel: string): string => `docContext:${writingFolder()}:${rel}`
+
+export function getDocContext(rel: string): DocContext {
+  return { ...EMPTY_CONTEXT, ...kvGet<DocContext>(contextKey(rel)) }
+}
+
+export function setDocContext(rel: string, context: DocContext): void {
+  kvSet(contextKey(rel), context)
+}
 
 // Manuscripts are plain markdown files in a folder the user picks — an Obsidian vault works as
 // is, and both apps can edit the same files. Nothing is imported or copied.
@@ -85,6 +97,12 @@ export async function moveDoc(rel: string, folder: string): Promise<string> {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
   }
   await fs.rename(from, to)
+  // The document's context moves with it.
+  const context = kvGet<DocContext>(contextKey(rel))
+  if (context) {
+    kvSet(contextKey(toRel(to)), context)
+    kvDelete(contextKey(rel))
+  }
   return toRel(to)
 }
 

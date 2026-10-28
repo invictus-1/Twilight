@@ -37,6 +37,9 @@ export const SettingsIcon = (p: Props) => (
 export const SlidersIcon = (p: Props) => (
   <Icon {...p}><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></Icon>
 )
+export const PenIcon = (p: Props) => <Icon {...p}><path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16zM13.5 6.5l4 4" /></Icon>
+export const UndoIcon =(p: Props) => <Icon {...p}><path d="M9 14L4 9l5-5M4 9h11a5 5 0 0 1 0 10h-3" /></Icon>
+export const RedoIcon = (p: Props) => <Icon {...p}><path d="M15 14l5-5-5-5M20 9H9a5 5 0 0 0 0 10h3" /></Icon>
 export const FolderIcon = (p: Props) => (
   <Icon {...p}><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></Icon>
 )

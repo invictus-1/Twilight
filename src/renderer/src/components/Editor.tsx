@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
+import { defaultKeymap, history, historyKeymap, redo, undo } from '@codemirror/commands'
 import { markdown, markdownLanguage } from '@codemirror/lang-markdown'
 import { search, searchKeymap } from '@codemirror/search'
 import { EditorState } from '@codemirror/state'
@@ -7,17 +7,36 @@ import { EditorView, keymap } from '@codemirror/view'
 import { modelName, useStore } from '../store'
 import { clearStream, readStream, subscribeStream } from '../stream'
 import { useWriting } from '../writingStore'
+import { cycleHeading, toggleQuote, toggleWrap } from '../editor/format'
 import {
   acceptSuggestion,
   currentSuggestion,
+  editsField,
   rejectSuggestion,
+  restoreEdits,
+  revertEdit,
   setSuggestion,
   suggestionExtension,
   updateProposed,
+  type AppliedEdit,
   type Suggestion
 } from '../editor/suggestion'
 import { twilightEditorTheme } from '../editor/theme'
-import { ChevronDown } from './Icons'
+import { ChevronDown, CloseIcon, RedoIcon, UndoIcon } from './Icons'
+
+/** Accepted-edit history per document, kept across switching documents for this session. */
+const savedEdits = new Map<string, { text: string; edits: AppliedEdit[] }>()
+
+const FORMAT = [
+  { label: 'B', title: 'Bold (Ctrl+B)', run: toggleWrap('**'), className: 'fmt-bold' },
+  { label: 'I', title: 'Italic (Ctrl+I)', run: toggleWrap('*'), className: 'fmt-italic' },
+  { label: 'S', title: 'Strikethrough (Ctrl+Shift+X)', run: toggleWrap('~~'), className: 'fmt-strike' },
+  { label: '</>', title: 'Inline code (Ctrl+E)', run: toggleWrap('`'), className: 'fmt-code' },
+  { label: 'H', title: 'Heading: cycles #, ##, ###', run: cycleHeading, className: '' },
+  { label: '❝', title: 'Quote', run: toggleQuote, className: '' }
+]
+
+const timeOf = (ts: number): string => new Date(ts).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
 
 const SAVE_DELAY = 700
 const CONTEXT_BEFORE = 6000
@@ -50,8 +69,37 @@ export function Editor({ docPath }: { docPath: string }) {
   const [bar, setBar] = useState<(Overlay & { suggestion: Suggestion }) | null>(null)
   const [asking, setAsking] = useState(false)
   const [toneOpen, setToneOpen] = useState(false)
+  const [edits, setEdits] = useState<AppliedEdit[]>([])
+  const [applied, setApplied] = useState<AppliedEdit | null>(null)
+  const appliedTimer = useRef<number>(0)
+  const historyOpen = useWriting((s) => s.historyOpen)
   const models = useStore((s) => s.models)
   const defaultModel = useStore((s) => s.defaults?.modelId)
+
+  /** Mirrors the edit history into React only when an edit is added or changes state. */
+  const syncEdits = (view: EditorView): void => {
+    const next = view.state.field(editsField)
+    setEdits((prev) => {
+      const sig = (list: AppliedEdit[]): string => list.map((e) => e.id + e.state).join()
+      if (sig(prev) === sig(next)) return prev
+      const fresh = next.find((e) => e.state === 'applied' && !prev.some((p) => p.id === e.id))
+      if (fresh) {
+        setApplied(fresh)
+        window.clearTimeout(appliedTimer.current)
+        appliedTimer.current = window.setTimeout(() => setApplied(null), 8000)
+      }
+      useWriting.getState().setEditCount(next.filter((e) => e.state === 'applied').length)
+      return next
+    })
+  }
+
+  const revert = (id: string): void => {
+    const view = viewRef.current
+    if (!view) return
+    if (!revertEdit(view, id)) useWriting.setState({ error: 'That passage was edited after the change, so it can’t be reverted on its own. Use Ctrl+Z.' })
+    setApplied(null)
+    view.focus()
+  }
 
   /** Positions the selection toolbar and the suggestion bar relative to the editor. */
   const layoutOverlays = (view: EditorView): void => {
@@ -85,7 +133,7 @@ export function Editor({ docPath }: { docPath: string }) {
     }
     const start = view.coordsAtPos(sel.from)
     if (!start) return setToolbar(null)
-    setToolbar({ top: Math.max(8, start.top - rect.top - 48), left: Math.max(16, Math.min(start.left - rect.left, rect.width - 420)) })
+    setToolbar({ top: Math.max(8, start.top - rect.top - 48), left: Math.max(16, Math.min(start.left - rect.left, rect.width - 660)) })
   }
 
   const save = async (view: EditorView): Promise<void> => {
@@ -115,6 +163,10 @@ export function Editor({ docPath }: { docPath: string }) {
           keymap.of([
             { key: 'Mod-s', run: (v) => (void save(v), true) },
             { key: 'Mod-j', run: () => (setAsking(true), true) },
+            { key: 'Mod-b', run: toggleWrap('**') },
+            { key: 'Mod-i', run: toggleWrap('*') },
+            { key: 'Mod-Shift-x', run: toggleWrap('~~') },
+            { key: 'Mod-e', run: toggleWrap('`') },
             ...searchKeymap,
             ...historyKeymap,
             ...defaultKeymap
@@ -134,12 +186,17 @@ export function Editor({ docPath }: { docPath: string }) {
             if (u.docChanged || u.selectionSet || u.focusChanged || u.transactions.some((t) => t.effects.length)) {
               requestAnimationFrame(() => layoutOverlays(u.view))
             }
+            if (u.docChanged || u.transactions.some((t) => t.effects.length)) syncEdits(u.view)
           })
         ]
       })
     })
     viewRef.current = view
     useWriting.getState().setWords(countWords(open.text))
+    // Bring back this session's edit history if the text is as we left it.
+    const kept = savedEdits.get(docPath)
+    if (kept && kept.text === open.text) view.dispatch({ effects: restoreEdits.of(kept.edits) })
+    else useWriting.getState().setEditCount(0)
     const onScroll = (): void => void requestAnimationFrame(() => layoutOverlays(view))
     view.scrollDOM.addEventListener('scroll', onScroll, { passive: true })
     view.focus()
@@ -147,6 +204,8 @@ export function Editor({ docPath }: { docPath: string }) {
     return () => {
       // Flush an unsaved edit before the editor goes away.
       if (useWriting.getState().status === 'unsaved') void save(view)
+      savedEdits.set(docPath, { text: view.state.doc.toString(), edits: view.state.field(editsField) })
+      window.clearTimeout(appliedTimer.current)
       view.scrollDOM.removeEventListener('scroll', onScroll)
       view.destroy()
       viewRef.current = null
@@ -207,11 +266,12 @@ export function Editor({ docPath }: { docPath: string }) {
       if (currentSuggestion(v.state)?.status === 'streaming') v.dispatch({ effects: updateProposed.of({ proposed: readStream(id).text }) })
     })
     void window.twilight.runWritingTool(id, {
+      docPath,
       instruction,
       passage: doc.sliceString(sel.from, sel.to),
       before: doc.sliceString(Math.max(0, sel.from - CONTEXT_BEFORE), sel.from),
       after: doc.sliceString(sel.to, Math.min(doc.length, sel.to + CONTEXT_AFTER)),
-      title: docPath.replace(/\.md$/i, '')
+      manuscript: useWriting.getState().context?.wholeManuscript ? doc.toString() : undefined
     })
   }
 
@@ -278,9 +338,85 @@ export function Editor({ docPath }: { docPath: string }) {
                   </div>
                 )}
               </span>
+              <span className="tw-sep" />
+              {FORMAT.map((f) => (
+                <button
+                  key={f.title}
+                  className={`tw-btn tw-btn-ghost tw-btn-icon fmt ${f.className}`}
+                  title={f.title}
+                  aria-label={f.title}
+                  onClick={() => viewRef.current && f.run(viewRef.current)}
+                >
+                  {f.label}
+                </button>
+              ))}
+              <span className="tw-sep" />
+              <button className="tw-btn tw-btn-ghost tw-btn-icon" title="Undo (Ctrl+Z)" aria-label="Undo" onClick={() => viewRef.current && undo(viewRef.current)}>
+                <UndoIcon size={15} />
+              </button>
+              <button className="tw-btn tw-btn-ghost tw-btn-icon" title="Redo (Ctrl+Y)" aria-label="Redo" onClick={() => viewRef.current && redo(viewRef.current)}>
+                <RedoIcon size={15} />
+              </button>
             </>
           )}
         </div>
+      )}
+      {applied && !bar && (
+        <div className="applied-pill" role="status">
+          <span>
+            <b>{applied.label}</b> applied
+          </span>
+          <button className="tw-btn tw-btn-sm" onClick={() => revert(applied.id)}>
+            Revert
+          </button>
+          <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Dismiss" onClick={() => setApplied(null)}>
+            <CloseIcon size={14} />
+          </button>
+        </div>
+      )}
+      {historyOpen && (
+        <aside className="edit-history" aria-label="AI edits">
+          <div className="panel-head">
+            <h2 className="t-heading">AI edits this session</h2>
+            <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Close" onClick={() => useWriting.getState().toggleHistory()}>
+              <CloseIcon />
+            </button>
+          </div>
+          {edits.length === 0 && <p className="field-note">Accepted suggestions appear here, each with a way back.</p>}
+          {edits.map((e) => (
+            <div key={e.id} className={`edit-item edit-${e.state}`}>
+              <div className="edit-meta">
+                <b>{e.label}</b> · {timeOf(e.at)}
+                {e.state === 'reverted' && ' · reverted'}
+                {e.state === 'changed' && ' · edited since'}
+              </div>
+              <div className="edit-text">
+                <span className="tw-del">{e.original.length > 140 ? `${e.original.slice(0, 140)}…` : e.original}</span>
+              </div>
+              <div className="edit-actions">
+                {e.state === 'applied' && (
+                  <>
+                    <button
+                      className="tw-btn tw-btn-ghost tw-btn-sm"
+                      onClick={() => {
+                        const v = viewRef.current
+                        if (!v) return
+                        v.dispatch({ selection: { anchor: e.from, head: e.to }, scrollIntoView: true })
+                        v.focus()
+                      }}
+                    >
+                      Show
+                    </button>
+                    <button className="tw-btn tw-btn-sm" onClick={() => revert(e.id)}>
+                      Revert
+                    </button>
+                  </>
+                )}
+                {e.state === 'changed' && <span className="field-note">Use Ctrl+Z to step back past later typing.</span>}
+              </div>
+            </div>
+          ))}
+        </aside>
       )}
       {bar && (
         <div className="tw-suggest" role="group" aria-label="Suggestion" style={{ top: bar.top, left: bar.left }} onMouseDown={(e) => e.preventDefault()}>

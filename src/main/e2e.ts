@@ -2,6 +2,8 @@ import { app, type BrowserWindow } from 'electron'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { writeFileSync } from 'node:fs'
+import { readdir, readFile } from 'node:fs/promises'
+import { logsFolder } from './logs'
 import { join } from 'node:path'
 import * as chat from './chat'
 import * as db from './db'
@@ -226,6 +228,73 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         saved.text.slice(0, 120)
       )
 
+      // 10b. Revert puts the original back (and saves it).
+      const reverted = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const btn = [...document.querySelectorAll('.applied-pill button')].find((b) => b.textContent === 'Revert')
+        if (!btn) return { step: 'no revert pill' }
+        btn.click()
+        await wait(50)
+        return { step: 'ok', text: window.__twilightEditor.state.doc.toString() }
+      })()`)
+      check('revert restores the original', reverted.text?.startsWith('Nobody had ever seen who lit them. Wren'), reverted)
+      await new Promise((r) => setTimeout(r, 1200))
+      check('revert saved to disk', (await docs.readDoc(scene.path)).text.startsWith('Nobody had ever seen who lit them.'))
+
+      // 10c. Formatting toggles markdown around the selection.
+      const fmt = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const v = window.__twilightEditor
+        const at = v.state.doc.toString().indexOf('Wren')
+        v.focus()
+        v.dispatch({ selection: { anchor: at, head: at + 4 } })
+        await wait(150)
+        const bold = () => document.querySelector('.tw-seltool [aria-label="Bold (Ctrl+B)"]')
+        if (!bold()) return { step: 'no bold button' }
+        bold().click()
+        await wait(50)
+        const once = v.state.doc.toString()
+        await wait(150)
+        bold().click()
+        await wait(50)
+        return { once, twice: v.state.doc.toString() }
+      })()`)
+      check('bold wraps the selection', fmt.once?.includes('**Wren**'), fmt)
+      check('bold again unwraps it', fmt.twice?.includes(' Wren ') && !fmt.twice?.includes('**'), fmt)
+
+      // 10d. Document context reaches the model: instructions, references, whole manuscript.
+      const bible = await docs.createDoc('Bible')
+      await docs.writeDoc(bible.path, 'Wren: eleven years old, counts everything.')
+      docs.setDocContext(scene.path, { instructions: 'Past tense. No adverbs.', references: [bible.path], wholeManuscript: true })
+      const beforeTool = log.length
+      const ctxRun = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        // Reopen so the editor loads the new context.
+        document.querySelector('.doc-item[data-path="Big manuscript.md"]').click()
+        await wait(300)
+        document.querySelector('.doc-item[data-path="Scene.md"]').click()
+        for (let i = 0; i < 300 && !(window.__twilightEditor && window.__twilightEditor.state.doc.toString().startsWith('Nobody')); i++) await wait(10)
+        const v = window.__twilightEditor
+        v.focus()
+        v.dispatch({ selection: { anchor: 0, head: 34 } })
+        await wait(150)
+        const btn = [...document.querySelectorAll('.tw-seltool button')].find((b) => b.textContent === 'Rewrite')
+        if (!btn) return { step: 'no toolbar' }
+        btn.click()
+        for (let i = 0; i < 500 && !document.querySelector('.tw-btn-accept'); i++) await wait(10)
+        const reject = [...document.querySelectorAll('.tw-suggest button')].find((b) => b.textContent === 'Reject')
+        reject?.click()
+        await wait(50)
+        return { step: 'ok', unchanged: v.state.doc.toString().startsWith('Nobody had ever seen') }
+      })()`)
+      const toolReq = log.slice(beforeTool).find((r) => r.messages[0]?.content.startsWith('You are a line editor'))
+      const sys = toolReq?.messages[0]?.content ?? ''
+      const user = toolReq?.messages.at(-1)?.content ?? ''
+      check('writing tool sends the document instructions', sys.includes('<writer_instructions>\nPast tense. No adverbs.'), sys.slice(0, 400))
+      check('writing tool sends reference documents', sys.includes('<reference title="Bible">\nWren: eleven years old'))
+      check('whole manuscript sent when asked', user.includes('<manuscript title="Scene">\nNobody had ever seen who lit them. Wren stopped'), user.slice(0, 200))
+      check('reject leaves the manuscript alone', ctxRun.unchanged === true, ctxRun)
+
       // 11. Chat folders: create in a folder, pin, and deleting a folder keeps its chats.
       const rpg = db.createFolder('RPG Maker')
       const misc = db.createFolder('Misc')
@@ -236,6 +305,26 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       db.fileConversation(inFolder, { folder_id: misc.id })
       db.deleteFolder(misc.id)
       check('deleting a folder keeps its chats', !!filed(inFolder) && filed(inFolder)?.folder_id === null)
+
+      // 11b. Trash: delete moves to trash, restore brings it back, forever only from the trash.
+      db.trashConversation(inFolder)
+      check('deleted chat leaves the list', !filed(inFolder) && db.listTrash().some((c) => c.id === inFolder))
+      db.restoreConversation(inFolder)
+      check('restore brings it back', !!filed(inFolder) && !db.listTrash().some((c) => c.id === inFolder))
+      db.deleteConversationForever(id)
+      check('delete forever refuses chats not in the trash', !!filed(id))
+      db.trashConversation(inFolder)
+      db.deleteConversationForever(inFolder)
+      check('delete forever from the trash', !db.listTrash().some((c) => c.id === inFolder) && !filed(inFolder))
+
+      // 11c. Request logs: chat and writing runs land in today's file, with no keys in it.
+      await new Promise((r) => setTimeout(r, 300))
+      const logFiles = (await readdir(logsFolder())).filter((f) => f.endsWith('.jsonl'))
+      const lines = logFiles.length ? (await readFile(join(logsFolder(), logFiles[logFiles.length - 1]), 'utf8')).trim().split('\n') : []
+      const entries = lines.map((l) => JSON.parse(l) as { kind: string; prompt?: string; response?: string; instruction?: string })
+      check('chat turns logged', entries.some((e) => e.kind === 'chat' && e.prompt === 'Hello' && e.response?.includes('replying to')), entries.length)
+      check('writing runs logged', entries.some((e) => e.kind === 'writing' && e.instruction?.startsWith('Tighten')))
+      check('logs never contain keys', !lines.some((l) => /api[_-]?key|sk-ant/i.test(l)))
 
       // 12. Document folders are real folders; moves never overwrite; paths stay inside.
       await docs.createDocFolder('Book/Part 1')
@@ -286,6 +375,23 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await win.webContents.executeJavaScript(`document.querySelector('[data-mode="chat"]').click()`)
       await new Promise((r) => setTimeout(r, 400))
       writeFileSync(join(outDir, 'e2e-chatfolders.png'), (await win.webContents.capturePage()).toPNG())
+
+      // 14. Send a chat reply to Writing.
+      const sent = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const hello = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent.endsWith('Hello'))
+        hello?.click()
+        for (let i = 0; i < 200 && !document.querySelector('[aria-label="Send to Writing"]'); i++) await wait(10)
+        const btn = document.querySelector('[aria-label="Send to Writing"]')
+        if (!btn) return { step: 'no button' }
+        btn.click()
+        for (let i = 0; i < 300 && !(window.__twilightEditor && window.__twilightEditor.state.doc.toString().includes('replying to')); i++) await wait(10)
+        return { step: 'ok', title: document.querySelector('.chat-title')?.textContent }
+      })()`)
+      const sentDoc = (await docs.listDocs()).find((d) => d.path.startsWith('Hello'))
+      check('reply sent to Writing as a document', !!sentDoc && (await docs.readDoc(sentDoc.path)).text.includes('replying to'), [sent, sentDoc?.path])
+      await new Promise((r) => setTimeout(r, 300))
+      writeFileSync(join(outDir, 'e2e-forge.png'), (await win.webContents.capturePage()).toPNG())
     } catch (err) {
       check('no exceptions', false, String(err))
     } finally {

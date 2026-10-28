@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { ChatSettings, ConversationView, Pane, SendTarget, StreamEvent } from '@shared/types'
 import * as db from './db'
 import { getApiKey, getProvider, implFor } from './providers'
+import { appendLog } from './logs'
 import { describeAnthropicError } from './providers/anthropic'
 
 const DEFAULT_SETTINGS: ChatSettings = {
@@ -279,7 +280,28 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
       db.touchConversation(conversationId)
       const nodes = db.loadNodes(conversationId)
       const row = nodes.get(assistant.id)
-      if (row) emit({ kind: 'done', conversationId, nodeId: assistant.id, node: db.toView(row, nodes) })
+      if (row) {
+        emit({ kind: 'done', conversationId, nodeId: assistant.id, node: db.toView(row, nodes) })
+        appendLog({
+          kind: 'chat',
+          conversationId,
+          title: db.getConversation(conversationId).title,
+          pane,
+          provider: settings.providerId,
+          model: row.model,
+          effort: settings.effort ?? undefined,
+          cacheTtl: settings.cacheTtl,
+          temperature: settings.temperature ?? undefined,
+          system: nodes.get(conv.root_id)?.text || undefined,
+          turnsBefore: db.ancestors(nodes, userNodeId).length - 2,
+          prompt: nodes.get(userNodeId)?.text,
+          response: row.text,
+          thinking: row.thinking ?? undefined,
+          usage: row.usage ? JSON.parse(row.usage) : undefined,
+          status: row.status,
+          error: row.error ?? undefined
+        })
+      }
     }
   })()
   return started

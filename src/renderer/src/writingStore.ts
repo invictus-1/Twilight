@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { DocContent, DocEntry } from '@shared/types'
+import type { DocContent, DocContext, DocEntry } from '@shared/types'
 
 const api = window.twilight
 
@@ -13,8 +13,13 @@ interface WritingState {
   /** Folders the reader has collapsed in the sidebar (expanded by default). */
   collapsed: Set<string>
   open: DocContent | null
+  /** The open document's writing-tool context. */
+  context: DocContext | null
   status: SaveStatus
   words: number
+  /** Accepted AI edits in the open document that can still be reverted. */
+  editCount: number
+  historyOpen: boolean
   error: string | null
 
   init(): Promise<void>
@@ -22,9 +27,14 @@ interface WritingState {
   openDoc(path: string): Promise<void>
   newDoc(folder?: string): Promise<void>
   newFolder(path: string): Promise<void>
+  /** Creates a document holding `text` (e.g. a chat reply) and opens it. */
+  fromText(name: string, text: string): Promise<void>
   moveDoc(path: string, folder: string): Promise<void>
   toggleFolder(path: string): void
   chooseFolder(): Promise<void>
+  saveContext(context: DocContext): Promise<void>
+  toggleHistory(): void
+  setEditCount(count: number): void
   setStatus(status: SaveStatus): void
   setWords(words: number): void
   markSaved(mtime: number, text: string): void
@@ -39,8 +49,11 @@ export const useWriting = create<WritingState>((set, get) => ({
   folders: [],
   collapsed: new Set(),
   open: null,
+  context: null,
   status: 'saved',
   words: 0,
+  editCount: 0,
+  historyOpen: false,
   error: null,
 
   async init() {
@@ -59,14 +72,37 @@ export const useWriting = create<WritingState>((set, get) => ({
 
   async openDoc(path) {
     if (get().open?.path === path) return
-    set({ open: await api.readDoc(path), status: 'saved' })
+    const [open, context] = await Promise.all([api.readDoc(path), api.getDocContext(path)])
+    set({ open, context, status: 'saved' })
   },
+
+  async saveContext(context) {
+    const open = get().open
+    if (!open) return
+    set({ context })
+    await api.setDocContext(open.path, context)
+  },
+
+  toggleHistory: () => set({ historyOpen: !get().historyOpen }),
+  setEditCount: (editCount) => set({ editCount }),
 
   async newDoc(folder = '') {
     const entry = await api.createDoc('Untitled', folder)
     if (folder) get().collapsed.delete(folder)
     await get().refresh()
     await get().openDoc(entry.path)
+  },
+
+  async fromText(name, text) {
+    try {
+      const entry = await api.createDoc(name)
+      await api.writeDoc(entry.path, text)
+      await get().refresh()
+      set({ open: null })
+      await get().openDoc(entry.path)
+    } catch (err) {
+      set({ error: message(err) })
+    }
   },
 
   async newFolder(path) {

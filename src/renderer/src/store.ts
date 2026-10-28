@@ -17,6 +17,7 @@ const api = window.twilight
 interface State {
   conversations: ConversationSummary[]
   folders: ChatFolder[]
+  trash: ConversationSummary[]
   current: ConversationView | null
   models: ModelInfo[]
   providers: ProviderConfig[]
@@ -50,6 +51,10 @@ interface State {
   setMode(mode: 'chat' | 'write'): void
   setDefaultModel(providerId: string, modelId: string): Promise<void>
   deleteChat(id: string): Promise<void>
+  refreshTrash(): Promise<void>
+  restoreChat(id: string): Promise<void>
+  deleteForever(id: string): Promise<void>
+  emptyTrash(): Promise<void>
   renameChat(id: string, title: string): Promise<void>
   applyDone(conversationId: string, node: NodeView): void
   setProviders(providers: ProviderConfig[]): void
@@ -79,6 +84,7 @@ export const useStore = create<State>((set, get) => {
   return {
     conversations: [],
     folders: [],
+    trash: [],
     current: null,
     models: [],
     providers: [],
@@ -97,6 +103,7 @@ export const useStore = create<State>((set, get) => {
         api.getDefaults()
       ])
       set({ conversations, folders, providers, defaults })
+      void get().refreshTrash()
       if (conversations[0]) await get().open(conversations[0].id)
       void get().refreshModels()
     },
@@ -192,10 +199,27 @@ export const useStore = create<State>((set, get) => {
       await api.deleteConversation(id)
       const conversations = await api.listConversations()
       set({ conversations })
+      await get().refreshTrash()
       if (get().current?.id === id) {
         set({ current: null })
         if (conversations[0]) await get().open(conversations[0].id)
       }
+    },
+
+    async refreshTrash() {
+      set({ trash: await api.listTrash() })
+    },
+    async restoreChat(id) {
+      await api.restoreConversation(id)
+      await Promise.all([get().refreshList(), get().refreshTrash()])
+    },
+    async deleteForever(id) {
+      await api.deleteForever(id)
+      await get().refreshTrash()
+    },
+    async emptyTrash() {
+      await api.emptyTrash()
+      await get().refreshTrash()
     },
 
     async renameChat(id, title) {

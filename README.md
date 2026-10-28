@@ -39,7 +39,13 @@ Chats sit in Twilight's own folders (a database record, nothing on disk), with P
 
 Documents are plain `.md` files in a folder you choose (it defaults to `Documents\Twilight`; an Obsidian vault works as is, and both apps can edit the same files). The editor is CodeMirror 6, the engine Obsidian uses; it loads on first use, opens a 115k-word manuscript in about 35ms, autosaves atomically, and picks up edits made outside Twilight when the window regains focus.
 
-Select text for the writing tools: Ask (Ctrl+J), Rewrite, Tighten, Expand and Tone. The result streams in as a suggestion: a word diff shown in place, which changes nothing until you accept it (Alt+Enter) or reject it (Alt+Backspace or Esc). The tools use the default model at low effort with about 1,000 words of surrounding context.
+Select text for the writing tools: Ask (Ctrl+J), Rewrite, Tighten, Expand and Tone, plus formatting (bold Ctrl+B, italic Ctrl+I, strikethrough, code, heading, quote) and undo/redo. A tool's result streams in as a suggestion: a word diff shown in place, which changes nothing until you accept it (Alt+Enter) or reject it (Alt+Backspace or Esc). Only the selected passage ever changes. Accepted edits stay faintly marked and go into **Edits**, where each can be reverted on its own; a pill offers Revert right after accepting. "Send to Writing" on a chat reply turns it into a document.
+
+**Context** (per document) is what the tools send along, like a chat: standing instructions, reference documents sent in full (a character bible, an outline), and optionally the whole manuscript instead of about 1,000 words around the selection. Instructions and references go in the cached system prompt; the manuscript has its own cache breakpoint; the passage and instruction come last. Context is stored in Twilight's database, never in your files, and follows a document when it moves. The tools use the default model at low effort.
+
+### Safety net
+
+Deleting a chat moves it to the Trash at the bottom of the sidebar; Restore brings it back, and only "Delete forever" or "Empty trash" removes it. Request logs (on by default, Settings → Safety net) append every chat turn and writing-tool run, prompt and reply, to a daily JSON Lines file in the app's `logs` folder. API keys are never written to them.
 
 ### Prompt caching
 
@@ -62,4 +68,4 @@ Messages render with `content-visibility: auto` and an estimated height so huge 
 After `npm run build`, both run in a throwaway profile and never touch your real data:
 
 - `TWILIGHT_SELFTEST=<folder> npx electron .` seeds a ~350k-token chat, scrolls it top to bottom one step per frame, and writes `selftest.json` (frame timings) and `selftest.png`.
-- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (40 checks) and screenshots.
+- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server in-process and drives chat, split compare, documents, a 115k-word manuscript and a writing-tool accept through the real app, writing `e2e.json` (56 checks) and screenshots.

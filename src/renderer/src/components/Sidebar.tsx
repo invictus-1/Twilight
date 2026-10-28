@@ -128,8 +128,8 @@ const ChatRow = memo(function ChatRow({ c, active, model, depth }: { c: Conversa
         </button>
         <button
           className="tw-btn tw-btn-ghost tw-btn-icon"
-          aria-label={`Delete ${c.title}`}
-          title="Delete chat"
+          aria-label={`Move ${c.title} to the trash`}
+          title="Move to trash"
           onClick={(e) => {
             e.stopPropagation()
             void store.deleteChat(c.id)
@@ -242,6 +242,55 @@ function ChatList({ creating, onCreated }: { creating: boolean; onCreated: () =>
         {recent.map(row)}
         {recent.length === 0 && <p className="sidebar-empty">{conversations.length ? 'Everything is filed.' : 'No chats yet.'}</p>}
       </div>
+      <Trash />
+    </div>
+  )
+}
+
+/** Deleted chats wait here until restored or deleted for good. */
+function Trash() {
+  const trash = useStore((s) => s.trash)
+  const [open, setOpen] = useState(false)
+  const [confirming, setConfirming] = useState(false)
+  const store = useStore.getState()
+  if (trash.length === 0) return null
+  return (
+    <div className="trash">
+      <div className="folder-head" onClick={() => setOpen((o) => !o)}>
+        {open ? <ChevronDown size={14} className="folder-chevron" /> : <ChevronRight size={14} className="folder-chevron" />}
+        <TrashIcon size={15} className="folder-icon" />
+        <span className="folder-name">Trash</span>
+        <span className="folder-count">{trash.length}</span>
+      </div>
+      {open && (
+        <>
+          {trash.map((c) => (
+            <div key={c.id} className="tw-conv trash-row" style={{ paddingLeft: 28 }}>
+              <span className="tw-conv-title">{c.title}</span>
+              <span className="tw-conv-meta">Deleted {relativeTime(c.deletedAt ?? 0)}</span>
+              <span className="trash-actions">
+                <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => void store.restoreChat(c.id)}>
+                  Restore
+                </button>
+                <button className="tw-btn tw-btn-ghost tw-btn-sm danger-text" onClick={() => void store.deleteForever(c.id)}>
+                  Delete forever
+                </button>
+              </span>
+            </div>
+          ))}
+          <button
+            className={`tw-btn tw-btn-sm empty-trash ${confirming ? 'tw-btn-danger' : 'tw-btn-ghost'}`}
+            onBlur={() => setConfirming(false)}
+            onClick={() => {
+              if (!confirming) return setConfirming(true)
+              setConfirming(false)
+              void store.emptyTrash()
+            }}
+          >
+            {confirming ? `Delete ${trash.length} chat${trash.length === 1 ? '' : 's'} forever` : 'Empty trash'}
+          </button>
+        </>
+      )}
     </div>
   )
 }

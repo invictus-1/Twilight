@@ -82,6 +82,12 @@ h1, h2, h3 { margin: 0; }
 /* Drop targets: a solid iris outline, not color alone. */
 .drop-over { background: var(--iris-soft); box-shadow: inset 0 0 0 1px var(--iris); }
 .tw-conv[draggable='true'] { -webkit-user-drag: element; }
+.trash { margin-top: var(--space-3); border-top: 1px solid var(--line); padding-top: var(--space-2); }
+.trash-row { cursor: default; }
+.trash-actions { display: flex; gap: var(--space-1); margin-top: var(--space-1); margin-left: calc(var(--space-2) * -1); }
+.danger-text { color: var(--danger); }
+.tw-btn-danger { background: var(--danger); border-color: var(--danger); color: var(--on-danger); }
+.empty-trash { margin: var(--space-2) 0 var(--space-2) 28px; }
 .side-error { margin: 0 var(--space-2) var(--space-2); padding: var(--space-2) var(--space-3); font-size: 12px; color: var(--ink); background: var(--danger-soft); border-radius: var(--radius-sm); cursor: pointer; }
 
 /* Buttons */
@@ -227,6 +233,29 @@ h1, h2, h3 { margin: 0; }
 .tw-ins-streaming { text-decoration-style: dotted; }
 .tw-del { color: var(--ink-faint); text-decoration: line-through; text-decoration-thickness: 1.5px; }
 .tw-pending { color: var(--ink-faint); }
+/* Accepted AI edits stay faintly marked for the session, until edited or reverted. */
+.tw-edited { background: color-mix(in srgb, var(--horizon-soft) 55%, transparent); border-radius: 2px; }
+.fmt { font-family: var(--font-serif); font-size: 14px; color: var(--ink); }
+.fmt-bold { font-weight: 700; }
+.fmt-italic { font-style: italic; }
+.fmt-strike { text-decoration: line-through; }
+.fmt-code { font-family: var(--font-mono); font-size: 11px; }
+.applied-pill { position: absolute; z-index: 10; bottom: var(--space-6); left: 50%; transform: translateX(-50%); display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3); background: var(--surface-overlay); box-shadow: var(--shadow-lg); border-radius: var(--radius-md); font-size: 13px; color: var(--ink-muted); }
+.applied-pill b { color: var(--horizon); font-weight: 600; }
+.edit-history { position: absolute; z-index: 12; top: var(--space-2); right: var(--space-4); bottom: var(--space-4); width: 340px; overflow-y: auto; background: var(--surface-overlay); box-shadow: var(--shadow-lg); border-radius: var(--radius-md); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
+.edit-item { border-top: 1px solid var(--line); padding-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-1); }
+.edit-meta { font-size: 12px; color: var(--ink-muted); }
+.edit-meta b { color: var(--horizon); font-weight: 600; }
+.edit-text { font-family: var(--font-serif); font-size: 14px; line-height: 22px; }
+.edit-actions { display: flex; gap: var(--space-2); align-items: center; }
+.edit-reverted, .edit-changed { opacity: 0.7; }
+.context-panel { width: 440px; max-height: calc(100% - 64px); overflow-y: auto; }
+.ref-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; padding: var(--space-1) 0; }
+.ref-item { padding: 4px var(--space-1); border-radius: var(--radius-xs); }
+.ref-item:hover { background: var(--surface-hover); }
+.ref-name { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.ref-size { font-size: 12px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+.has-context { color: var(--horizon); }
 
 /* Model picker */
 .picker { position: relative; }

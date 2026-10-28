@@ -73,6 +73,8 @@ export interface ConversationSummary {
   modelId: string
   folderId: string | null
   pinned: boolean
+  /** Set for chats in the trash. */
+  deletedAt?: number
 }
 
 /** A sidebar folder of chats (Twilight's own; chat folders don't exist on disk). */
@@ -121,13 +123,25 @@ export interface DocContent {
   mtime: number
 }
 
+/** What the writing tools know about a document, beyond the passage itself. */
+export interface DocContext {
+  /** The writer's standing instructions for this document (voice, rules, style). */
+  instructions: string
+  /** Other documents sent in full as reference: a character bible, an outline. */
+  references: string[]
+  /** Send the whole manuscript instead of the text around the passage. */
+  wholeManuscript: boolean
+}
+
 /** A writing-tool run on a selected passage. */
 export interface WritingRequest {
+  docPath: string
   instruction: string
   passage: string
   before: string
   after: string
-  title: string
+  /** The full current text, sent only when the document's context asks for the whole manuscript. */
+  manuscript?: string
 }
 
 export interface TwilightApi {
@@ -143,7 +157,16 @@ export interface TwilightApi {
   pinConversation(id: string, pinned: boolean): Promise<void>
   openConversation(id: string): Promise<ConversationView>
   renameConversation(id: string, title: string): Promise<void>
+  /** Moves the chat to the trash. */
   deleteConversation(id: string): Promise<void>
+  listTrash(): Promise<ConversationSummary[]>
+  restoreConversation(id: string): Promise<void>
+  /** Permanent: only for chats already in the trash. */
+  deleteForever(id: string): Promise<void>
+  emptyTrash(): Promise<void>
+  getRequestLogs(): Promise<{ enabled: boolean; folder: string }>
+  setRequestLogs(enabled: boolean): Promise<void>
+  openLogsFolder(): Promise<void>
   updateChatSettings(id: string, patch: Partial<ChatSettings>, pane?: Pane): Promise<ConversationView>
   send(id: string, text: string, target?: SendTarget): Promise<ConversationView>
   regenerate(id: string, assistantNodeId: string, pane?: Pane): Promise<ConversationView>
@@ -174,6 +197,8 @@ export interface TwilightApi {
   /** Saves atomically; returns the new modified time. */
   writeDoc(path: string, text: string): Promise<number>
   createDoc(name: string, folder?: string): Promise<DocEntry>
+  getDocContext(path: string): Promise<DocContext>
+  setDocContext(path: string, context: DocContext): Promise<void>
   /** Streams a rewrite of the passage as StreamEvents with conversationId "writing" and nodeId = requestId. */
   runWritingTool(requestId: string, request: WritingRequest): Promise<void>
   stopWritingTool(requestId: string): Promise<void>

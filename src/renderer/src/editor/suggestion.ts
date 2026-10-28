@@ -70,12 +70,84 @@ export function currentSuggestion(state: EditorState): Suggestion | null {
   return state.field(suggestionField, false) ?? null
 }
 
+// ——— Accepted edits: a history that can be reverted ———
+// Each accepted suggestion is remembered with the text it replaced. Its range follows later
+// typing; Revert puts the original back as long as the edited text is still exactly what the
+// model wrote (otherwise Ctrl+Z is the way back).
+
+export interface AppliedEdit {
+  id: string
+  label: string
+  from: number
+  to: number
+  original: string
+  proposed: string
+  at: number
+  state: 'applied' | 'changed' | 'reverted'
+}
+
+export const recordEdit = StateEffect.define<AppliedEdit>()
+export const markReverted = StateEffect.define<string>()
+export const restoreEdits = StateEffect.define<AppliedEdit[]>()
+
+export const editsField = StateField.define<AppliedEdit[]>({
+  create: () => [],
+  update(edits, tr) {
+    if (tr.docChanged) {
+      edits = edits.map((e) =>
+        e.state !== 'applied'
+          ? e
+          : tr.changes.touchesRange(e.from, e.to) && !tr.effects.some((x) => x.is(markReverted) && x.value === e.id)
+            ? { ...e, state: 'changed' as const }
+            : { ...e, from: tr.changes.mapPos(e.from, 1), to: tr.changes.mapPos(e.to, -1) }
+      )
+    }
+    for (const effect of tr.effects) {
+      if (effect.is(recordEdit)) edits = [effect.value, ...edits].slice(0, 100)
+      else if (effect.is(markReverted)) edits = edits.map((e) => (e.id === effect.value ? { ...e, state: 'reverted' as const } : e))
+      else if (effect.is(restoreEdits)) edits = effect.value
+    }
+    return edits
+  },
+  provide: (field) =>
+    EditorView.decorations.from(field, (edits): DecorationSet =>
+      Decoration.set(
+        edits.filter((e) => e.state === 'applied' && e.to > e.from).map((e) => Decoration.mark({ class: 'tw-edited' }).range(e.from, e.to)),
+        true
+      )
+    )
+})
+
+export function revertEdit(view: EditorView, id: string): boolean {
+  const edit = view.state.field(editsField).find((e) => e.id === id)
+  if (!edit || edit.state !== 'applied' || view.state.doc.sliceString(edit.from, edit.to) !== edit.proposed) return false
+  view.dispatch({
+    changes: { from: edit.from, to: edit.to, insert: edit.original },
+    effects: markReverted.of(id),
+    selection: { anchor: edit.from, head: edit.from + edit.original.length },
+    userEvent: 'input.revert'
+  })
+  return true
+}
+
 export function acceptSuggestion(view: EditorView): boolean {
   const s = currentSuggestion(view.state)
   if (!s || s.status !== 'ready') return false
   view.dispatch({
     changes: { from: s.from, to: s.to, insert: s.proposed },
-    effects: setSuggestion.of(null),
+    effects: [
+      setSuggestion.of(null),
+      recordEdit.of({
+        id: crypto.randomUUID(),
+        label: s.label,
+        from: s.from,
+        to: s.from + s.proposed.length,
+        original: s.original,
+        proposed: s.proposed,
+        at: Date.now(),
+        state: 'applied'
+      })
+    ],
     selection: { anchor: s.from + s.proposed.length },
     userEvent: 'input.suggestion'
   })
@@ -91,6 +163,7 @@ export function rejectSuggestion(view: EditorView): boolean {
 export function suggestionExtension(handlers: { onReject: () => void }): Extension {
   return [
     suggestionField,
+    editsField,
     Prec.highest(
       keymap.of([
         { key: 'Alt-Enter', run: acceptSuggestion },
