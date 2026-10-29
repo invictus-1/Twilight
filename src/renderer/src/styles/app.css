@@ -1176,7 +1176,7 @@ body.resizing .resize-handle { pointer-events: auto; }
 }
 
 /* ——— Your background, behind the whole window ——— */
-.backdrop { position: absolute; inset: -24px; z-index: 0; background-size: cover; background-position: center; pointer-events: none; }
+.backdrop { position: absolute; inset: -24px; z-index: 0; background-size: cover; background-position: center; pointer-events: none; transition: transform 120ms ease-out; }
 .backdrop-dim { position: absolute; inset: 0; z-index: 0; background: var(--night); pointer-events: none; transition: opacity 200ms ease; }
 .app.has-backdrop > :is(.rail, .sidebar, main) { position: relative; z-index: 1; }
 .app.has-backdrop .rail, .app.has-backdrop .sidebar { background: color-mix(in srgb, var(--night) 70%, transparent); backdrop-filter: blur(18px); }
@@ -1198,6 +1198,11 @@ body.resizing .resize-handle { pointer-events: auto; }
 .bg-slider input { width: 140px; accent-color: var(--iris); }
 .bg-value { min-width: 36px; font-variant-numeric: tabular-nums; color: var(--ink-faint); font-size: 12px; }
 .bg-image-actions { display: inline-flex; gap: var(--space-2); }
+.bg-framing { display: flex; gap: var(--space-4); align-items: flex-start; flex-wrap: wrap; width: 100%; }
+.bg-frame { width: 260px; overflow: hidden; border-radius: var(--radius-md); border: 1px solid var(--line-strong); cursor: grab; touch-action: none; position: relative; }
+.bg-frame.dragging { cursor: grabbing; }
+.bg-frame-image { position: absolute; inset: 0; background-size: cover; }
+.bg-frame-controls { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
 .motion-seg { align-self: flex-start; }
 .motion-seg button[aria-pressed='true'] { background: var(--surface-overlay); color: var(--ink); }
 

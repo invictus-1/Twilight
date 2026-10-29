@@ -4,6 +4,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 0.8.0 · In progress
+- [x] **Background framing** · Core — drag and zoom your picture to choose which part shows; brighter Nebula, Embers and Starfield
+
 ### 0.7.0 · October 2026
 - [x] **Custom backgrounds** · Core — your own picture or a gradient behind the app, darkened and blurred to taste
 - [x] **More themes** · Core — Midnight, Synthwave, Aurora, Campfire, High contrast, and a theme builder
@@ -89,7 +92,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Later
 - [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion
 - [ ] **More tools and MCP** · Chat — image generation and MCP servers, switched on per chat
-- [ ] **Agents and code** · Chat — an agent loop for any model with tool calling, with approvals and diffs
+- [ ] **Code** · Core — its own tab: an agent that reads, edits and runs things in a folder you choose, with questions when it's unsure, every change shown as a diff, approval before edits and commands, a snapshot before each step so anything can be rolled back, and deletions sent to the Recycle Bin (built on OpenCode's agent or our own)
 - [ ] **A light theme** · Core — Moonlit Paper: a soft, paper-light theme (Twilight is dark throughout today)
 - [ ] **Document library** · Writing — retrieval over very large collections with local embeddings
 - [ ] **Offline spellcheck** · Writing — bundled dictionaries

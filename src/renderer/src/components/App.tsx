@@ -16,7 +16,7 @@ import { SettingsView } from './SettingsView'
 import { useDragResize, usePersistentNumber } from '../resize'
 import { Sidebar } from './Sidebar'
 import { Rail } from './Rail'
-import { backdropImage, useBackdrop } from '../look'
+import { backdropImage, framing, useBackdrop } from '../look'
 import { commandFor } from '../commands'
 import { recordingKeys } from './ShortcutsSection'
 import { CommandMenu, ShortcutSheet } from './CommandMenu'
@@ -30,7 +30,7 @@ function Backdrop() {
   if (!image) return null
   return (
     <>
-      <div className="backdrop" aria-hidden="true" style={{ backgroundImage: image, filter: b.blur ? `blur(${b.blur}px)` : undefined }} />
+      <div className="backdrop" aria-hidden="true" style={{ backgroundImage: image, filter: b.blur ? `blur(${b.blur}px)` : undefined, ...framing(b) }} />
       <div className="backdrop-dim" aria-hidden="true" style={{ opacity: b.dim / 100 }} />
     </>
   )

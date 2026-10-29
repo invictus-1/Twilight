@@ -2,6 +2,13 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## 0.8.0
+
+**Look and feel**
+- **Frame your picture:** with your own background picture, drag the preview to choose which part shows and zoom in to crop tighter.
+- **Nebula and Embers now show.** A mistake in how they were written made the window skip them entirely; they're back, much richer: Nebula's clouds have stars through them, and Embers has sparks rising from the glow.
+- **Starfield, filled in:** nearly three hundred stars of every size and warmth, and a faint band of sky light across them.
+
 ## 0.7.0
 
 **Look and feel**

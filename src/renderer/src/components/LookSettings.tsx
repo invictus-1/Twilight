@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { contrast, customTokens, DEFAULT_CUSTOM, loadCustom, saveCustom, type CustomTheme } from '../customTheme'
 import { setTheme } from '../theme'
-import { GRADIENTS, backdropImage, setBackdrop, setMotion, useBackdrop, useMotion, type Motion } from '../look'
+import { GRADIENTS, backdropImage, framing, setBackdrop, setMotion, useBackdrop, useMotion, type Backdrop, type Motion } from '../look'
 import { useStore } from '../store'
 
 /** None, a built-in gradient, or your own picture; then how dark and soft it sits behind the text. */
@@ -52,6 +52,7 @@ export function BackgroundPicker() {
             <input type="range" min={0} max={24} step={2} value={b.blur} onChange={(e) => setBackdrop({ blur: Number(e.target.value) })} />
             <span className="bg-value">{b.blur}px</span>
           </label>
+          {b.kind === 'image' && <Framing b={b} />}
           {b.kind === 'image' && (
             <span className="bg-image-actions">
               <button className="tw-btn tw-btn-sm" disabled={busy} onClick={() => void choose()}>
@@ -71,6 +72,54 @@ export function BackgroundPicker() {
         </div>
       )}
       <p className="field-note">Shown behind the whole window. Darken it until text reads comfortably; your picture stays on this PC, copied into Twilight's data folder.</p>
+    </div>
+  )
+}
+
+/**
+ * Which part of your picture shows: drag the preview to move it, and zoom in to crop tighter.
+ * The preview has the window's own shape, so what it shows is what the window shows.
+ */
+function Framing({ b }: { b: Backdrop }) {
+  const [drag, setDrag] = useState<{ x: number; y: number; posX: number; posY: number } | null>(null)
+  const clamp = (v: number): number => Math.round(Math.min(100, Math.max(0, v)))
+  return (
+    <div className="bg-framing">
+      <div
+        className={`bg-frame ${drag ? 'dragging' : ''}`}
+        style={{ aspectRatio: `${window.innerWidth} / ${window.innerHeight}` }}
+        title="Drag to choose which part shows"
+        onPointerDown={(e) => {
+          try {
+            e.currentTarget.setPointerCapture(e.pointerId)
+          } catch {
+            // A pointer that's already gone can't be captured; the drag still works while it's over the frame.
+          }
+          setDrag({ x: e.clientX, y: e.clientY, posX: b.posX, posY: b.posY })
+        }}
+        onPointerMove={(e) => {
+          if (!drag) return
+          const box = e.currentTarget.getBoundingClientRect()
+          // Dragging the picture right shows more of its left side, so the point moves the other way.
+          const speed = 100 / (b.zoom / 100)
+          setBackdrop({ posX: clamp(drag.posX - ((e.clientX - drag.x) / box.width) * speed), posY: clamp(drag.posY - ((e.clientY - drag.y) / box.height) * speed) })
+        }}
+        onPointerUp={() => setDrag(null)}
+        onPointerCancel={() => setDrag(null)}
+      >
+        <div className="bg-frame-image" style={{ backgroundImage: backdropImage(b) ?? undefined, ...framing(b) }} />
+      </div>
+      <div className="bg-frame-controls">
+        <label className="bg-slider">
+          <span>Zoom</span>
+          <input type="range" min={100} max={300} step={5} value={b.zoom} onChange={(e) => setBackdrop({ zoom: Number(e.target.value) })} />
+          <span className="bg-value">{b.zoom}%</span>
+        </label>
+        <button className="tw-btn tw-btn-ghost tw-btn-sm" disabled={b.posX === 50 && b.posY === 50 && b.zoom === 100} onClick={() => setBackdrop({ posX: 50, posY: 50, zoom: 100 })}>
+          Centre it again
+        </button>
+        <span className="field-note">Drag the picture to choose which part shows.</span>
+      </div>
     </div>
   )
 }

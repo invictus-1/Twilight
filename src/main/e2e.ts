@@ -1121,7 +1121,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards >= 5 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
       await shot('e2e-roadmap.png')
 
@@ -2623,6 +2623,45 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('Settings offers the theme, six gradients and your picture', lookUi.options === 8, lookUi.options)
       check('a gradient goes behind the whole window', lookUi.aurora && /radial-gradient/.test(lookUi.layer), lookUi)
       check('motion can be turned off and back on', lookUi.motionOff === 'off' && lookUi.motionBack === null, lookUi)
+
+      // Every gradient has to draw (a bare colour in the list once made two of them draw nothing),
+      // and your picture can be zoomed and dragged to choose which part shows. The picture is put in
+      // place the way choosing one leaves it (the file, and its stamp in the window's settings).
+      await js(`localStorage.setItem('twilight.backdrop', JSON.stringify({ kind: 'gradient', gradient: 'aurora', image: ${JSON.stringify(bgVersion)}, dim: 55, blur: 0 }))`)
+      await reloadUi()
+      await key(',', ['control'])
+      const frameUi = await js<{ drawn: Record<string, boolean>; frame: boolean; transform: string; before: string; after: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.bg-picker'); ) await wait(50)
+        const drawn = {}
+        for (const b of document.querySelectorAll('.bg-option[data-gradient]')) {
+          b.click()
+          await wait(60)
+          const img = getComputedStyle(document.querySelector('.backdrop')).backgroundImage
+          drawn[b.dataset.gradient] = img !== 'none' && /gradient/.test(img)
+        }
+        document.querySelector('.bg-option.bg-image').click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.bg-frame'); ) await wait(50)
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        const zoom = [...document.querySelectorAll('.bg-frame-controls input[type="range"]')][0]
+        set.call(zoom, '200'); zoom.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(80)
+        const before = getComputedStyle(document.querySelector('.backdrop')).backgroundPosition
+        const frame = document.querySelector('.bg-frame')
+        const box = frame.getBoundingClientRect()
+        const at = (x, y) => ({ bubbles: true, pointerId: 1, clientX: box.left + x, clientY: box.top + y, button: 0 })
+        frame.dispatchEvent(new PointerEvent('pointerdown', at(130, 80)))
+        await wait(50)
+        frame.dispatchEvent(new PointerEvent('pointermove', at(70, 50)))
+        await wait(50)
+        frame.dispatchEvent(new PointerEvent('pointerup', at(70, 50)))
+        await wait(80)
+        const layer = document.querySelector('.backdrop')
+        return { drawn, frame: !!frame, transform: layer.style.transform, before, after: getComputedStyle(layer).backgroundPosition }
+      })()`)
+      check('every gradient draws', Object.keys(frameUi.drawn).length === 6 && Object.values(frameUi.drawn).every(Boolean), frameUi.drawn)
+      check('your picture can be zoomed and dragged to choose which part shows', frameUi.frame && frameUi.transform === 'scale(2)' && frameUi.before === '50% 50%' && frameUi.after !== '50% 50%', frameUi)
       await key('Escape')
       await key('N', ['control'])
       await new Promise((r) => setTimeout(r, 600))

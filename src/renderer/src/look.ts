@@ -12,20 +12,65 @@ export interface Backdrop {
   dim: number
   /** Blur in pixels, 0–24. */
   blur: number
+  /** Your picture's framing: the point kept in view (0–100 % across and down) and the zoom (100–300 %). */
+  posX: number
+  posY: number
+  zoom: number
 }
 
 export type Motion = 'full' | 'reduced' | 'off'
 
+/** A repeatable scatter (the same stars every time), from a small seeded generator. */
+function scatter(seed: number, count: number, make: (r: () => number) => string): string {
+  let s = seed
+  const r = (): number => ((s = (s * 1664525 + 1013904223) % 4294967296) / 4294967296)
+  return Array.from({ length: count }, () => make(r)).join('')
+}
+
+const svg = (body: string): string =>
+  `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1600 1000' preserveAspectRatio='xMidYMid slice'>${body}</svg>`)}")`
+
+/** Nearly three hundred stars of every size and warmth, a few with a halo, and a faint band of sky light. */
+const STARS = svg(
+  `<defs><filter id='b' x='-50%' y='-50%' width='200%' height='200%'><feGaussianBlur stdDeviation='70'/></filter><filter id='h'><feGaussianBlur stdDeviation='2.2'/></filter></defs>` +
+    `<ellipse cx='800' cy='470' rx='900' ry='120' fill='#9aa2ee' opacity='.3' transform='rotate(-18 800 470)' filter='url(#b)'/>` +
+    scatter(7, 280, (r) => {
+      const big = r() > 0.93
+      const tint = ['#ffffff', '#dfe6ff', '#fff1d6', '#e6dcff'][Math.floor(r() * 4)]
+      return `<circle cx='${(r() * 1600).toFixed(1)}' cy='${(r() * 1000).toFixed(1)}' r='${(big ? 2.4 + r() * 1.6 : 0.9 + r() * 1.5).toFixed(2)}' fill='${tint}' opacity='${(0.5 + r() * 0.5).toFixed(2)}'${big ? " filter='url(#h)'" : ''}/>`
+    })
+)
+
+/** Sparks drifting up from a fire below the window. */
+const SPARKS = svg(
+  `<defs><filter id='g'><feGaussianBlur stdDeviation='1.6'/></filter></defs>` +
+    scatter(13, 120, (r) => {
+      const y = 380 + r() * 620
+      const c = ['#ffb347', '#ff7a2f', '#ffd27a', '#ff5a1f'][Math.floor(r() * 4)]
+      return `<circle cx='${(r() * 1600).toFixed(1)}' cy='${y.toFixed(1)}' r='${(1.4 + r() * 3).toFixed(2)}' fill='${c}' opacity='${(0.35 + (y / 1000) * 0.65 * r()).toFixed(2)}' filter='url(#g)'/>`
+    })
+)
+
+// Each is a background-image list, so a flat colour has to be written as a gradient too (a bare
+// colour makes the browser drop the whole list).
 export const GRADIENTS: { id: string; name: string; css: string }[] = [
   { id: 'dusk', name: 'Dusk', css: 'linear-gradient(180deg, #0b0d1c 0%, #1c1f4a 45%, #4a2550 78%, #8a3f5a 100%)' },
   { id: 'aurora', name: 'Aurora', css: 'radial-gradient(90% 60% at 20% 10%, #1f6f5c 0%, transparent 60%), radial-gradient(70% 50% at 80% 30%, #3a2a7a 0%, transparent 60%), linear-gradient(180deg, #050a12, #0b1424)' },
-  { id: 'nebula', name: 'Nebula', css: 'radial-gradient(60% 50% at 70% 30%, #6a1f6f 0%, transparent 65%), radial-gradient(50% 40% at 25% 70%, #2a2a8a 0%, transparent 65%), #07050f' },
-  { id: 'embers', name: 'Embers', css: 'radial-gradient(80% 55% at 50% 110%, #8a2a10 0%, transparent 65%), radial-gradient(40% 30% at 80% 20%, #3a0d0d 0%, transparent 70%), #0a0505' },
+  {
+    id: 'nebula',
+    name: 'Nebula',
+    css: `${STARS}, radial-gradient(42% 38% at 68% 32%, #d24bb8 0%, #8a2a9acc 30%, transparent 70%), radial-gradient(38% 34% at 28% 66%, #5a5af0 0%, #2e2e9acc 35%, transparent 72%), radial-gradient(26% 22% at 50% 48%, #ff8ad8aa 0%, transparent 70%), linear-gradient(#07050f, #07050f)`
+  },
+  {
+    id: 'embers',
+    name: 'Embers',
+    css: `${SPARKS}, radial-gradient(95% 60% at 50% 112%, #ff6a24 0%, #c8401a 22%, #6a1a0c 45%, transparent 70%), radial-gradient(45% 32% at 85% 12%, #5a1a12 0%, transparent 70%), linear-gradient(#0a0505, #0a0505)`
+  },
   { id: 'deep-sea', name: 'Deep sea', css: 'radial-gradient(90% 70% at 50% 0%, #10405a 0%, transparent 65%), linear-gradient(180deg, #04121c, #020609)' },
-  { id: 'starfield', name: 'Starfield', css: 'radial-gradient(1px 1px at 12% 18%, #fff9 50%, transparent), radial-gradient(1px 1px at 72% 34%, #fff8 50%, transparent), radial-gradient(1.5px 1.5px at 38% 62%, #fffa 50%, transparent), radial-gradient(1px 1px at 86% 76%, #fff7 50%, transparent), radial-gradient(1px 1px at 22% 88%, #fff8 50%, transparent), radial-gradient(1.5px 1.5px at 58% 12%, #fff9 50%, transparent), radial-gradient(120% 80% at 50% 120%, #1a1f4a, #05060f 70%)' }
+  { id: 'starfield', name: 'Starfield', css: `${STARS}, radial-gradient(120% 70% at 50% 115%, #2a3070 0%, #10143a 40%, #05060f 75%)` }
 ]
 
-const DEFAULT: Backdrop = { kind: 'none', gradient: 'dusk', image: null, dim: 55, blur: 0 }
+const DEFAULT: Backdrop = { kind: 'none', gradient: 'dusk', image: null, dim: 55, blur: 0, posX: 50, posY: 50, zoom: 100 }
 
 const read = <T,>(key: string, fallback: T): T => {
   try {
@@ -66,6 +111,13 @@ export function backdropImage(b: Backdrop): string | null {
   if (b.kind === 'gradient') return GRADIENTS.find((g) => g.id === b.gradient)?.css ?? GRADIENTS[0].css
   if (b.kind === 'image' && b.image) return `url("twilight-bg://image/?v=${encodeURIComponent(b.image)}")`
   return null
+}
+
+/** Where and how big your picture sits: CSS for the background layer (nothing for gradients). */
+export function framing(b: Backdrop): { backgroundPosition?: string; transform?: string; transformOrigin?: string } {
+  if (b.kind !== 'image') return {}
+  const at = `${b.posX}% ${b.posY}%`
+  return { backgroundPosition: at, transform: b.zoom > 100 ? `scale(${b.zoom / 100})` : undefined, transformOrigin: at }
 }
 
 /** Applies the motion setting to the page (read before the first paint, like the theme). */
