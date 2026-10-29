@@ -4,6 +4,17 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.2.0 · October 2026
+- [x] **Remembers its window** · Core — opens at the size and place you left it, maximized if it was
+- [x] **Nothing typed is lost** · Chat — the message box keeps what you were writing across sections and restarts; Attach opens the last folder you used
+- [x] **Copy that answers** · Chat — every copy button works and says Copied; your message's tools sit under it
+- [x] **Edit without sending** · Chat — save an edit to your message and send it when you're ready
+- [x] **Each model's own defaults** · Chat — settings a model brings whenever it's picked, apart from presets; the system prompt stays with the chat
+- [x] **The system prompt on show** · Chat — at the top of every chat under the evening sky, editable in place, with every earlier prompt kept and flagged on the replies it wrote
+- [x] **Thoughts** · Chat — every reply's thinking in a folded section, with how long it thought
+- [x] **Chat text size** · Chat — small, medium or large, with medium a step bigger than before
+- [x] **Settings that get out of the way** · Chat — Model settings closes on a click outside, or stays pinned open
+
 ### 1.1.0 · October 2026
 - [x] **A retro evening** · Chat — the empty chat as a starry sky with a striped sun and a glowing grid, in every theme
 - [x] **Settings before the first message** · Chat — model settings open with no chat yet, and max output tokens takes any number
@@ -106,15 +117,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
-- [x] **Remembers its window** · Core — opens at the size and place you left it, maximized if it was
-- [x] **Nothing typed is lost** · Chat — the message box keeps what you were writing across sections and restarts; Attach opens the last folder you used
-- [x] **Copy that answers** · Chat — every copy button works and says Copied; your message's tools sit under it
-- [x] **Edit without sending** · Chat — save an edit to your message and send it when you're ready
-- [x] **Each model's own defaults** · Chat — settings a model brings whenever it's picked, apart from presets; the system prompt stays with the chat
-- [x] **The system prompt on show** · Chat — at the top of every chat under the evening sky, editable in place, with every earlier prompt kept and flagged on the replies it wrote
-- [x] **Thoughts** · Chat — every reply's thinking in a folded section, with how long it thought
-- [x] **Chat text size** · Chat — small, medium or large, with medium a step bigger than before
-- [x] **Settings that get out of the way** · Chat — Model settings closes on a click outside, or stays pinned open
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story

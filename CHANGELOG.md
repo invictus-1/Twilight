@@ -2,7 +2,7 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
-## Unreleased
+## 1.2.0
 
 - **The system prompt lives with the chat:** it's no longer in Model settings. On an empty chat, a small System prompt button under the greeting (No system prompt when there isn't one) opens it to check or set before the first message; once the chat starts, it's at the top.
 - **Attach opens where you last attached from,** instead of the writing folder every time.

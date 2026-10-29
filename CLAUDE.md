@@ -51,5 +51,5 @@ Also run the e2e suite against the packaged build after `npm run dist`: `TWILIGH
 - The interface never reaches the network; model calls and the daily update check run in the main process.
 - Tools Twilight runs itself (MCP, pictures, search_library) are rounds inside one stored reply (`tool_results` blocks for Claude, `tool_round` blocks for OpenAI-compatible), replayed exactly; see `providers/`.
 - Anything that can lose work asks first and can be undone: Code snapshots before each change, deletions go to the Recycle Bin, backups are made before a restore or a move.
-- Where things stand: 1.1.0 is released (1.0 was the foundation; 1.1 the first fixes from feedback). Next is 2.0, "Twilight knows your story", starting with retrieval research; the owner's answers on it are in docs/HANDOFF.md.
+- Where things stand: 1.2.0 is released (1.0 was the foundation; 1.1 and 1.2 fixes and requests from daily use). Next is 2.0, "Twilight knows your story", starting with retrieval research; the owner's answers on it are in docs/HANDOFF.md.
 - Comments explain why, in plain sentences, at the density of the surrounding code. UI copy is short, sentence case, no exclamation marks.
