@@ -60,6 +60,8 @@ export interface ModelOptions {
   /** Largest output in tokens, when known. */
   maxOutput?: number
   caching: boolean
+  /** The model answers with pictures (OpenRouter lists it); they're asked for and kept with the reply. */
+  imageOutput?: boolean
 }
 
 export interface ModelInfo {

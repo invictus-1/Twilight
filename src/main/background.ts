@@ -4,7 +4,7 @@ import { existsSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { IMAGE_EXTENSIONS } from '@shared/attachments'
 import { kvGet, kvSet } from './db'
-import { readGenerated } from './images'
+import { readGenerated } from './generated'
 
 // Your own background picture. The chosen file is copied into Twilight's data folder (so moving
 // or deleting the original changes nothing) and served to the window as twilight-bg://image,

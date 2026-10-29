@@ -3,6 +3,7 @@ import { isContextText } from '@shared/attachments'
 import { isLocalUrl, isOpenRouter } from '@shared/webTools'
 import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig, WebSource } from '@shared/types'
 import type { NodeRow } from '../db'
+import { savePictureFrom } from '../generated'
 import { MAX_TOOL_ROUNDS, TOO_MANY_ROUNDS, mergeExtraParams, textBlocks, wantsChoiceTool, type ClientOutcome, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 /** A stored image or PDF block (Claude's format). */
@@ -93,7 +94,7 @@ interface ListedModel {
   /** OpenRouter lists the request parameters each model accepts. */
   supported_parameters?: string[]
   top_provider?: { max_completion_tokens?: number }
-  architecture?: { input_modalities?: string[] }
+  architecture?: { input_modalities?: string[]; output_modalities?: string[] }
 }
 
 /** Abilities a server reports (OpenRouter lists them; most local servers don't). */
@@ -101,6 +102,7 @@ function openaiCapabilities(m: ListedModel): string[] {
   const caps = ['Text', 'Streaming']
   const params = m.supported_parameters ?? []
   if (m.architecture?.input_modalities?.includes('image')) caps.push('Vision')
+  if (m.architecture?.output_modalities?.includes('image')) caps.push('Image output')
   if (params.includes('tools')) caps.push('Tools')
   if (params.includes('reasoning')) caps.push('Reasoning')
   if (params.includes('structured_outputs')) caps.push('Structured output')
@@ -123,7 +125,8 @@ function openaiOptions(m: ListedModel, openRouter: boolean): ModelOptions {
     temperature: supports('temperature'),
     maxOutput: m.top_provider?.max_completion_tokens,
     // Local servers reuse their own cache for an unchanged prefix; there's nothing to switch.
-    caching: false
+    caching: false,
+    imageOutput: !!m.architecture?.output_modalities?.includes('image')
   }
 }
 
@@ -217,6 +220,8 @@ export const openaiProvider: Provider = {
     if (tools.length) body.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }))
     // OpenRouter reports what each request cost when asked; that beats any price list.
     if (isOpenRouter(base(req.config))) body.usage = { include: true }
+    // An image model draws only when asked for pictures as well as text.
+    if (req.options?.imageOutput) body.modalities = ['image', 'text']
     const plugins = openRouterPlugins(base(req.config), settings)
     if (plugins) body.plugins = plugins
     mergeExtraParams(body, settings.extraParams ?? '')
@@ -229,6 +234,7 @@ export const openaiProvider: Provider = {
     let calls: StoredCall[] = []
     const rounds: ToolRound[] = []
     const generated: { type: 'generated_image'; file: string; prompt: string }[] = []
+    const pictures: string[] = []
     const sources: WebSource[] = []
     const usage: { input: number; output: number; cacheRead: number; cacheWrite: number; ms: number; costUsd?: number } = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: 0 }
     try {
@@ -267,14 +273,20 @@ export const openaiProvider: Provider = {
                   reasoning?: string
                   tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]
                   annotations?: unknown
+                  images?: { image_url?: { url?: string } }[]
                 }
-                message?: { annotations?: unknown }
+                message?: { annotations?: unknown; images?: { image_url?: { url?: string } }[] }
               }[]
               usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number }
             }
             const delta = chunk.choices?.[0]?.delta
             addCitations(sources, delta?.annotations)
             addCitations(sources, chunk.choices?.[0]?.message?.annotations)
+            // Pictures an image model answers with come as data: URLs beside the text.
+            for (const img of [...(delta?.images ?? []), ...(chunk.choices?.[0]?.message?.images ?? [])]) {
+              const url = img.image_url?.url
+              if (url && !pictures.includes(url)) pictures.push(url)
+            }
             const reasoning = delta?.reasoning_content ?? delta?.reasoning
             if (reasoning) {
               thinking += reasoning
@@ -332,6 +344,15 @@ export const openaiProvider: Provider = {
       }
     } catch (err) {
       if (!req.signal.aborted) throw err
+    }
+    // Saved with the reply and shown under it; the prompt kept with each is what you asked.
+    const asked = [...req.history].reverse().find((n) => n.role === 'user')?.text ?? ''
+    for (const url of pictures) {
+      try {
+        generated.push({ type: 'generated_image', file: await savePictureFrom(url), prompt: asked })
+      } catch {
+        // A picture that can't be read or saved is left out; the reply's text stays.
+      }
     }
     usage.ms = Date.now() - started
     const made = calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || `call_${i}` }))

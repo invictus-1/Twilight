@@ -14,6 +14,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 - **You approve each call:** by default a tool call waits in the reply, showing the tool and its arguments, for Allow once, Always allow, or Decline. A server you trust can be set to run calls without asking. Stopping the reply declines whatever is waiting.
 - **Tools inside the reply:** a reply can call tools over several rounds and carry on with the results. Each round is stored with the reply and resent exactly, so the cache holds. The reply lists every tool it used, with what went in and what came back.
 - **Pictures:** choose an image model in Settings → Tools (OpenAI's images endpoint or an OpenRouter image model), switch Pictures on for a chat, and the model can make an image when you ask. It's saved in Twilight's data folder and shown in the reply.
+- **Chatting with an image model:** a model that draws (Nano Banana on OpenRouter, for one) is asked for pictures as well as text, and the picture it sends shows under its reply and is kept in Twilight's data folder. Before, the picture was made and billed but not shown. Models like this are marked Image output in the model list; press Test connection on OpenRouter to refresh it.
 
 **Extras**
 - **A new Extras page** in Settings, for things that are just for fun. Everything there starts off.

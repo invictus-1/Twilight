@@ -240,7 +240,7 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
     if (req.url === '/mcp') return mockMcpHttp(req, res)
     if (req.url?.endsWith('/models')) {
       res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ data: [{ id: 'mock-a', context_length: 8000 }, { id: 'mock-b' }] }))
+      res.end(JSON.stringify({ data: [{ id: 'mock-a', context_length: 8000 }, { id: 'mock-b', architecture: { output_modalities: ['image', 'text'] } }] }))
       return
     }
     let body = ''
@@ -267,6 +267,15 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
           res.write(`data: ${JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: part } }] } }] })}\n\n`)
         }
         res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })}\n\n`)
+        res.end('data: [DONE]\n\n')
+        return
+      }
+      // An image model answers with a picture beside its text.
+      if (lastUser.includes('IMAGEOUT')) {
+        res.writeHead(200, { 'content-type': 'text/event-stream' })
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: 'Here is your lamp.', images: [{ type: 'image_url', image_url: { url: `data:image/png;base64,${TINY_PNG}` } }] } }] })}\n\n`)
+        entry.firstTokenAt ??= Date.now()
+        res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: 20, completion_tokens: 1290 } })}\n\n`)
         res.end('data: [DONE]\n\n')
         return
       }
@@ -3749,6 +3758,31 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('the picture shows in the reply', shown45 === 1, shown45)
 
+      // An image model as the chat's own model: asked for pictures, and the one it sends is kept.
+      const drawer45 = (await providers.listModels()).find((m) => m.id === 'mock-b')
+      check('a model that outputs images is marked so', !!drawer45?.options?.imageOutput && !!drawer45.capabilities?.includes('Image output'), drawer45?.capabilities)
+      chat.updateSettings(c45, { modelId: 'mock-b', imageGen: false })
+      const before45e = log.length
+      await uiSend('IMAGEOUT a lamp at dusk')
+      await idle(c45)
+      const drew45 = chat.view(c45).path.at(-1)!
+      check('an image model is asked for pictures as well as text', JSON.stringify((log[before45e]?.body as { modalities?: string[] }).modalities) === '["image","text"]', log[before45e]?.body)
+      check("the picture an image model sends is kept with its reply", drew45.text === 'Here is your lamp.' && drew45.images?.length === 1 && drew45.images[0].prompt === 'IMAGEOUT a lamp at dusk', drew45.images)
+      const drawn45 = await js<number>(`(async () => {
+        for (let end = Date.now() + 4000; Date.now() < end; ) {
+          const img = [...document.querySelectorAll('.tw-msg-ai')].at(-1)?.querySelector('.gen-image img')
+          if (img?.complete && img.naturalWidth) return img.naturalWidth
+          await new Promise((r) => setTimeout(r, 50))
+        }
+        return 0
+      })()`)
+      check('and it shows under the reply', drawn45 === 1, drawn45)
+      const plain45 = log.length
+      chat.updateSettings(c45, { modelId: 'mock-a' })
+      chat.send(contents, c45, 'Plain words')
+      await idle(c45)
+      check('other models are not asked for pictures', !(log[plain45]?.body as { modalities?: unknown }).modalities)
+
       // Claude's side, on the pure builders: a stored round splits into the turns it took, and a
       // round whose tools aren't offered is told as text.
       const round45 = row('assistant', [
@@ -3785,7 +3819,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         ;[...document.querySelectorAll('.tools-menu button')].find((b) => b.textContent.includes('Tools'))?.click()
         return rows
       })()`)
-      check('the Tools menu switches servers and pictures per chat', menu45.join() === 'mcp:Lamp tools=false,mcp:Library=false,imageGen=true', menu45)
+      check('the Tools menu switches servers and pictures per chat', menu45.join() === 'mcp:Lamp tools=false,mcp:Library=false,imageGen=false', menu45)
       mcp.closeAll()
 
       // 46. Backups and where the data lives. Backups are made from the running app; a restore
