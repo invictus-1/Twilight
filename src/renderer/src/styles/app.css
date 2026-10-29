@@ -1560,3 +1560,6 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 
 /* Italic words get the theme's agent colour, softened toward the ink, as bold gets its writing colour. */
 :root:not([data-italic-color='off']) .thread .md :is(em, i) { color: var(--italic-tint, color-mix(in srgb, var(--dusk) 70%, var(--ink))); }
+
+/* A streaming reply is drawn in blocks; they lay out as if the markdown were one piece. */
+.md-block { display: contents; }

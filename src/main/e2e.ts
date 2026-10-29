@@ -366,6 +366,9 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply = `Answering the tool result: ${toolResult}`
       } else if (lastUser.includes('MULTICHOICE')) {
         reply = 'The gate creaked.\n\nOUTFIT · Day 2 Morning\nPlace: a cold pier, then a warm cabin.\n1 · PLAIN: \n\n* Pieces: wool coat\n\n2 · BOLD\n\n* Pieces: red scarf\n\n3 · SOMETHING ELSE\n\nChoices (Morning)\n\n1. Head out\n2. Stay in\n3. Something else.'
+      } else if (lastUser.includes('LONGSTREAM')) {
+        // A reply that keeps streaming for a while after its first paragraph is done.
+        reply = 'The first paragraph about Gull Point stays still.\n\n' + 'The tide keeps coming in and the lamps keep burning. '.repeat(80)
       } else if (lastUser.includes('PLAINCHOICES')) {
         // Choices the way a system prompt of your own might ask for them: a plain numbered list.
         reply = 'The corridor splits three ways.\n\n**What do you do?**\n\n1. Take the left stair\n2. Follow the draft\n3. Wait for the guard'
@@ -3608,6 +3611,34 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         'Ctrl+F finds words in the chat, steps through them with Enter, and Esc clears it',
         find1.bar && /^1 of \d+$/.test(find1.count) && find1.marked >= 1 && /^\d+ of \d+$/.test(find2) && !find3.bar && find3.marked === 0,
         { find1, find2, find3 }
+      )
+      // Text in a reply that's still streaming can be selected: finished paragraphs aren't redrawn.
+      await js(`document.querySelector('[data-mode="chat"]')?.click()`)
+      await key('N', ['control'])
+      await new Promise((r) => setTimeout(r, 300))
+      await js(`document.querySelector('.tw-composer textarea')?.focus()`)
+      win.webContents.insertText('LONGSTREAM')
+      await key('Return')
+      const streamSel = await js<{ blocks: number; same: boolean; selected: string; streaming: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 4000; Date.now() < end && document.querySelectorAll('.tw-msg-ai .md-block').length < 2; ) await wait(20)
+        const first = document.querySelector('.tw-msg-ai .md-block')
+        const range = document.createRange()
+        range.selectNodeContents(first)
+        document.getSelection().removeAllRanges()
+        document.getSelection().addRange(range)
+        await wait(400)
+        const still = document.querySelector('.tw-msg-ai .md-block')
+        const out = { blocks: document.querySelectorAll('.tw-msg-ai .md-block').length, same: still === first, selected: document.getSelection().toString().trim(), streaming: !!document.querySelector('.tw-msg-ai .msg-pending, .tw-msg-ai .md-block') }
+        document.getSelection().removeAllRanges()
+        return out
+      })()`)
+      const ls = db.listConversations().find((c) => c.title === 'LONGSTREAM')
+      if (ls) await idle(ls.id)
+      check(
+        'text in a reply still streaming can be selected, and stays selected',
+        streamSel.blocks >= 2 && streamSel.same && streamSel.selected === 'The first paragraph about Gull Point stays still.',
+        streamSel
       )
       // Bold words in a reply take the theme's colour, unless that's switched off.
       const boldUi = await js<{ on: string; off: string; plain: string; italic: string; italicOff: string }>(`(() => {

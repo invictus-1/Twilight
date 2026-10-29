@@ -41,12 +41,18 @@ export function Thread() {
   // Follow a streaming reply only while the reader is already at the bottom.
   const last = path[path.length - 1]
   const streamingId = last?.status === 'streaming' ? last.id : null
+  // While you're selecting (the mouse held down, or text selected in the chat) it stays put, so a
+  // selection isn't dragged along by the reply; it follows again once you let go and click away.
+  const selecting = useRef(false)
   useEffect(() => {
     if (!streamingId) return
     return subscribeStream(streamingId, () => {
       requestAnimationFrame(() => {
         const el = scroller.current
-        if (el && atBottom.current) el.scrollTop = el.scrollHeight
+        if (!el || !atBottom.current || selecting.current) return
+        const sel = document.getSelection()
+        if (sel && !sel.isCollapsed && el.contains(sel.anchorNode)) return
+        el.scrollTop = el.scrollHeight
       })
     })
   }, [streamingId])
@@ -114,7 +120,22 @@ export function Thread() {
 
   return (
     <div className="thread-wrap">
-      <div className="thread-scroll" ref={scroller} onClick={onClick}>
+      <div
+        className="thread-scroll"
+        ref={scroller}
+        onClick={onClick}
+        onPointerDown={() => {
+          // Let go anywhere (a drag can end outside the chat) and it follows again.
+          selecting.current = true
+          const up = (): void => {
+            selecting.current = false
+            window.removeEventListener('pointerup', up)
+            window.removeEventListener('pointercancel', up)
+          }
+          window.addEventListener('pointerup', up)
+          window.addEventListener('pointercancel', up)
+        }}
+      >
         <ChatTop />
         <div className="thread" ref={content}>
           {path.map((node, i) => (

@@ -446,6 +446,31 @@ function Thoughts({ nodeId, text, live, ms }: { nodeId: string; text: string; li
   )
 }
 
+/**
+ * A streaming reply in blocks (split at blank lines outside code fences): finished blocks are drawn
+ * once and never touched again, so text in them can be selected and copied while the rest streams.
+ * Only the block still being written is redrawn as text arrives.
+ */
+function liveBlocks(text: string): string[] {
+  const blocks: string[] = []
+  let current: string[] = []
+  let fence: string | null = null
+  for (const line of text.split('\n')) {
+    const marker = /^\s*(`{3,}|~{3,})/.exec(line)?.[1].slice(0, 3)
+    if (marker) fence = fence === null ? marker : marker === fence ? null : fence
+    if (fence === null && !marker && line.trim() === '' && current.length) {
+      blocks.push(current.join('\n'))
+      current = []
+    } else current.push(line)
+  }
+  blocks.push(current.join('\n'))
+  return blocks
+}
+
+const LiveBlock = memo(function LiveBlock({ md }: { md: string }) {
+  return <div className="md-block" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(md) }} />
+})
+
 function StreamingBody({ nodeId }: { nodeId: string }) {
   const subscribe = (cb: () => void): (() => void) => subscribeStream(nodeId, cb)
   const text = useSyncExternalStore(subscribe, () => readStream(nodeId).text)
@@ -476,7 +501,13 @@ function StreamingBody({ nodeId }: { nodeId: string }) {
           ))}
         </div>
       )}
-      {text && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(extractChoices(text, false, fenced).body) }} />}
+      {text && (
+        <div className="tw-msg-body md">
+          {liveBlocks(extractChoices(text, false, fenced).body).map((block, i) => (
+            <LiveBlock key={i} md={block} />
+          ))}
+        </div>
+      )}
       {approval && <ApprovalCard key={approval.id} approval={approval} />}
       {text || approval ? null : activity.length > 0 ? null : (
         <div className="msg-pending">
