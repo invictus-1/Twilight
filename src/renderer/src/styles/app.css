@@ -1136,3 +1136,62 @@ body.resizing .resize-handle { pointer-events: auto; }
 @media (prefers-reduced-motion: reduce) {
   .overlay-backdrop, .palette, .keys-recording, .msg-flash { animation: none; }
 }
+
+/* ——— Your background, behind the whole window ——— */
+.backdrop { position: absolute; inset: -24px; z-index: 0; background-size: cover; background-position: center; pointer-events: none; }
+.backdrop-dim { position: absolute; inset: 0; z-index: 0; background: var(--night); pointer-events: none; transition: opacity 200ms ease; }
+.app.has-backdrop > :is(.rail, .sidebar, main) { position: relative; z-index: 1; }
+.app.has-backdrop .rail, .app.has-backdrop .sidebar { background: color-mix(in srgb, var(--night) 70%, transparent); backdrop-filter: blur(18px); }
+.app.has-backdrop .chat { background: transparent; }
+.app.has-backdrop .chat-head { background: color-mix(in srgb, var(--surface) 40%, transparent); backdrop-filter: blur(10px); }
+
+/* Settings → General: background and motion */
+.look-block { display: flex; flex-direction: column; gap: var(--space-2); margin-top: var(--space-4); }
+.bg-picker { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.bg-option { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); color: var(--ink-muted); cursor: pointer; }
+.bg-option[aria-pressed='true'] { border-color: var(--iris); box-shadow: 0 0 0 1px var(--iris); color: var(--ink); }
+.bg-option:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.bg-option small { font-size: 11px; }
+.bg-swatch { width: 72px; height: 46px; border-radius: var(--radius-sm); background-size: cover; background-position: center; display: grid; place-items: center; font-size: 20px; color: var(--ink-faint); }
+.bg-none .bg-swatch { background: var(--surface-raised); border: 1px dashed var(--line-strong); }
+.bg-image .bg-swatch { background-color: var(--surface-raised); }
+.bg-controls { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-4); }
+.bg-slider { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--ink-muted); }
+.bg-slider input { width: 140px; accent-color: var(--iris); }
+.bg-value { min-width: 36px; font-variant-numeric: tabular-nums; color: var(--ink-faint); font-size: 12px; }
+.bg-image-actions { display: inline-flex; gap: var(--space-2); }
+.motion-seg { align-self: flex-start; }
+.motion-seg button[aria-pressed='true'] { background: var(--surface-overlay); color: var(--ink); }
+
+/* ——— Motion ——— */
+/* Each page fades in when you switch to it; new messages ease in; the window opens on a glow. */
+.app > main { animation: page-in 240ms cubic-bezier(.2, .8, .2, 1) both; }
+.msg-enter { animation: msg-in 320ms cubic-bezier(.2, .8, .2, 1) both; }
+.boot-glow { position: fixed; inset: 0; z-index: 55; pointer-events: none; background: radial-gradient(120% 70% at 50% 115%, color-mix(in srgb, var(--horizon) 38%, transparent) 0%, color-mix(in srgb, var(--dusk) 18%, transparent) 40%, transparent 70%), var(--night); animation: boot-glow 1100ms ease-out forwards; }
+@keyframes page-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes msg-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes boot-glow { 0% { opacity: 1; } 35% { opacity: .92; } 100% { opacity: 0; visibility: hidden; } }
+@keyframes fade-only { from { opacity: 0; } to { opacity: 1; } }
+
+/* Gentle: fades stay, movement goes. Off: everything appears at once. Windows' "reduce motion"
+   counts as gentle unless you choose otherwise. */
+:root[data-motion='reduced'] .app > main, :root[data-motion='reduced'] .msg-enter { animation-name: fade-only; }
+:root[data-motion='reduced'] .palette, :root[data-motion='reduced'] .wl-panel { animation-name: fade-only; }
+:root[data-motion='off'] *, :root[data-motion='off'] *::before, :root[data-motion='off'] *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition-duration: 0s !important; }
+:root[data-motion='off'] .boot-glow { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion]) .app > main, :root:not([data-motion]) .msg-enter { animation-name: fade-only; }
+}
+
+/* ——— The empty chat's small evening ——— */
+.empty { position: relative; overflow: hidden; isolation: isolate; }
+.empty > :not(.empty-sky) { position: relative; z-index: 1; }
+.empty-sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: linear-gradient(180deg, transparent 0%, transparent 45%, color-mix(in srgb, var(--dusk-soft) 70%, transparent) 85%, color-mix(in srgb, var(--horizon-soft) 90%, transparent) 100%); }
+.empty-star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: var(--ink); opacity: .15; animation: wl-twinkle 3.6s ease-in-out infinite; }
+.empty-sun { position: absolute; left: 50%; bottom: -70px; width: 200px; height: 200px; margin-left: -100px; border-radius: 50%; background: radial-gradient(circle at 50% 38%, color-mix(in srgb, #fff 55%, var(--horizon)) 0%, var(--horizon) 45%, color-mix(in srgb, var(--horizon) 50%, var(--dusk)) 85%); box-shadow: 0 0 90px 24px color-mix(in srgb, var(--horizon) 22%, transparent); opacity: .85; animation: empty-sun-rise 1.6s cubic-bezier(.3, .7, .2, 1) both; }
+.empty-band { position: absolute; left: 0; right: 0; background: var(--surface); }
+.empty-band-1 { bottom: 64px; height: 3px; opacity: .55; }
+.empty-band-2 { bottom: 40px; height: 6px; opacity: .7; }
+@keyframes empty-sun-rise { from { transform: translateY(60px); opacity: 0; } to { transform: none; opacity: .85; } }
+.app.has-backdrop .empty-sky { display: none; }
+:root[data-motion='reduced'] .empty-sun { animation-name: fade-only; }

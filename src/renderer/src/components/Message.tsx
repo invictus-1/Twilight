@@ -96,7 +96,11 @@ function DeleteButton({ node }: { node: NodeView }) {
   )
 }
 
+/** Whether a message is new enough to ease in (one just sent or arriving, not an old one). */
+const useFresh = (node: NodeView): boolean => useState(() => Date.now() - node.createdAt < 4000)[0]
+
 function UserMessage({ node }: { node: NodeView }) {
+  const fresh = useFresh(node)
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
   const long = node.text.length > COLLAPSE_AT
@@ -110,7 +114,7 @@ function UserMessage({ node }: { node: NodeView }) {
   }
   return (
     <div
-      className="msg msg-user-row"
+      className={`msg msg-user-row ${fresh ? 'msg-enter' : ''}`}
       data-node={node.id}
       style={{ containIntrinsicSize: `auto ${estimateHeight(long && !expanded ? node.text.slice(0, 1200) : node.text, 28)}px` }}
     >
@@ -268,6 +272,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
   const models = useStore((s) => s.models)
   const showThinking = useStore((s) => (s.current ? paneOf(s.current, pane).settings.showThinking : false))
   const [editing, setEditing] = useState(false)
+  const fresh = useFresh(node)
   const streaming = node.status === 'streaming'
   if (editing) {
     return (
@@ -278,7 +283,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
     )
   }
   return (
-    <div className="msg tw-msg-ai" data-node={node.id} style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
+    <div className={`msg tw-msg-ai ${fresh ? 'msg-enter' : ''}`} data-node={node.id} style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
       <div className="tw-msg-head">
         {modelName(models, node.modelId)}
         {node.usage && <span className="msg-time">· {(node.usage.ms / 1000).toFixed(1)}s</span>}

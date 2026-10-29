@@ -4,6 +4,10 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.7.0
 
+**Look and feel**
+- **Backgrounds:** Settings → General → Background puts a picture of your own, or one of six gradients (Dusk, Aurora, Nebula, Embers, Deep sea, Starfield), behind the whole window. Darken and Blur keep text easy to read, and the sidebar turns to frosted glass over it. Your picture is copied into Twilight's data folder and never leaves your PC.
+- **Motion:** pages fade in as you switch, new messages ease in, and the window opens on a moment of evening glow. An empty chat now has a small evening of its own behind the greeting. Settings → General → Motion has Full, Gentle (fades only) and Off, and Windows' "reduce motion" setting counts as Gentle.
+
 **Chat**
 - **Personas:** a persona is a saved system prompt with a name and a one-line description, and optionally a model and choice cards. Start a chat from one with "New chat from a persona…" in the command menu or from Settings → Library. In a chat that's already going, apply one from Model settings, either as the system prompt (the cache restarts) or as a change from the next message (the cache holds).
 - **Prompts:** save the messages you send often and put one in the message box from the new Prompts button in the composer. A prompt with `{{input}}` asks for that part first. Settings → Library keeps personas and prompts, and exports or imports them as one file.

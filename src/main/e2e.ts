@@ -18,6 +18,7 @@ import { anthropicOptions, keyShape, toMessages } from './providers/anthropic'
 import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
 import { searchAll } from './search'
+import { backgroundVersion, setBackgroundFile } from './background'
 import { BUILT_IN_PRICES, costOf, setCustomPrices } from '@shared/pricing'
 import * as providers from './providers'
 import * as updates from './updates'
@@ -2547,6 +2548,67 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('the Usage page says plainly what has no price', usageUi.unpriced === '1 request has no price: add one in Prices.', usageUi.unpriced)
       check('the Usage chart switches to spend', /\$/.test(String(usageUi.axis)) && usageUi.chartTitle === 'Spend per month', [usageUi.axis, usageUi.chartTitle])
       check('a chat in the Usage list opens it', usageOpened === 'Usage ledger', usageOpened)
+
+      // 39. Backgrounds and motion: a picture copied in and served to the window, built-in
+      // gradients, the motion setting, the empty chat's evening, and new messages easing in.
+      const bgSource = join(outDir, 'bg-source.png')
+      writeFileSync(bgSource, Buffer.from(png, 'base64'))
+      const bgVersion = await setBackgroundFile(bgSource)
+      check('a background picture is copied into the data folder', backgroundVersion() === bgVersion && existsSync(join(app.getPath('userData'), 'background', 'image.png')))
+      await key('Escape')
+      await key(',', ['control'])
+      const lookUi = await js<{ served: number; aurora: boolean; layer: string; removed: boolean; motionOff: string | null; motionBack: string | null; options: number }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.bg-picker'); ) await wait(50)
+        const img = new Image()
+        img.src = 'twilight-bg://image/?v=${bgVersion}'
+        const served = await new Promise((r) => { img.onload = () => r(img.naturalWidth); img.onerror = () => r(-1) })
+        const out = { served, options: document.querySelectorAll('.bg-option').length }
+        document.querySelector('.bg-option[data-gradient="aurora"]').click()
+        await wait(150)
+        out.aurora = !!document.querySelector('.app.has-backdrop')
+        out.layer = getComputedStyle(document.querySelector('.backdrop')).backgroundImage.slice(0, 40)
+        ;[...document.querySelectorAll('.motion-seg button')].find((b) => b.textContent === 'Off').click()
+        await wait(50)
+        out.motionOff = document.documentElement.dataset.motion ?? null
+        ;[...document.querySelectorAll('.motion-seg button')].find((b) => b.textContent === 'Full').click()
+        await wait(50)
+        out.motionBack = document.documentElement.dataset.motion ?? null
+        return out
+      })()`)
+      check('the window loads your picture from the data folder', lookUi.served === 1, lookUi.served)
+      check('Settings offers the theme, six gradients and your picture', lookUi.options === 8, lookUi.options)
+      check('a gradient goes behind the whole window', lookUi.aurora && /radial-gradient/.test(lookUi.layer), lookUi)
+      check('motion can be turned off and back on', lookUi.motionOff === 'off' && lookUi.motionBack === null, lookUi)
+      await key('Escape')
+      await key('N', ['control'])
+      await new Promise((r) => setTimeout(r, 600))
+      await shot('e2e-backdrop.png')
+      const skyUi = await js<{ sky: boolean }>(`(() => { const s = document.querySelector('.empty .empty-sky'); return { sky: !!s && getComputedStyle(s).display !== 'none' } })()`)
+      check("a background hides the empty chat's own sky", skyUi.sky === false, skyUi)
+      await key(',', ['control'])
+      await js(`(async () => {
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        await new Promise((r) => setTimeout(r, 200))
+        document.querySelector('.bg-option.bg-none')?.click()
+      })()`)
+      await key('Escape')
+      await new Promise((r) => setTimeout(r, 1700))
+      const emptyUi = await js<{ sky: boolean; sun: boolean; stars: number }>(`({ sky: !!document.querySelector('.empty .empty-sky'), sun: !!document.querySelector('.empty .empty-sun'), stars: document.querySelectorAll('.empty .empty-star').length })`)
+      check('an empty chat shows a small evening behind the greeting', emptyUi.sky && emptyUi.sun && emptyUi.stars > 10, emptyUi)
+      await shot('e2e-emptysky.png')
+      const enterUi = await js<{ fresh: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const area = document.querySelector('.tw-composer textarea')
+        const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+        area.focus(); set.call(area, 'A new evening'); area.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(50)
+        document.querySelector('.tw-send').click()
+        for (let end = Date.now() + 4000; Date.now() < end && !document.querySelector('.msg-user-row'); ) await wait(50)
+        return { fresh: !!document.querySelector('.msg-user-row.msg-enter') }
+      })()`)
+      check('a message you just sent eases in', enterUi.fresh, enterUi)
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

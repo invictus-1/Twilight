@@ -5,6 +5,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Shipped
 
 ### 0.7.0 · In progress
+- [x] **Custom backgrounds** · Core — your own picture or a gradient behind the app, darkened and blurred to taste
+- [x] **Motion** · Core — page transitions, messages easing in, an evening glow at startup, and a small evening in empty chats
 - [x] **Usage stats** · Core — tokens and spend over time, by model and by chat
 - [x] **Personas and prompts** · Chat — a library of personas and prompts
 
@@ -83,11 +85,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Later
 - [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion
-- [ ] **Custom backgrounds** · Core — your own image or gradient behind the app
 - [ ] **Tools and MCP** · Chat — web search, web fetch, date and time, image generation, switched on per chat
 - [ ] **Agents and code** · Chat — an agent loop for any model with tool calling, with approvals and diffs
 - [ ] **More themes** · Core — Midnight, Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, and a theme builder
-- [ ] **Motion** · Core — a startup animation, a retro home screen, transitions between pages
 - [ ] **Split differences** · Chat — see what changed between the two panes
 - [ ] **Document library** · Writing — retrieval over very large collections with local embeddings
 - [ ] **Offline spellcheck** · Writing — bundled dictionaries

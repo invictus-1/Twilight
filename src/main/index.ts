@@ -37,6 +37,7 @@ import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { runShowcase } from './showcase'
 import { searchAll } from './search'
+import { backgroundVersion, chooseBackground, clearBackgroundFile, registerBackgroundScheme, serveBackground } from './background'
 import { themeInfo, type Theme } from '@shared/themes'
 import { setCustomPrices, type CustomPrice } from '@shared/pricing'
 import { attachmentKind, IMAGE_EXTENSIONS, tooBig } from '@shared/attachments'
@@ -333,6 +334,9 @@ function registerIpc(): void {
     openDataFolder: async () => {
       await shell.openPath(app.getPath('userData'))
     },
+    getBackground: () => backgroundVersion(),
+    chooseBackground: (e) => chooseBackground(BrowserWindow.fromWebContents(e.sender)),
+    clearBackground: () => clearBackgroundFile(),
     openExternal: async (_e, url: string) => {
       if (isWebUrl(url)) await shell.openExternal(url)
     },
@@ -372,9 +376,12 @@ function registerIpc(): void {
   }
 }
 
+registerBackgroundScheme()
+
 app.whenReady().then(() => {
   db.openDatabase(join(app.getPath('userData'), 'twilight.db'))
   setCustomPrices(db.kvGet<CustomPrice[]>('prices') ?? [])
+  serveBackground()
   // Tests keep their documents in the throwaway profile, never in the real Documents folder.
   if (testDir) {
     db.kvSet('writingFolder', join(app.getPath('userData'), 'vault'))

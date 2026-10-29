@@ -52,6 +52,23 @@ function JudgeSplitButton() {
   )
 }
 
+/** A small evening behind an empty chat: a few stars and a low sun on the horizon. */
+function EmptySky() {
+  return (
+    <div className="empty-sky" aria-hidden="true">
+      {STARS.map((s, i) => (
+        <span key={i} className="empty-star" style={{ left: `${s.x}%`, top: `${s.y}%`, animationDelay: `${s.d}s` }} />
+      ))}
+      <span className="empty-sun" />
+      <span className="empty-band empty-band-1" />
+      <span className="empty-band empty-band-2" />
+    </div>
+  )
+}
+
+// Fixed, scattered places, the same every time.
+const STARS = Array.from({ length: 28 }, (_, i) => ({ x: (i * 37.7) % 100, y: (i * 61.3) % 55, d: (i % 7) * 0.6 }))
+
 export function ChatView() {
   const current = useStore((s) => s.current)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
@@ -112,6 +129,7 @@ export function ChatView() {
         <SplitView key={current.id} />
       ) : empty ? (
         <div className="empty">
+          <EmptySky />
           <h2 className="t-display">{greeting()}</h2>
           <p className="empty-sub">Pick a model below and start typing.</p>
         </div>

@@ -505,6 +505,11 @@ export interface TwilightApi {
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
   openDataFolder(): Promise<void>
   openExternal(url: string): Promise<void>
+  /** Your background picture's version stamp (served as twilight-bg://image), or null. */
+  getBackground(): Promise<string | null>
+  /** Picks a picture and copies it in as the background; returns its stamp, or null if cancelled. */
+  chooseBackground(): Promise<string | null>
+  clearBackground(): Promise<void>
   /** Puts text on the clipboard from the main process (works whether or not the window has focus). */
   copyText(text: string): Promise<void>
   /** Matches the window frame and title bar to a theme. */

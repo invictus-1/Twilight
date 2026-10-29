@@ -16,11 +16,32 @@ import { SettingsView } from './SettingsView'
 import { useDragResize, usePersistentNumber } from '../resize'
 import { Sidebar } from './Sidebar'
 import { Rail } from './Rail'
+import { backdropImage, useBackdrop } from '../look'
 import { commandFor } from '../commands'
 import { recordingKeys } from './ShortcutsSection'
 import { CommandMenu, ShortcutSheet } from './CommandMenu'
 import { SearchPanel } from './SearchPanel'
 import { PersonaChooser } from './PersonaChooser'
+
+/** Your background, under everything, with the night laid over it so text stays readable. */
+function Backdrop() {
+  const b = useBackdrop()
+  const image = backdropImage(b)
+  if (!image) return null
+  return (
+    <>
+      <div className="backdrop" aria-hidden="true" style={{ backgroundImage: image, filter: b.blur ? `blur(${b.blur}px)` : undefined }} />
+      <div className="backdrop-dim" aria-hidden="true" style={{ opacity: b.dim / 100 }} />
+    </>
+  )
+}
+
+/** The window opens on a moment of evening: a horizon glow that fades as the app appears. */
+function BootGlow() {
+  const [on, setOn] = useState(true)
+  if (!on) return null
+  return <div className="boot-glow" aria-hidden="true" onAnimationEnd={() => setOn(false)} />
+}
 
 export function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
@@ -28,6 +49,7 @@ export function App() {
   const settingsSection = useStore((s) => s.settingsSection)
   const welcomeOpen = useStore((s) => s.welcomeOpen)
   const overlay = useStore((s) => s.overlay)
+  const hasBackdrop = !!backdropImage(useBackdrop())
   const mode = useStore((s) => s.mode)
   const error = useStore((s) => s.error)
   const undo = useStore((s) => s.undo)
@@ -102,7 +124,9 @@ export function App() {
   }, [])
 
   return (
-    <div className={`app ${sidebarOpen ? '' : 'sidebar-closed'}`} style={{ gridTemplateColumns: `${RAIL}px ${sidebarOpen ? sidebarWidth : 0}px minmax(0, 1fr)` }}>
+    <div className={`app ${sidebarOpen ? '' : 'sidebar-closed'} ${hasBackdrop ? 'has-backdrop' : ''}`} style={{ gridTemplateColumns: `${RAIL}px ${sidebarOpen ? sidebarWidth : 0}px minmax(0, 1fr)` }}>
+      <Backdrop />
+      <BootGlow />
       <Rail />
       <Sidebar />
       {sidebarOpen && (
