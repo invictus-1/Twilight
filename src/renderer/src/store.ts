@@ -16,6 +16,7 @@ import type {
   UpdateState
 } from '@shared/types'
 import { clearStream } from './stream'
+import { setCustomPrices, type CustomPrice } from '@shared/pricing'
 
 export type Mode = 'chat' | 'write' | 'judge' | 'insights'
 
@@ -45,6 +46,9 @@ interface State {
   setWelcomeOpen(open: boolean): void
   /** The Settings section to open on. */
   settingsSection: string | null
+  /** Your own prices (Settings → Prices); costs re-render when they change. */
+  prices: CustomPrice[]
+  setPrices(list: CustomPrice[]): Promise<void>
   /** A floating panel over everything: the command menu, the shortcut sheet or search. */
   overlay: 'commands' | 'shortcuts' | 'search' | null
   /** A message to scroll to and highlight once its chat shows (a search result). */
@@ -143,6 +147,7 @@ export const useStore = create<State>((set, get) => {
     welcomeOpen: false,
     settingsSection: null,
     overlay: null,
+    prices: [],
     searchQuery: '',
     flash: null,
     updates: null,
@@ -158,6 +163,10 @@ export const useStore = create<State>((set, get) => {
         api.getDefaults()
       ])
       set({ conversations, folders, providers, defaults })
+      void api.getPrices().then((prices) => {
+        setCustomPrices(prices)
+        set({ prices })
+      })
       if (!(await api.getWelcomed())) set({ welcomeOpen: true })
       window.twilight.onUpdate((updates) => set({ updates }))
       void api.getUpdateState().then((updates) => set({ updates }))
@@ -383,6 +392,11 @@ export const useStore = create<State>((set, get) => {
     setWelcomeOpen: (open) => {
       set({ welcomeOpen: open })
       if (!open) void api.setWelcomed()
+    },
+    async setPrices(list) {
+      setCustomPrices(list)
+      set({ prices: list })
+      set({ prices: await api.setPrices(list) })
     },
     setOverlay: (overlay, searchQuery = '') => set({ overlay, searchQuery }),
     setSettingsOpen: (open, section) => set({ settingsOpen: open, settingsSection: section ?? null }),

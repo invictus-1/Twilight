@@ -16,6 +16,7 @@ function PaneFooter({ pane }: { pane: Pane }) {
   const settings = useStore((s) => paneOf(s.current!, pane).settings)
   const models = useStore((s) => s.models)
   const providers = useStore((s) => s.providers)
+  useStore((s) => s.prices) // re-price when your price list changes
   const u = last?.usage
   const cache = cacheStatus(u, settings, optionsFor(models, providers, settings.providerId, settings.modelId))
   const cacheLabel = { hit: 'cache hit', write: 'cache written', miss: 'not cached', off: 'caching off', idle: '' }[cache.tone]

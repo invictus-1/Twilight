@@ -2,6 +2,22 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## 0.6.0
+
+**Installing**
+- **An installer that looks like Twilight:** the same evening as the app's welcome, with the sun setting behind the wordmark, a glowing progress bar, and Open Twilight at the end. It installs just for you, never asks for admin rights, and updates stay silent. On a PC without Microsoft's WebView2, the classic installer opens instead.
+
+**Chat**
+- **Your own prices:** Settings → Prices takes a price per million tokens for any model, with * for whole families, and overrides the built-in list. Local models can be priced too.
+- **OpenRouter's own cost:** replies through OpenRouter show what OpenRouter says they cost.
+
+**Judge**
+- **Leaderboard:** a running tally of every judgment by who wrote each passage, with wins, losses, ties, average score and an Elo-style rating. It's at the top of the Judge sidebar; judgments count when both passages are labelled.
+- **More than two passages:** add up to six to one comparison. Every pair is judged blind, in both orders, as its own judgment, and the round gets its own leaderboard. Pairs share the cached context and run three at a time, so a round stays inside ordinary rate limits.
+
+**Fixes**
+- The welcome's tagline no longer touches the "g" in the wordmark.
+
 ## 0.5.0
 
 **Getting around**

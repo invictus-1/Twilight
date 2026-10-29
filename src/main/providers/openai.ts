@@ -155,13 +155,15 @@ export const openaiProvider: Provider = {
     if (wantsChoiceTool(settings)) {
       body.tools = [{ type: 'function', function: { name: CHOICES_TOOL.name, description: CHOICES_TOOL.description, parameters: CHOICES_TOOL.input_schema } }]
     }
+    // OpenRouter reports what each request cost when asked; that beats any price list.
+    if (/openrouter\.ai/i.test(base(req.config))) body.usage = { include: true }
     mergeExtraParams(body, settings.extraParams ?? '')
 
     let text = ''
     let thinking = ''
     // Tool calls arrive in pieces, keyed by index: the id and name first, the arguments in fragments.
     const calls: StoredCall[] = []
-    const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: 0 }
+    const usage: { input: number; output: number; cacheRead: number; cacheWrite: number; ms: number; costUsd?: number } = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: 0 }
     try {
       const res = await fetch(`${base(req.config)}/chat/completions`, {
         method: 'POST',
@@ -196,7 +198,7 @@ export const openaiProvider: Provider = {
                 tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]
               }
             }[]
-            usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number } }
+            usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number }
           }
           const delta = chunk.choices?.[0]?.delta
           const reasoning = delta?.reasoning_content ?? delta?.reasoning
@@ -219,6 +221,7 @@ export const openaiProvider: Provider = {
             usage.input = (chunk.usage.prompt_tokens ?? 0) - cached
             usage.cacheRead = cached
             usage.output = chunk.usage.completion_tokens ?? 0
+            if (typeof chunk.usage.cost === 'number') usage.costUsd = chunk.usage.cost
           }
         }
       }

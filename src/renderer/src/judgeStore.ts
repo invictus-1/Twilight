@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { JudgeInput, Judgment, JudgmentSummary, Rubric } from '@shared/judge'
+import type { JudgeInput, Judgment, JudgmentSummary, Leaderboard, Rubric } from '@shared/judge'
 import { useStore } from './store'
 
 const api = window.twilight
@@ -11,11 +11,15 @@ interface JudgeState {
   current: Judgment | null
   /** A comparison being set up (shown instead of `current`). */
   draft: JudgeInput | null
+  /** The leaderboard on screen, overall or for one round (shown when there's no draft or judgment). */
+  board: Leaderboard | null
   error: string | null
 
   init(): Promise<void>
   refresh(): Promise<void>
   open(id: string): Promise<void>
+  /** Shows the leaderboard: the overall one, or one round's. */
+  openBoard(roundId?: string | null): Promise<void>
   newDraft(prefill?: Partial<JudgeInput>): void
   updateDraft(patch: Partial<JudgeInput>): void
   run(): Promise<void>
@@ -63,6 +67,7 @@ export const useJudge = create<JudgeState>((set, get) => ({
   rubrics: [],
   current: null,
   draft: null,
+  board: null,
   error: null,
 
   async init() {
@@ -71,19 +76,30 @@ export const useJudge = create<JudgeState>((set, get) => ({
   },
 
   async refresh() {
-    set({ list: await api.listJudgments() })
+    const board = get().board
+    const [list, fresh] = await Promise.all([api.listJudgments(), board ? api.getLeaderboard(board.roundId) : null])
+    // A leaderboard closed or switched while this was loading stays as it now is.
+    set(get().board?.roundId === board?.roundId && get().board ? { list, board: fresh } : { list })
   },
 
   async open(id) {
     try {
-      set({ current: await api.getJudgment(id), draft: null })
+      set({ current: await api.getJudgment(id), draft: null, board: null })
+    } catch (err) {
+      set({ error: message(err) })
+    }
+  },
+
+  async openBoard(roundId = null) {
+    try {
+      set({ board: await api.getLeaderboard(roundId), current: null, draft: null })
     } catch (err) {
       set({ error: message(err) })
     }
   },
 
   newDraft(prefill = {}) {
-    set({ draft: { ...emptyInput(), ...prefill }, current: null })
+    set({ draft: { ...emptyInput(), ...prefill }, current: null, board: null })
   },
 
   updateDraft(patch) {
@@ -102,8 +118,15 @@ export const useJudge = create<JudgeState>((set, get) => ({
     const draft = get().draft
     if (!draft) return
     try {
-      const judgment = await api.runJudge(draft)
-      set({ current: judgment, draft: null, error: null })
+      if (draft.morePassages?.length) {
+        // A round: every pair becomes its own judgment, and the round's leaderboard fills in.
+        const { roundId } = await api.runJudgeRound(draft)
+        set({ error: null })
+        await get().openBoard(roundId)
+      } else {
+        const { morePassages: _more, ...pair } = draft
+        set({ current: await api.runJudge(pair), draft: null, error: null })
+      }
       await get().refresh()
     } catch (err) {
       set({ error: message(err) })
@@ -123,6 +146,7 @@ export const useJudge = create<JudgeState>((set, get) => ({
 
   async reload(id) {
     if (get().current?.id === id) set({ current: await api.getJudgment(id) })
+    // refresh() also re-tallies the leaderboard on screen, so a round fills in as pairs finish.
     await get().refresh()
   },
 

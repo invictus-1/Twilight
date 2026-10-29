@@ -1,6 +1,21 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import { computeVerdict, parseScores, type JudgeInput, type JudgeOrder, type JudgeRun, type Judgment, type JudgmentSummary, type Rubric } from '@shared/judge'
+import {
+  computeVerdict,
+  MAX_PASSAGES,
+  parseScores,
+  passageLetter,
+  roundPairs,
+  tallyLeaderboard,
+  type JudgeInput,
+  type JudgeOrder,
+  type JudgeRun,
+  type Judgment,
+  type JudgmentSummary,
+  type Leaderboard,
+  type LeaderboardMatch,
+  type Rubric
+} from '@shared/judge'
 import type { ChatSettings, StreamEvent } from '@shared/types'
 import { getDefaults } from './chat'
 import * as db from './db'
@@ -142,21 +157,55 @@ export function getJudgment(id: string): Judgment {
   return j
 }
 
+function allJudgments(): Judgment[] {
+  return (db.kvGet<string[]>('judgments') ?? []).map(load).filter((j): j is Judgment => !!j)
+}
+
+function summarize(j: Judgment): JudgmentSummary {
+  const v = computeVerdict(j.rubric, j.runs)
+  const running = j.runs.some((r) => r.status === 'streaming')
+  return {
+    id: j.id,
+    title: j.input.title || 'Untitled comparison',
+    createdAt: j.createdAt,
+    status: running ? 'running' : j.runs.every((r) => r.status === 'error') ? 'error' : 'done',
+    winner: v.winner,
+    ...(j.roundId ? { roundId: j.roundId } : {})
+  }
+}
+
 export function listJudgments(): JudgmentSummary[] {
-  return (db.kvGet<string[]>('judgments') ?? [])
-    .map(load)
-    .filter((j): j is Judgment => !!j)
-    .map((j) => {
-      const v = computeVerdict(j.rubric, j.runs)
-      const running = j.runs.some((r) => r.status === 'streaming')
-      return {
-        id: j.id,
-        title: j.input.title || 'Untitled comparison',
-        createdAt: j.createdAt,
-        status: running ? 'running' : j.runs.every((r) => r.status === 'error') ? 'error' : 'done',
-        winner: v.winner
-      }
-    })
+  return allJudgments().map(summarize)
+}
+
+/**
+ * The running tally by passage label, across every judgment or one round. Only finished
+ * judgments with both passages labelled (differently) count; the rest are left out.
+ */
+export function getLeaderboard(roundId?: string | null): Leaderboard {
+  const scope = allJudgments().filter((j) => !roundId || j.roundId === roundId)
+  const matches: LeaderboardMatch[] = []
+  let running = 0
+  for (const j of scope) {
+    const labelA = j.input.labelA.trim()
+    const labelB = j.input.labelB.trim()
+    if (!labelA || !labelB || labelA === labelB) continue
+    const summary = summarize(j)
+    if (summary.status === 'running') running++
+    if (summary.status !== 'done' || !summary.winner) continue
+    const v = computeVerdict(j.rubric, j.runs)
+    matches.push({ labelA, labelB, winner: summary.winner, overallA: v.overallA, overallB: v.overallB, createdAt: j.createdAt })
+  }
+  return {
+    roundId: roundId || null,
+    roundTitle: roundId ? (scope[0]?.roundTitle ?? null) : null,
+    entries: tallyLeaderboard(matches),
+    counted: matches.length,
+    running,
+    judgments: roundId
+      ? scope.sort((a, b) => a.createdAt - b.createdAt).map((j) => ({ ...summarize(j), labelA: j.input.labelA, labelB: j.input.labelB }))
+      : []
+  }
 }
 
 export function deleteJudgment(id: string): void {
@@ -174,27 +223,85 @@ export function stopJudge(id: string): void {
 }
 
 export function runJudge(contents: WebContents, input: JudgeInput): Judgment {
+  return startJudgment(contents, input).judgment
+}
+
+/**
+ * Judges three or more passages as a round: every pair is its own ordinary judgment (blind,
+ * both orders), tagged with one round id so the leaderboard can show the round on its own.
+ */
+export function runRound(contents: WebContents, input: JudgeInput): { roundId: string; judgments: Judgment[] } {
+  const passages = [{ passage: input.passageA, label: input.labelA }, { passage: input.passageB, label: input.labelB }, ...(input.morePassages ?? [])]
+  if (passages.length < 3) throw new Error('A round needs at least three passages.')
+  if (passages.length > MAX_PASSAGES) throw new Error(`A round takes up to ${MAX_PASSAGES} passages.`)
+  if (passages.some((p) => !p.passage.trim())) throw new Error('Every passage needs text.')
+  const labels = passages.map((p) => p.label.trim())
+  const repeated = labels.find((l, i) => l && labels.indexOf(l) !== i)
+  if (repeated) throw new Error(`Two passages are both labelled ${repeated}.`)
+  const name = (i: number): string => labels[i] || passageLetter(i)
+  const roundId = randomUUID()
+  const roundTitle = input.title.trim()
+  // Every pair shares the same context, so all of them wait for the first pair's first token
+  // and read its cache rather than each writing its own. At most PAIRS_AT_ONCE pairs run
+  // together (six passages make fifteen pairs), so a round stays inside ordinary rate limits.
+  let first: Promise<void> | undefined
+  const finished: Promise<void>[] = []
+  const judgments = roundPairs(passages.length).map(([i, j], k) => {
+    const pair: JudgeInput = {
+      ...input,
+      title: `${roundTitle ? `${roundTitle} · ` : ''}${name(i)} vs ${name(j)}`,
+      passageA: passages[i].passage,
+      passageB: passages[j].passage,
+      labelA: labels[i],
+      labelB: labels[j]
+    }
+    const waits = [first, finished[k - PAIRS_AT_ONCE]].filter((p): p is Promise<void> => !!p)
+    const started = startJudgment(contents, pair, { roundId, roundTitle, after: waits.length ? Promise.all(waits).then(() => undefined) : undefined })
+    first ??= started.started
+    finished.push(started.done)
+    return started.judgment
+  })
+  return { roundId, judgments }
+}
+
+const PAIRS_AT_ONCE = 3
+
+// Strictly increasing, so the pairs of a round (started in the same millisecond) keep their
+// order wherever judgments are sorted by age, the leaderboard's replay included.
+let lastCreated = 0
+
+function startJudgment(
+  contents: WebContents,
+  input: JudgeInput,
+  round: { roundId?: string; roundTitle?: string; after?: Promise<void> } = {}
+): { judgment: Judgment; started: Promise<void>; done: Promise<void> } {
   if (!input.passageA.trim() || !input.passageB.trim()) throw new Error('Both passages need text.')
-  const rubric = listRubrics().find((r) => r.id === input.rubricId) ?? GENERAL
-  const orders: JudgeOrder[] = input.bothOrders ? ['AB', 'BA'] : ['AB']
+  // Extra passages belong to the draft; each stored judgment holds only its own pair.
+  const { morePassages: _more, ...pairInput } = input
+  const rubric = listRubrics().find((r) => r.id === pairInput.rubricId) ?? GENERAL
+  const orders: JudgeOrder[] = pairInput.bothOrders ? ['AB', 'BA'] : ['AB']
+  lastCreated = Math.max(Date.now(), lastCreated + 1)
   const judgment: Judgment = {
     id: randomUUID(),
-    createdAt: Date.now(),
-    input,
+    createdAt: lastCreated,
+    input: pairInput,
     rubric,
-    runs: orders.map((order) => ({ order, status: 'streaming', text: '' }))
+    runs: orders.map((order) => ({ order, status: 'streaming', text: '' })),
+    ...(round.roundId ? { roundId: round.roundId, roundTitle: round.roundTitle ?? '' } : {})
   }
   store(judgment)
   const controllers = orders.map(() => new AbortController())
   running.set(judgment.id, controllers)
 
   // The second run waits for the first one's first token so it reads the cached shared context.
-  let after: Promise<void> | undefined
+  let first: Promise<void> | undefined
+  const done: Promise<void>[] = []
   orders.forEach((order, i) => {
-    const started = startRun(contents, judgment.id, i, order, input, rubric, controllers[i], after)
-    if (i === 0) after = started
+    const run = startRun(contents, judgment.id, i, order, pairInput, rubric, controllers[i], i === 0 ? round.after : first)
+    if (i === 0) first = run.started
+    done.push(run.done)
   })
-  return judgment
+  return { judgment, started: first!, done: Promise.all(done).then(() => undefined) }
 }
 
 function startRun(
@@ -206,9 +313,11 @@ function startRun(
   rubric: Rubric,
   controller: AbortController,
   after?: Promise<void>
-): Promise<void> {
+): { started: Promise<void>; done: Promise<void> } {
   let markStarted!: () => void
   const started = new Promise<void>((r) => (markStarted = r))
+  let markDone!: () => void
+  const done = new Promise<void>((r) => (markDone = r))
   const nodeId = `${id}:${index}`
   const emit = (event: StreamEvent): void => {
     if (!contents.isDestroyed()) contents.send('twilight:stream', event)
@@ -282,7 +391,8 @@ function startRun(
       finish({ text, status: controller.signal.aborted ? 'stopped' : 'error', error: describeAnthropicError(err) ?? (err instanceof Error ? err.message : String(err)) })
     } finally {
       markStarted()
+      markDone()
     }
   })()
-  return started
+  return { started, done }
 }

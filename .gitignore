@@ -7,3 +7,5 @@ build/*.preview.png
 .DS_Store
 private/
 *.stackdump
+installer/.build/
+installer/.vendor/

@@ -4,6 +4,11 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 0.6.0 · In progress
+- [x] **Animated installer** · Core — the app's evening as the installer, with a glowing progress bar
+- [x] **Your own prices** · Chat — an editable price list, and OpenRouter's reported cost
+- [x] **Judge leaderboard** · Judge — a running tally across judgments, and up to six passages at once
+
 ### 0.5.0 · October 2026
 - [x] **Command menu** · Core — Ctrl+K for everything, Ctrl+/ for the shortcut sheet, rebindable keys
 - [x] **Search everything** · Core — every chat and document at once (Ctrl+Shift+F)
@@ -70,8 +75,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 0.4** · Core — fixes from real use of Writer insights, the updater and the Tools menu
-- [ ] **Your own prices** · Chat — an editable price list, and OpenRouter's reported cost
-- [ ] **Judge leaderboard** · Judge — a running tally across judgments, and more than two passages at once
 - [ ] **Code signing** · Core — a signed installer, so Windows doesn't warn
 
 ## Later

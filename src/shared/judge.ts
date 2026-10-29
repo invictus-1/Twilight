@@ -42,6 +42,20 @@ export interface JudgeInput {
   effort: string | null
   rubricId: string
   bothOrders: boolean
+  /** Passages C, D… for a round: every pair is then judged as its own judgment. Drafts only. */
+  morePassages?: { passage: string; label: string }[]
+}
+
+/** The most passages a round takes (15 pairs). */
+export const MAX_PASSAGES = 6
+
+export const passageLetter = (i: number): string => String.fromCharCode(65 + i)
+
+/** Every pair of n passages, in reading order: A–B, A–C, …, B–C, … */
+export function roundPairs(n: number): [number, number][] {
+  const pairs: [number, number][] = []
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) pairs.push([i, j])
+  return pairs
 }
 
 export type JudgeOrder = 'AB' | 'BA'
@@ -70,6 +84,10 @@ export interface Judgment {
   input: JudgeInput
   rubric: Rubric
   runs: JudgeRun[]
+  /** Set on every pair of a round of more than two passages. */
+  roundId?: string
+  /** The round's own title, before the pair was added to it. */
+  roundTitle?: string
 }
 
 export interface JudgmentSummary {
@@ -78,6 +96,84 @@ export interface JudgmentSummary {
   createdAt: number
   status: 'running' | 'done' | 'error'
   winner: 'A' | 'B' | 'tie' | 'close' | null
+  roundId?: string
+}
+
+export interface LeaderboardEntry {
+  label: string
+  judgments: number
+  wins: number
+  losses: number
+  /** Ties and too-close calls. */
+  ties: number
+  /** Mean of this label's overall score across its judgments. */
+  averageScore: number | null
+  rating: number
+}
+
+export interface Leaderboard {
+  /** Null for the tally across every judgment. */
+  roundId: string | null
+  roundTitle: string | null
+  entries: LeaderboardEntry[]
+  /** Judgments that went into the tally. */
+  counted: number
+  /** Judgments still running, not counted yet. */
+  running: number
+  /** A round's own judgments, oldest first, so the round view can list them; empty for the overall tally. */
+  judgments: (JudgmentSummary & { labelA: string; labelB: string })[]
+}
+
+/** One finished, labelled judgment as the leaderboard sees it. */
+export interface LeaderboardMatch {
+  labelA: string
+  labelB: string
+  winner: 'A' | 'B' | 'tie' | 'close'
+  overallA: number | null
+  overallB: number | null
+  createdAt: number
+}
+
+export const ELO_START = 1000
+export const ELO_K = 24
+
+/**
+ * Tallies judgments by passage label. Ratings are Elo-style, replayed oldest first so the same
+ * judgments always give the same ratings; a tie or a too-close call counts as half a win each.
+ */
+export function tallyLeaderboard(matches: LeaderboardMatch[]): LeaderboardEntry[] {
+  const table = new Map<string, LeaderboardEntry & { scores: number[] }>()
+  const entry = (label: string): LeaderboardEntry & { scores: number[] } => {
+    let e = table.get(label)
+    if (!e) table.set(label, (e = { label, judgments: 0, wins: 0, losses: 0, ties: 0, averageScore: null, rating: ELO_START, scores: [] }))
+    return e
+  }
+  for (const m of [...matches].sort((x, y) => x.createdAt - y.createdAt)) {
+    const a = entry(m.labelA)
+    const b = entry(m.labelB)
+    const scoreA = m.winner === 'A' ? 1 : m.winner === 'B' ? 0 : 0.5
+    const expectedA = 1 / (1 + 10 ** ((b.rating - a.rating) / 400))
+    const delta = ELO_K * (scoreA - expectedA)
+    a.rating += delta
+    b.rating -= delta
+    a.judgments++
+    b.judgments++
+    if (scoreA === 1) {
+      a.wins++
+      b.losses++
+    } else if (scoreA === 0) {
+      b.wins++
+      a.losses++
+    } else {
+      a.ties++
+      b.ties++
+    }
+    if (m.overallA !== null) a.scores.push(m.overallA)
+    if (m.overallB !== null) b.scores.push(m.overallB)
+  }
+  return [...table.values()]
+    .map(({ scores, ...e }) => ({ ...e, averageScore: mean(scores) }))
+    .sort((x, y) => y.rating - x.rating || y.wins - x.wins || x.label.localeCompare(y.label))
 }
 
 export interface Verdict {

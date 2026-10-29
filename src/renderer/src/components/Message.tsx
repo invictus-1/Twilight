@@ -231,6 +231,7 @@ function GameFormatButton({ text }: { text: string }) {
 
 function UsageLine({ node }: { node: NodeView }) {
   const models = useStore((s) => s.models)
+  useStore((s) => s.prices) // re-price when your price list changes
   const u = node.usage
   if (!u) return null
   const local = models.find((m) => m.id === node.modelId && m.providerId === node.providerId)?.local ?? false
@@ -244,6 +245,7 @@ function UsageLine({ node }: { node: NodeView }) {
   const detail =
     `Input ${u.input.toLocaleString()} · cache read ${u.cacheRead.toLocaleString()} · ` +
     `cache write ${u.cacheWrite.toLocaleString()} · output ${u.output.toLocaleString()} · ${(u.ms / 1000).toFixed(1)}s` +
+    (typeof u.costUsd === 'number' ? ' · cost as reported by the provider' : '') +
     (u.ttftMs ? ` · first token after ${(u.ttftMs / 1000).toFixed(1)}s` : '')
   return (
     <span className="msg-usage" title={detail}>

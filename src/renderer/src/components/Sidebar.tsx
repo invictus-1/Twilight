@@ -563,8 +563,13 @@ const WINNER_TEXT = { A: 'A won', B: 'B won', tie: 'Tie', close: 'Too close to c
 function JudgeList() {
   const list = useJudge((s) => s.list)
   const currentId = useJudge((s) => s.current?.id)
+  const boardOpen = useJudge((s) => s.board !== null)
   return (
     <div className="sidebar-list">
+      <button className="judge-board-item" aria-current={boardOpen ? 'true' : undefined} onClick={() => void useJudge.getState().openBoard(null)}>
+        <TrophyIcon />
+        <span>Leaderboard</span>
+      </button>
       {list.map((j) => (
         <div
           key={j.id}

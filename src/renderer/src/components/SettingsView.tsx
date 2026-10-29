@@ -1,6 +1,7 @@
 import { ThemePicker } from './ThemePicker'
 import { useEffect, useMemo, useState } from 'react'
 import { ShortcutsSection } from './ShortcutsSection'
+import { PricesSection } from './PricesSection'
 import type { ModelInfo, ProviderConfig } from '@shared/types'
 import { readGameFormat, writeGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
@@ -14,7 +15,7 @@ import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIc
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'general' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
+type Section = 'providers' | 'prices' | 'general' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
 
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
   { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
@@ -22,6 +23,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats, settings and request logs on this machine.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
+  { id: 'prices', group: 'Models', label: 'Prices', description: 'What replies cost: your own prices per model, and the built-in ones. A cost the provider reports itself comes first.' },
   { id: 'updates', group: 'About', label: 'Updates', description: 'Your version, new releases, and rolling back to an earlier one. The daily check is the only request Twilight makes on its own.' },
   { id: 'roadmap', group: 'About', label: 'Roadmap', description: 'What has shipped, what comes next, and the ideas further out.' },
   { id: 'about', group: 'About', label: 'About', description: 'Version and where Twilight lives.' }
@@ -581,6 +583,7 @@ export function SettingsView() {
           <h2 className="t-title">{current.label}</h2>
           <p className="section-description">{current.description}</p>
           {section === 'providers' && <ProvidersSection />}
+          {section === 'prices' && <PricesSection />}
           {section === 'general' && <GeneralSection />}
           {section === 'writing' && <WritingSection />}
           {section === 'data' && <DataSection />}

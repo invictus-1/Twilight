@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Twilight Setup</title>
+<!-- The installer's whole interface: the app's first-run evening (src/renderer/src/components/
+     Welcome.tsx and its .wl-* styles), in a window of its own. installer/build.cjs inlines the
+     fonts where the FONTS marker is; setup.cpp shows it in WebView2 and answers its messages. -->
+<style>
+/*FONTS*/
+:root {
+  --night: #0b0d1c; --surface: #111430; --line-strong: #6f77bd;
+  --ink: #eceefe; --ink-muted: #a6abd8; --ink-faint: #8a90c4;
+  --iris: #9497ff; --dusk: #c4a0ff; --horizon: #ffb48a; --danger: #ff8b7e; --success: #5fd3a8;
+  --font-sans: "Geist Variable", "Segoe UI", sans-serif;
+  --font-serif: "Literata Variable", Georgia, serif;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--night); color: var(--ink); font-family: var(--font-sans); -webkit-font-smoothing: antialiased; user-select: none; cursor: default; }
+button { font: inherit; cursor: pointer; }
+
+.scene { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: linear-gradient(180deg, #05060f 0%, #0b0d1c 30%, #171a3d 62%, #3a2245 86%, #5a2c45 100%); animation: fade 500ms ease-out both; }
+.sky { position: absolute; inset: 0; pointer-events: none; }
+.star { position: absolute; border-radius: 50%; background: #fff; opacity: 0; animation: twinkle 3.6s ease-in-out infinite; }
+.sun { position: absolute; left: 50%; bottom: 0; width: 240px; height: 240px; margin-left: -120px; border-radius: 50%; background: radial-gradient(circle at 50% 38%, #ffe2bd 0%, var(--horizon) 42%, #e0708a 78%, #8c3a6b 100%); box-shadow: 0 0 120px 34px #ff9a7a33; animation: set 2.8s cubic-bezier(.3, .7, .2, 1) both; transition: translate 1.8s cubic-bezier(.3, .7, .2, 1), box-shadow 1.6s ease; }
+.band { position: absolute; left: 0; right: 0; background: #05060f; transform-origin: left; animation: band 1.2s cubic-bezier(.2, .8, .2, 1) both; }
+.band-1 { bottom: 17%; height: 4px; opacity: .55; animation-delay: .9s; }
+.band-2 { bottom: 12.5%; height: 7px; opacity: .65; animation-delay: 1.05s; transform-origin: right; }
+.band-3 { bottom: 7%; height: 12px; opacity: .8; animation-delay: 1.2s; }
+.band-4 { bottom: 0; height: 7%; opacity: .95; animation-delay: 1.35s; transform-origin: right; }
+
+/* While installing the sun sinks a little and breathes; once done it settles back, glowing. */
+body.installing .sun { translate: 0 6vh; animation: set 2.8s cubic-bezier(.3, .7, .2, 1) both, breathe 2.4s ease-in-out 2.8s infinite; }
+body.done .sun { translate: 0 0; box-shadow: 0 0 160px 50px #ffb48a44; }
+
+.intro { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; margin-bottom: 24vh; }
+.tagline, .note, .progress-line { text-shadow: 0 1px 10px #0b0d1c, 0 0 2px #0b0d1c; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .3em; text-transform: uppercase; color: var(--dusk); animation: rise 700ms 1.4s both; }
+.wordmark { margin: 0 0 .2em; font-family: var(--font-serif); font-size: 92px; line-height: 1; font-weight: 600; letter-spacing: -.03em; color: var(--ink); text-shadow: 0 0 60px color-mix(in srgb, var(--dusk) 45%, transparent); animation: rise 900ms 1.6s cubic-bezier(.2, .8, .2, 1) both; }
+.tagline { margin: 0; font-size: 16px; color: var(--ink-muted); min-height: 22px; animation: rise 700ms 2s both; }
+.actions { display: flex; flex-direction: column; align-items: center; gap: 12px; margin-top: 22px; min-height: 92px; animation: rise 700ms 2.4s both; }
+.primary { height: 44px; padding: 0 32px; font-size: 15px; font-weight: 500; color: var(--night); border-radius: 9999px; background: linear-gradient(90deg, var(--iris), var(--dusk)); border: 0; box-shadow: 0 10px 40px -10px var(--dusk); transition: transform 160ms ease, box-shadow 160ms ease; }
+.primary:hover { transform: translateY(-1px); box-shadow: 0 14px 44px -10px var(--dusk); }
+.primary:focus-visible, .ghost:focus-visible, .win:focus-visible { outline: none; box-shadow: 0 0 0 2px var(--night), 0 0 0 4px var(--iris); }
+.ghost { background: none; border: 0; color: var(--ink-faint); font-size: 13px; padding: 4px 8px; border-radius: 6px; }
+.ghost:hover { color: var(--ink); }
+.note { font-size: 12px; color: var(--ink-faint); }
+.row { display: flex; gap: 12px; align-items: center; }
+
+.progress { width: 360px; display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+.track { height: 6px; border-radius: 9999px; background: #ffffff14; overflow: hidden; position: relative; }
+.fill { position: absolute; inset: 0 auto 0 0; width: 0; border-radius: inherit; background: linear-gradient(90deg, var(--iris), var(--dusk), var(--horizon)); box-shadow: 0 0 18px var(--dusk); transition: width 300ms ease; }
+.fill::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, #ffffff55, transparent); animation: sheen 1.6s linear infinite; }
+.progress-line { display: flex; justify-content: space-between; font-size: 13px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+.error { color: var(--danger); }
+[hidden] { display: none !important; }
+.fade-in { animation: rise 450ms cubic-bezier(.2, .8, .2, 1) both; }
+
+/* Window controls, drawn like Windows' own. */
+.controls { position: fixed; top: 0; right: 0; display: flex; z-index: 5; }
+.win { width: 46px; height: 32px; display: grid; place-items: center; background: transparent; border: 0; color: var(--ink-muted); }
+.win:hover { background: #ffffff14; color: var(--ink); }
+.win.close:hover { background: #c42b1c; color: #fff; }
+.win:disabled { opacity: .35; pointer-events: none; }
+.win svg { width: 10px; height: 10px; stroke: currentColor; stroke-width: 1.1; fill: none; }
+
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes set { from { transform: translateY(-46vh) scale(.82); filter: brightness(1.15); } to { transform: none; } }
+@keyframes band { from { transform: scaleX(0); } to { transform: none; } }
+@keyframes twinkle { 0%, 100% { opacity: .1; } 50% { opacity: .85; } }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+@keyframes breathe { 0%, 100% { box-shadow: 0 0 120px 34px #ff9a7a33; } 50% { box-shadow: 0 0 150px 48px #ff9a7a55; } }
+@keyframes sheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) {
+  .scene, .star, .sun, .band, .eyebrow, .wordmark, .tagline, .actions, .fade-in, .fill::after { animation: none !important; }
+  .star { opacity: .5; }
+}
+</style>
+</head>
+<body>
+<div class="scene" id="scene">
+  <div class="sky" id="sky" aria-hidden="true">
+    <span class="sun"></span>
+    <span class="band band-1"></span>
+    <span class="band band-2"></span>
+    <span class="band band-3"></span>
+    <span class="band band-4"></span>
+  </div>
+  <main class="intro">
+    <div class="eyebrow" id="eyebrow">Install</div>
+    <h1 class="wordmark">Twilight</h1>
+    <p class="tagline" id="tagline">A quiet place to write with language models.</p>
+    <div class="actions">
+      <div id="start" class="actions-body">
+        <div class="row" style="flex-direction: column; gap: 12px">
+          <button class="primary" id="install" autofocus>Install Twilight</button>
+          <span class="note" id="about">Installs for you on this PC. Your chats and documents are never touched.</span>
+        </div>
+      </div>
+      <div id="working" class="progress fade-in" hidden>
+        <div class="track"><div class="fill" id="fill"></div></div>
+        <div class="progress-line"><span id="phase">Getting ready</span><span id="percent">0%</span></div>
+      </div>
+      <div id="finished" class="row fade-in" hidden>
+        <button class="primary" id="open">Open Twilight</button>
+        <button class="ghost" id="closeDone">Close</button>
+      </div>
+      <div id="failed" class="row fade-in" hidden>
+        <button class="primary" id="retry">Try again</button>
+        <button class="ghost" id="closeFailed">Close</button>
+      </div>
+    </div>
+  </main>
+</div>
+<div class="controls">
+  <button class="win" id="min" aria-label="Minimize" tabindex="-1"><svg viewBox="0 0 10 10"><path d="M0 5.5h10"/></svg></button>
+  <button class="win close" id="close" aria-label="Close" tabindex="-1"><svg viewBox="0 0 10 10"><path d="M0 0l10 10M10 0L0 10"/></svg></button>
+</div>
+<script>
+// Messages to setup.cpp are plain words; its replies are JSON objects with a "type".
+const host = window.chrome && window.chrome.webview
+const send = (word) => host && host.postMessage(word)
+const $ = (id) => document.getElementById(id)
+
+// The same scattered stars as the app's welcome, twinkling out of step.
+for (let i = 0; i < 64; i++) {
+  const s = document.createElement('span')
+  const size = i % 5 === 0 ? 3 : 2
+  s.className = 'star'
+  s.style.cssText = `left:${(i * 37.7) % 100}%;top:${(i * 61.3) % 60}%;width:${size}px;height:${size}px;animation-delay:${(i % 7) * 0.6}s`
+  $('sky').prepend(s)
+}
+
+let state = 'start'
+function show(next) {
+  state = next
+  for (const id of ['start', 'working', 'finished', 'failed']) $(id).hidden = id !== next
+  document.body.className = next === 'working' ? 'installing' : next === 'finished' ? 'done' : ''
+  $('min').disabled = false
+  $('close').disabled = next === 'working'
+}
+
+function install() {
+  if (state === 'working') return
+  show('working')
+  $('eyebrow').textContent = 'Installing'
+  $('tagline').classList.remove('error')
+  $('tagline').textContent = 'Setting up the evening. This takes a few seconds.'
+  setProgress(0, 'Getting ready')
+  send('install')
+}
+
+let shown = 0
+function setProgress(value, phase) {
+  shown = Math.max(shown, Math.min(1, value))
+  $('fill').style.width = `${(shown * 100).toFixed(1)}%`
+  $('percent').textContent = `${Math.round(shown * 100)}%`
+  if (phase) $('phase').textContent = phase
+}
+
+const PHASES = { extract: 'Unpacking', clear: 'Clearing the old version', install: 'Installing', finish: 'Finishing' }
+
+host && host.addEventListener('message', (e) => {
+  const m = e.data || {}
+  if (m.type === 'info') {
+    $('about').textContent = `Version ${m.version} · installs for you on this PC. Your chats and documents are never touched.`
+    if (m.installed) $('install').textContent = m.installed === m.version ? 'Reinstall Twilight' : `Update to ${m.version}`
+    // A dry run (TWILIGHT_SETUP_DRYRUN) starts by itself once the evening has settled.
+    if (m.rehearse) setTimeout(install, 3600)
+  } else if (m.type === 'progress') {
+    setProgress(m.value, PHASES[m.phase])
+  } else if (m.type === 'done') {
+    setProgress(1, 'Done')
+    setTimeout(() => {
+      show('finished')
+      $('eyebrow').textContent = 'Ready'
+      $('tagline').textContent = 'Twilight is installed. Its welcome will walk you through the rest.'
+      $('open').focus()
+    }, 450)
+  } else if (m.type === 'error') {
+    show('failed')
+    $('eyebrow').textContent = 'Something went wrong'
+    $('tagline').textContent = m.message || 'The install did not finish.'
+    $('tagline').classList.add('error')
+    $('retry').focus()
+  }
+})
+
+$('install').onclick = install
+$('retry').onclick = install
+$('open').onclick = () => send('open')
+$('closeDone').onclick = () => send('close')
+$('closeFailed').onclick = () => send('close')
+$('close').onclick = () => send('close')
+$('min').onclick = () => send('minimize')
+
+// Drag the window by anything that isn't a control.
+document.addEventListener('mousedown', (e) => {
+  if (e.button !== 0 || e.target.closest('button')) return
+  send('drag')
+})
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && state !== 'working') send('close')
+})
+document.addEventListener('contextmenu', (e) => e.preventDefault())
+send('ready')
+</script>
+</body>
+</html>

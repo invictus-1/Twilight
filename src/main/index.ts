@@ -1,5 +1,6 @@
 import { app, clipboard, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
 import { join } from 'node:path'
+import { appendFileSync } from 'node:fs'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import { basename } from 'node:path'
 import type {
@@ -33,6 +34,7 @@ import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { runShowcase } from './showcase'
 import { searchAll } from './search'
 import { themeInfo, type Theme } from '@shared/themes'
+import { setCustomPrices, type CustomPrice } from '@shared/pricing'
 import { attachmentKind, IMAGE_EXTENSIONS, tooBig } from '@shared/attachments'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
@@ -41,6 +43,14 @@ const e2eDir = process.env.TWILIGHT_E2E
 /** Releases-page screenshots from made-up demo data (see showcase.ts). */
 const showcaseDir = process.env.TWILIGHT_SHOWCASE
 const testDir = selfTestDir ?? e2eDir ?? showcaseDir
+if (testDir) {
+  // A test window is often covered by other windows. Chromium treats that as hidden and, after a
+  // while, wakes its timers about once a minute; a run would crawl. Test runs opt out of that.
+  app.commandLine.appendSwitch('disable-background-timer-throttling')
+  app.commandLine.appendSwitch('disable-backgrounding-occluded-windows')
+  app.commandLine.appendSwitch('disable-renderer-backgrounding')
+  app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,IntensiveWakeUpThrottling')
+}
 if (testDir) prepareSelfTest(testDir)
 
 function isWebUrl(url: string): boolean {
@@ -221,6 +231,12 @@ function registerIpc(): void {
     closeSplit: (_e, id: string, keep: Pane) => chat.closeSplit(id, keep),
     branchToNewChat: (_e, id: string, nodeId: string, pane?: Pane) => chat.branchToNewChat(id, nodeId, pane),
     searchAll: (_e, query: string) => searchAll(query),
+    getPrices: () => db.kvGet<CustomPrice[]>('prices') ?? [],
+    setPrices: (_e, list: CustomPrice[]) => {
+      db.kvSet('prices', list)
+      setCustomPrices(list)
+      return list
+    },
     copyText: (_e, text: string) => clipboard.writeText(String(text)),
     renameDoc: (_e, path: string, name: string) => docs.renameDoc(path, name),
     renameDocFolder: (_e, path: string, name: string) => docs.renameDocFolder(path, name),
@@ -239,6 +255,8 @@ function registerIpc(): void {
     listJudgments: () => judge.listJudgments(),
     getJudgment: (_e, id: string) => judge.getJudgment(id),
     runJudge: (e, input: JudgeInput) => judge.runJudge(e.sender, input),
+    runJudgeRound: (e, input: JudgeInput) => judge.runRound(e.sender, input),
+    getLeaderboard: (_e, roundId?: string | null) => judge.getLeaderboard(roundId),
     stopJudge: (_e, id: string) => judge.stopJudge(id),
     deleteJudgment: (_e, id: string) => judge.deleteJudgment(id),
     getWritingFolder: () => docs.writingFolder(),
@@ -309,12 +327,27 @@ function registerIpc(): void {
     }
   }
   for (const [name, handler] of Object.entries(handlers)) {
-    ipcMain.handle(`twilight:${name}`, handler as (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown)
+    const run = handler as (event: Electron.IpcMainInvokeEvent, ...args: unknown[]) => unknown
+    if (!e2eDir) {
+      ipcMain.handle(`twilight:${name}`, run)
+      continue
+    }
+    // In test runs, slow calls are logged, so a slowdown shows where it is.
+    ipcMain.handle(`twilight:${name}`, async (event, ...args) => {
+      const t0 = Date.now()
+      try {
+        return await run(event, ...args)
+      } finally {
+        const ms = Date.now() - t0
+        if (ms > 300) appendFileSync(join(e2eDir, 'timings.log'), `ipc ${name} took ${ms} ms\n`)
+      }
+    })
   }
 }
 
 app.whenReady().then(() => {
   db.openDatabase(join(app.getPath('userData'), 'twilight.db'))
+  setCustomPrices(db.kvGet<CustomPrice[]>('prices') ?? [])
   // Tests keep their documents in the throwaway profile, never in the real Documents folder.
   if (testDir) {
     db.kvSet('writingFolder', join(app.getPath('userData'), 'vault'))

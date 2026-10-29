@@ -18,7 +18,7 @@ Twilight is a local-first Windows desktop app (Electron + React + TypeScript) fo
 npm install
 npm run dev          # the app with hot reload
 npm run typecheck    # both TypeScript projects
-npm run dist         # Windows installer + zip in release/
+npm run dist         # Windows installer + zip in release/ (the animated installer needs Visual Studio's C++ tools)
 npm run release      # publish release/ as a GitHub release (ask first)
 ```
 
@@ -39,6 +39,7 @@ Also run the e2e suite against the packaged build after `npm run dist`: `TWILIGH
 - `src/shared/` — types and logic used on both sides: `types.ts` (the IPC API), `choices.ts` (choice-card parsing and the present_choices tool), `insights.ts` (text analysis, achievements), `judge.ts`, `roadmap.ts`, `gameFormat.ts`, `pricing.ts`, `attachments.ts` (what can be attached, and limits), `themes.ts` (the theme list).
 - `src/preload/index.ts` — the `window.twilight` bridge; every API method is listed there.
 - `src/renderer/src/` — React UI. `store.ts` (zustand), `commands.ts` (every command, its shortcut and rebinding; the command menu, shortcut sheet and rail read it), `highlight.ts` (code highlighting), `components/` (one file per surface), `styles/tokens.css` + `styles/app.css` + `styles/themes.css`.
+- `installer/` — the animated installer: `ui/index.html` (the welcome's evening), `setup.cpp` (a WebView2 window that runs electron-builder's NSIS installer silently, so uninstall, shortcuts and upgrades stay NSIS's), `build.cjs` (fetches the WebView2 SDK, compiles, appends the NSIS installer, rewrites latest.yml). `/S` passes straight through for the updater; `--extract <file>` writes the bundled NSIS installer out; `TWILIGHT_SETUP_DRYRUN=1` plays the window without installing.
 - `design/` — the design system: tokens, component guidelines and previews. Follow it for anything visual.
 
 ## How things are built

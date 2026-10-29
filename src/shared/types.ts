@@ -2,9 +2,10 @@
 
 import type { AttachmentKind } from './attachments'
 import type { Theme } from './themes'
+import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
-import type { JudgeInput, Judgment, JudgmentSummary, Rubric } from './judge'
+import type { JudgeInput, Judgment, JudgmentSummary, Leaderboard, Rubric } from './judge'
 
 export type ProviderKind = 'anthropic' | 'openai'
 
@@ -142,6 +143,8 @@ export interface Usage {
   cacheTtl?: CacheTtl
   /** Time to the first streamed token, for tokens-per-second. */
   ttftMs?: number
+  /** What the provider itself says the reply cost (OpenRouter), used before any price list. */
+  costUsd?: number
 }
 
 /** A deleted message (or message and everything below it), restorable from "Recently deleted". */
@@ -344,6 +347,10 @@ export interface TwilightApi {
   getJudgment(id: string): Promise<Judgment>
   /** Starts judging; runs stream as StreamEvents with conversationId "judge" and nodeId "<judgment id>:<run index>". */
   runJudge(input: JudgeInput): Promise<Judgment>
+  /** Three or more passages (A, B and input.morePassages): starts one judgment per pair, sharing a round id. */
+  runJudgeRound(input: JudgeInput): Promise<{ roundId: string; judgments: Judgment[] }>
+  /** The tally by passage label across every finished judgment, or just one round's. */
+  getLeaderboard(roundId?: string | null): Promise<Leaderboard>
   stopJudge(id: string): Promise<void>
   deleteJudgment(id: string): Promise<void>
 
@@ -433,6 +440,9 @@ export interface TwilightApi {
   runWritingTool(requestId: string, request: WritingRequest): Promise<void>
   stopWritingTool(requestId: string): Promise<void>
 
+  /** Your own prices, per million tokens (see shared/pricing.ts). */
+  getPrices(): Promise<CustomPrice[]>
+  setPrices(list: CustomPrice[]): Promise<CustomPrice[]>
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
   openDataFolder(): Promise<void>
   openExternal(url: string): Promise<void>

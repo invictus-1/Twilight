@@ -65,7 +65,8 @@ export function App() {
 
   useEffect(() => {
     const store = useStore.getState()
-    void store.init()
+    // Marks the page once the first load is done; the end-to-end tests wait for it.
+    void store.init().finally(() => (document.body.dataset.ready = '1'))
     void useWriting.getState().init()
     void useJudge.getState().init()
     return window.twilight.onStream((event) => {

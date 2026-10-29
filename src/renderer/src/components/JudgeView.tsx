@@ -1,11 +1,11 @@
 import { useState, useSyncExternalStore } from 'react'
-import { computeVerdict, type JudgeInput, type Judgment, type Rubric, type RubricCriterion } from '@shared/judge'
+import { computeVerdict, ELO_K, ELO_START, MAX_PASSAGES, passageLetter, roundPairs, type JudgeInput, type Judgment, type Rubric, type RubricCriterion } from '@shared/judge'
 import { formatTokens } from '@shared/pricing'
 import { useJudge } from '../judgeStore'
 import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { modelName, optionsFor, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
-import { CloseIcon, PaperclipIcon, PlusIcon, SidebarIcon, TrashIcon } from './Icons'
+import { CloseIcon, PaperclipIcon, PlusIcon, SidebarIcon, TrashIcon, TrophyIcon } from './Icons'
 
 const words = (s: string): number => s.match(/\S+/g)?.length ?? 0
 const fmt = (n: number | null): string => (n === null ? '–' : n.toFixed(1))
@@ -21,38 +21,55 @@ async function pickText(): Promise<{ name: string; text: string }[]> {
 
 // ——— Setting up a comparison ———
 
-function PassageInput({ side }: { side: 'A' | 'B' }) {
+/** Every passage in the draft, A and B first, then any added for a round. */
+const draftPassages = (d: JudgeInput): { passage: string; label: string }[] => [
+  { passage: d.passageA, label: d.labelA },
+  { passage: d.passageB, label: d.labelB },
+  ...(d.morePassages ?? [])
+]
+
+function PassageInput({ index }: { index: number }) {
   const draft = useJudge((s) => s.draft)!
   const update = useJudge((s) => s.updateDraft)
-  const text = side === 'A' ? draft.passageA : draft.passageB
-  const label = side === 'A' ? draft.labelA : draft.labelB
+  const side = passageLetter(index)
+  const { passage: text, label } = draftPassages(draft)[index]
+  const set = (patch: { passage?: string; label?: string }): void => {
+    if (index === 0) update({ ...(patch.passage !== undefined && { passageA: patch.passage }), ...(patch.label !== undefined && { labelA: patch.label }) })
+    else if (index === 1) update({ ...(patch.passage !== undefined && { passageB: patch.passage }), ...(patch.label !== undefined && { labelB: patch.label }) })
+    else {
+      // Read the list fresh: a file load sets text and label in one go, after an await.
+      const latest = useJudge.getState().draft?.morePassages ?? []
+      update({ morePassages: latest.map((p, j) => (j === index - 2 ? { ...p, ...patch } : p)) })
+    }
+  }
   return (
-    <section className={`judge-passage judge-passage-${side.toLowerCase()}`}>
+    <section className={`judge-passage judge-passage-${index < 2 ? side.toLowerCase() : 'more'}`} data-passage={side}>
       <header className="judge-passage-head">
         <span className="tw-pane-tag">{side}</span>
-        <input
-          className="judge-label"
-          value={label}
-          placeholder="Who wrote it (hidden from the judge)"
-          onChange={(e) => update(side === 'A' ? { labelA: e.target.value } : { labelB: e.target.value })}
-        />
+        <input className="judge-label" value={label} placeholder="Who wrote it (hidden from the judge)" onChange={(e) => set({ label: e.target.value })} />
         <button
           className="tw-btn tw-btn-ghost tw-btn-icon"
           aria-label={`Load passage ${side} from a file`}
           title="Load from a file"
           onClick={async () => {
             const [file] = await pickText()
-            if (file) update(side === 'A' ? { passageA: file.text, labelA: label || file.name } : { passageB: file.text, labelB: label || file.name })
+            if (file) set({ passage: file.text, label: label || file.name })
           }}
         >
           <PaperclipIcon />
         </button>
+        {index >= 2 && (
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-icon judge-passage-remove"
+            aria-label={`Remove passage ${side}`}
+            title="Remove this passage"
+            onClick={() => update({ morePassages: (draft.morePassages ?? []).filter((_, j) => j !== index - 2) })}
+          >
+            <CloseIcon />
+          </button>
+        )}
       </header>
-      <textarea
-        value={text}
-        placeholder={`Paste passage ${side}`}
-        onChange={(e) => update(side === 'A' ? { passageA: e.target.value } : { passageB: e.target.value })}
-      />
+      <textarea value={text} placeholder={`Paste passage ${side}`} onChange={(e) => set({ passage: e.target.value })} />
       <span className="field-note">{words(text).toLocaleString()} words</span>
     </section>
   )
@@ -69,7 +86,14 @@ function JudgeForm() {
   const options = optionsFor(models, providers, draft.judgeProviderId, draft.judgeModelId)
   const rubric = rubrics.find((r) => r.id === draft.rubricId) ?? rubrics[0]
   const contextChars = draft.contextDocs.reduce((n, d) => n + d.text.length, 0) + draft.systemPrompt.length + draft.authorPrompt.length
-  const ready = draft.passageA.trim() && draft.passageB.trim()
+  const passages = draftPassages(draft)
+  const ready = passages.every((p) => p.passage.trim())
+  const round = passages.length > 2
+  const pairs = roundPairs(passages.length).length
+  const runs = pairs * (draft.bothOrders ? 2 : 1)
+  const labels = passages.map((p) => p.label.trim())
+  const unlabelled = labels.some((l) => !l)
+  const repeated = labels.find((l, i) => l && labels.indexOf(l) !== i)
 
   return (
     <div className="judge-form">
@@ -79,11 +103,25 @@ function JudgeForm() {
       </label>
 
       <div className="judge-passages">
-        <PassageInput side="A" />
-        <PassageInput side="B" />
+        {passages.map((_, i) => (
+          <PassageInput key={i} index={i} />
+        ))}
+      </div>
+      <div className="judge-add-row">
+        {passages.length < MAX_PASSAGES && (
+          <button className="tw-btn tw-btn-sm judge-add-passage" onClick={() => update({ morePassages: [...(draft.morePassages ?? []), { passage: '', label: '' }] })}>
+            <PlusIcon size={14} />
+            Add a passage
+          </button>
+        )}
+        <span className="field-note">
+          {round
+            ? `A round: each of the ${pairs} pairs is judged blind as its own comparison, and the round gets its own leaderboard.${unlabelled ? ' Unlabelled passages are left out of the leaderboard.' : ''}`
+            : `Add more passages, up to ${MAX_PASSAGES}, to judge every pair and rank them.`}
+        </span>
       </div>
 
-      <h3 className="settings-section">What both passages were written from</h3>
+      <h3 className="settings-section">{round ? 'What the passages were written from' : 'What both passages were written from'}</h3>
       <label className="field">
         <span className="field-label">Author prompt</span>
         <textarea rows={3} value={draft.authorPrompt} placeholder="The prompt both models answered" onChange={(e) => update({ authorPrompt: e.target.value })} />
@@ -213,8 +251,13 @@ function JudgeForm() {
         <button className="tw-btn tw-btn-ghost" onClick={() => useJudge.setState({ draft: null })}>
           Cancel
         </button>
-        <button className="tw-btn tw-btn-primary judge-run" disabled={!ready} onClick={() => void useJudge.getState().run()}>
-          Judge {draft.bothOrders ? '(2 runs)' : ''}
+        <button
+          className="tw-btn tw-btn-primary judge-run"
+          disabled={!ready || (round && !!repeated)}
+          title={round && repeated ? `Two passages are both labelled ${repeated}` : undefined}
+          onClick={() => void useJudge.getState().run()}
+        >
+          {round ? `Start ${pairs} judgments (${runs} runs)` : `Judge ${draft.bothOrders ? '(2 runs)' : ''}`}
         </button>
       </div>
       {editing && <RubricEditor rubric={editing} onClose={() => setEditing(null)} />}
@@ -301,6 +344,109 @@ function RubricEditor({ rubric, onClose }: { rubric: Rubric; onClose: () => void
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ——— Leaderboard ———
+
+const PAIR_RESULT = { tie: 'Tie', close: 'Too close to call' } as const
+
+function LeaderboardView() {
+  const board = useJudge((s) => s.board)!
+  const round = board.roundId !== null
+  const leader = board.entries[0]
+  const status = round
+    ? `${board.counted} of ${board.judgments.length} pairs counted${board.running ? ` · ${board.running} still judging` : ''}`
+    : `${board.counted} ${board.counted === 1 ? 'judgment' : 'judgments'} counted${board.running ? ` · ${board.running} still judging` : ''}`
+
+  return (
+    <div className="judge-result leaderboard" data-round={board.roundId ?? ''}>
+      <section className="board-head">
+        <div className="verdict-head">
+          <h2 className="t-title">{leader ? `${leader.label} leads` : round && board.running ? 'Judging the pairs…' : 'Nothing ranked yet'}</h2>
+          <span className="field-note board-status">{status}</span>
+        </div>
+        {round && (
+          <button className="link-btn board-overall" onClick={() => void useJudge.getState().openBoard(null)}>
+            Show the overall leaderboard
+          </button>
+        )}
+      </section>
+
+      {board.entries.length > 0 ? (
+        <table className="criteria-table board-table">
+          <thead>
+            <tr>
+              <th className="num">#</th>
+              <th>Label</th>
+              <th className="num">Rating</th>
+              <th className="rec">W–L–T</th>
+              <th className="num">Average score</th>
+              <th className="num">Judgments</th>
+            </tr>
+          </thead>
+          <tbody>
+            {board.entries.map((e, i) => (
+              <tr
+                key={e.label}
+                className={i === 0 ? 'board-leader' : ''}
+                data-label={e.label}
+                data-rank={i + 1}
+                data-rating={Math.round(e.rating)}
+                data-record={`${e.wins}-${e.losses}-${e.ties}`}
+              >
+                <td className="num">{i + 1}</td>
+                <td className="board-label">{e.label}</td>
+                <td className="num board-rating">{Math.round(e.rating)}</td>
+                <td className="num rec">
+                  {e.wins}–{e.losses}–{e.ties}
+                </td>
+                <td className="num">{fmt(e.averageScore)}</td>
+                <td className="num">{e.judgments}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ) : (
+        <div className="empty board-empty">
+          <TrophyIcon size={28} />
+          <p className="empty-sub">
+            {round
+              ? board.running
+                ? 'Pairs join the table as they finish.'
+                : "This round's passages aren't labelled, so there's nothing to rank."
+              : 'Label the passages when you set up a comparison, and finished judgments are tallied here by label.'}
+          </p>
+        </div>
+      )}
+
+      {round && board.judgments.length > 0 && (
+        <section className="board-pairs">
+          <h3 className="settings-section">Pairs in this round</h3>
+          {board.judgments.map((j) => (
+            <button key={j.id} className="tw-conv board-pair" data-status={j.status} onClick={() => void useJudge.getState().open(j.id)}>
+              <span className="tw-conv-title">{j.title}</span>
+              <span className="tw-conv-meta">
+                {j.status === 'running'
+                  ? 'Judging…'
+                  : j.status === 'error'
+                    ? 'Failed'
+                    : j.winner === 'A' || j.winner === 'B'
+                      ? `${(j.winner === 'A' ? j.labelA : j.labelB) || j.winner} won`
+                      : j.winner
+                        ? PAIR_RESULT[j.winner]
+                        : 'No verdict'}
+              </span>
+            </button>
+          ))}
+        </section>
+      )}
+
+      <p className="field-note">
+        Counted by label, from finished judgments where both passages are labelled. Ratings are Elo-style: every label starts at {ELO_START}, and each
+        judgment, oldest first, moves the two by up to {ELO_K} points, more for an upset. A tie or a too-close call counts as half a win each.
+      </p>
     </div>
   )
 }
@@ -436,9 +582,20 @@ function JudgeResult() {
 export function JudgeView() {
   const current = useJudge((s) => s.current)
   const draft = useJudge((s) => s.draft)
+  const board = useJudge((s) => s.board)
   const error = useJudge((s) => s.error)
   const toggleSidebar = useStore((s) => s.toggleSidebar)
   const running = current?.runs.some((r) => r.status === 'streaming')
+  const roundRunning = board?.judgments.filter((j) => j.status === 'running') ?? []
+  const title = draft
+    ? 'New comparison'
+    : current
+      ? current.input.title || 'Comparison'
+      : board
+        ? board.roundId
+          ? board.roundTitle || 'Round'
+          : 'Leaderboard'
+        : 'Judge'
 
   return (
     <main className="chat judge">
@@ -446,7 +603,18 @@ export function JudgeView() {
         <button className="tw-btn tw-btn-ghost tw-btn-icon no-drag" aria-label="Toggle sidebar (Ctrl+B)" onClick={toggleSidebar}>
           <SidebarIcon />
         </button>
-        <h1 className="chat-title">{draft ? 'New comparison' : current ? current.input.title || 'Comparison' : 'Judge'}</h1>
+        <h1 className="chat-title">{title}</h1>
+        {current?.roundId && (
+          <button className="tw-btn tw-btn-ghost tw-btn-sm no-drag" onClick={() => void useJudge.getState().openBoard(current.roundId)}>
+            <TrophyIcon />
+            Round leaderboard
+          </button>
+        )}
+        {!draft && !current && roundRunning.length > 0 && (
+          <button className="tw-btn tw-btn-ghost tw-btn-sm no-drag" onClick={() => roundRunning.forEach((j) => void window.twilight.stopJudge(j.id))}>
+            Stop
+          </button>
+        )}
         {current && running && (
           <button className="tw-btn tw-btn-ghost tw-btn-sm no-drag" onClick={() => void useJudge.getState().stop()}>
             Stop
@@ -474,6 +642,8 @@ export function JudgeView() {
           <JudgeForm />
         ) : current ? (
           <JudgeResult />
+        ) : board ? (
+          <LeaderboardView />
         ) : (
           <div className="empty">
             <h2 className="t-display">Judge two passages</h2>

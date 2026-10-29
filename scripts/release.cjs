@@ -23,7 +23,8 @@ const fail = (msg) => {
   process.exit(1)
 }
 
-const files = [`Twilight-Setup-${version}.exe`, `Twilight-Setup-${version}.exe.blockmap`, 'latest.yml', `Twilight-${version}-x64.zip`].map((f) =>
+// The animated installer (installer/build.cjs) and the portable zip; latest.yml carries the installer's hash.
+const files = [`Twilight-Setup-${version}.exe`, 'latest.yml', `Twilight-${version}-x64.zip`].map((f) =>
   join(root, 'release', f)
 )
 for (const f of files) if (!existsSync(f)) fail(`missing ${f}; run npm run dist first.`)

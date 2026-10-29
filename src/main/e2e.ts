@@ -16,6 +16,7 @@ import { anthropicOptions, keyShape, toMessages } from './providers/anthropic'
 import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
 import { searchAll } from './search'
+import { BUILT_IN_PRICES, costOf, setCustomPrices } from '@shared/pricing'
 import * as providers from './providers'
 import * as updates from './updates'
 import * as insights from './insights'
@@ -178,6 +179,10 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       res.end('data: [DONE]\n\n')
     })
   })
+  // Node closes idle connections after 5 s; a request reusing one at that moment is reset
+  // ("fetch failed"). Real servers keep them far longer, so the mock does too.
+  server.keepAliveTimeout = 120_000
+  server.headersTimeout = 125_000
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server)))
 }
 
@@ -203,6 +208,28 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
 `)
   }
   const log: LoggedRequest[] = []
+  // Screenshots are a record, not a check: Windows' compositor now and then refuses a capture
+  // (UnknownVizError), and that mustn't end the run.
+  // Reloads the interface and waits until its first load is done (App marks body[data-ready]),
+  // then a moment for it to paint. Bounded, and the time it took is logged for comparison.
+  const reloadUi = async (): Promise<void> => {
+    const t0 = Date.now()
+    win.webContents.reload()
+    await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
+    await win.webContents.executeJavaScript(`(async () => { for (let end = Date.now() + 10000; Date.now() < end && document.body.dataset.ready !== '1'; ) await new Promise((r) => setTimeout(r, 25)) })()`)
+    appendFileSync(join(outDir, 'timings.log'), `reload ready in ${Date.now() - t0} ms\n`)
+    await new Promise((r) => setTimeout(r, 400))
+  }
+  // Logs any stretch where the main process stops answering, to find what blocks it.
+  let tick = Date.now()
+  setInterval(() => {
+    const late = Date.now() - tick - 100
+    if (late > 400) appendFileSync(join(outDir, 'timings.log'), `main blocked ~${late} ms (after check ${checks.length}: ${checks.at(-1)?.name ?? ''})\n`)
+    tick = Date.now()
+  }, 100).unref()
+  const shot = async (name: string): Promise<void> => {
+    await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, name), img.toPNG()), () => undefined)
+  }
   // Keep timers and frames running when the test window is behind others.
   win.webContents.setBackgroundThrottling(false)
 
@@ -276,10 +303,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('A untouched by B switch', v.path.map((n) => n.id).join() === aBefore)
 
       // Screenshot the split before closing it.
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 900))
-      writeFileSync(join(outDir, 'e2e-split.png'), (await win.webContents.capturePage()).toPNG())
+      await reloadUi()
+      await shot('e2e-split.png')
 
       // 7. Keep B: the main thread continues on B's branch.
       const bPath = v.split!.path.map((n) => n.id).join()
@@ -362,7 +387,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('tool streams a suggestion', tool.step === 'ready', tool)
       check('suggestion shows a diff', tool.del && tool.ins, tool)
       check('manuscript unchanged until accept', tool.docUnchanged === true)
-      writeFileSync(join(outDir, 'e2e-writing.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-writing.png')
       await win.webContents.executeJavaScript(`document.querySelector('.tw-btn-accept').click()`)
       await new Promise((r) => setTimeout(r, 1500))
       const saved = await docs.readDoc(scene.path)
@@ -487,9 +512,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // 13. Sidebar drag and drop, through real DOM drag events.
       const helloId = id
       // The main process changed folders directly, so reload the interface to pick them up.
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 600))
+      await reloadUi()
       const ui = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         const drop = (target, mime, value) => {
@@ -515,10 +538,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('drag chat into folder', filed(helloId)?.folder_id === rpg.id)
       check('drag doc into folder',(await docs.listDocs()).some((d) => d.path === 'Book/Scene.md'))
       await new Promise((r) => setTimeout(r, 300))
-      writeFileSync(join(outDir, 'e2e-docfolders.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-docfolders.png')
       await win.webContents.executeJavaScript(`document.querySelector('[data-mode="chat"]').click()`)
       await new Promise((r) => setTimeout(r, 400))
-      writeFileSync(join(outDir, 'e2e-chatfolders.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-chatfolders.png')
 
       // 14. Send a chat reply to Writing.
       const sent = await win.webContents.executeJavaScript(`(async () => {
@@ -535,7 +558,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const sentDoc = (await docs.listDocs()).find((d) => d.path.startsWith('Hello'))
       check('reply sent to Writing as a document', !!sentDoc && (await docs.readDoc(sentDoc.path)).text.includes('replying to'), [sent, sentDoc?.path])
       await new Promise((r) => setTimeout(r, 300))
-      writeFileSync(join(outDir, 'e2e-forge.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-forge.png')
 
       // 15. System prompt can change after the chat starts, separately per split pane.
       const c2 = chat.create(null).id
@@ -615,9 +638,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('models without effort get none', haiku45.efforts.length === 0 && !haiku45.adaptiveThinking)
 
       // 21. The interface: cache status bar and the model settings panel.
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 700))
+      await reloadUi()
       const ui2 = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'First')
@@ -633,7 +654,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('cache status bar shown', typeof ui2.bar === 'string' && ui2.bar.length > 0, ui2.bar)
       check('model settings panel opens', ui2.panel === true, ui2)
       await new Promise((r) => setTimeout(r, 200))
-      writeFileSync(join(outDir, 'e2e-settings.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-settings.png')
       // Close it with its X, and toggle it with the header button: real clicks at the controls'
       // positions (not element.click()), so anything covering them would show up here.
       const realClick = async (selector: string, nth = 0): Promise<boolean> => {
@@ -694,9 +715,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // 23. status card <details> renders; dangerous HTML is stripped.
       chat.send(contents, c2, 'Show the STATUSCARD')
       await idle(c2)
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 700))
+      await reloadUi()
       const html = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'First')
@@ -721,7 +740,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('harmless HTML kept', html.bold === 'bold html' && html.escaped === false, html)
       check('Game Format button on replies', html.gameBtn === true)
       await new Promise((r) => setTimeout(r, 200))
-      writeFileSync(join(outDir, 'e2e-statuscard.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-statuscard.png')
 
       // 24. The Judge: blind, both orders, scores mapped back to A and B. A rubric of your own is
       // imported from a file (none ship with the app beyond the general one).
@@ -781,9 +800,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       chat.updateSettings(c2, { modelId: 'mock-b' }, 'b')
       chat.send(contents, c2, 'Write the scene', 'both')
       await idle(c2)
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 700))
+      await reloadUi()
       const fromSplit = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'First')
@@ -811,7 +828,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       )
       check('result screen shows the verdict, blind', fromSplit.headline === 'A is better written' && fromSplit.rows === 3, fromSplit)
       await new Promise((r) => setTimeout(r, 200))
-      writeFileSync(join(outDir, 'e2e-judge.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-judge.png')
 
       // 26. Choice cards: parsing, the instruction reaching the model, and the card in use.
       const parsedChoices = extractChoices('Story.\n\n```choices\nWhat now?\n1. Go left\n2. Go right\n```')
@@ -828,9 +845,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('choice instruction sent in the system prompt', (log[before26]?.messages[0]?.content ?? '').includes('Interactive choices:'))
       check('no choice tool unless its switch is on', !(log[before26]?.body as { tools?: unknown }).tools)
       check('choices blocks left as written with their switch off', extractChoices('Story.\n\n```choices\nWhat now?\n1. Go left\n2. Go right\n```', true, false).choices === null)
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 700))
+      await reloadUi()
       const card = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         document.querySelector('[data-mode="chat"]').click()
@@ -893,7 +908,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         }
       })()`)
       check('answered cards show the pick and go quiet', answered.firstPicked === 'Wait in the rain' && !answered.firstActive && answered.lastActive, answered)
-      writeFileSync(join(outDir, 'e2e-choices.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-choices.png')
 
       // 27. Plain-text choices: a numbered list at the end becomes a card when Choices is on.
       const plain = extractChoices('Rain.\n\n*What now?*\n\n**1.** Run\n**2.** Hide\n\n<details>\n<summary>Day</summary>\nx\n</details>', true)
@@ -1062,7 +1077,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('a provider without models shows how to get them', provUi.firstTitle === 'Anthropic' && provUi.emptyState === true, provUi)
       check('selecting a provider shows its models as a grid', provUi.mockTitle === 'Mock' && provUi.modelCards === 2 && provUi.grid === 'grid', provUi)
       await new Promise((r) => setTimeout(r, 200))
-      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-providers.png'), img.toPNG()), () => undefined)
+      await shot('e2e-providers.png')
 
       // 31. The Roadmap page draws ROADMAP.md: planned cards, ideas, and the shipped timeline.
       const roadmapUi = await win.webContents.executeJavaScript(`(async () => {
@@ -1083,9 +1098,9 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards > 10 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
-      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-roadmap.png'), img.toPNG()), () => undefined)
+      await shot('e2e-roadmap.png')
 
       // 32. Writer insights: the first scan is a baseline; growth after it is written today; imports
       // and shrinking aren't writing; characters, pairs and achievements follow.
@@ -1158,7 +1173,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('word analysis lists words', insUi.topWords > 0, insUi.topWords)
       check('characters page shows screen time and pairs', insUi.characters.join() === 'Rowan,Wren' && insUi.pairs >= 1, insUi)
       check('achievements page shows every achievement', insUi.achievements === ACHIEVEMENTS.length && insUi.unlocked >= 2, insUi)
-      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-insights.png'), img.toPNG()), () => undefined)
+      await shot('e2e-insights.png')
 
       // 33. Models start hidden once you've chosen any; the Tools menu and its hover help.
       const mockConfig = providers.getProvider('mock')
@@ -1171,9 +1186,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const c8 = chat.create(null).id
       chat.send(contents, c8, 'Tools test')
       await idle(c8)
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 700))
+      await reloadUi()
       const toolsUi = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         document.querySelector('[data-mode="chat"]').click()
@@ -1200,7 +1213,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('Tools menu lists the choice switches', toolsUi.rows.includes('Choice cards') && toolsUi.rows.some((r: string) => r.startsWith('Choice menu tool')), toolsUi.rows)
       const c8settings = chat.view(c8).settings
       check('Tools menu turns on the choice tool', c8settings.choiceCards && c8settings.choiceTool, { cards: c8settings.choiceCards, tool: c8settings.choiceTool })
-      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-tools.png'), img.toPNG()), () => undefined)
+      await shot('e2e-tools.png')
 
       // 34. Insights AI pages: deep scan in chunks (cached by text), quick sample, focus, notes;
       // reports; and the Ultraviolet theme.
@@ -1244,9 +1257,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const allTime = await reports.exportReport('all', false)
       check('reports leave AI out unless asked', !(await readFile(allTime, 'utf8')).includes('Steady mornings'))
 
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 800))
+      await reloadUi()
       const aiUi = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         document.querySelector('[data-mode="insights"]').click()
@@ -1272,7 +1283,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('story page shows the latest run: donut, themes and tags', aiUi.donut === 2 && aiUi.themes === 1 && aiUi.subtags > 0 && /parts already read/.test(aiUi.estimate), aiUi)
       check('focus, insights and reports pages render', aiUi.focus === 2 && aiUi.notes === 2 && aiUi.reports === 4, aiUi)
       check('Ultraviolet theme applies', aiUi.theme === 'ultraviolet' && aiUi.night === '#0c0614', aiUi)
-      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-ultraviolet.png'), img.toPNG()), () => undefined)
+      await shot('e2e-ultraviolet.png')
       await win.webContents.executeJavaScript(`[...document.querySelectorAll('.theme-option')].find((b) => b.textContent.includes('Twilight'))?.click()`)
 
       // 35. The first-run welcome, replayed from Settings → About: intro, a local model found and
@@ -1351,9 +1362,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('editing a reply saves it without a request', p5.at(-1)?.text === 'A rewritten reply.' && log.length === sentBefore)
 
       // The same actions in the interface: trash, right-click menu, undo toast, recently deleted.
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 700))
+      await reloadUi()
       const actionsUi = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'one')
@@ -1390,7 +1399,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('delete shows an undo toast', /Message deleted/.test(actionsUi.toast ?? ''), actionsUi.toast)
       check('undo brings the message back', actionsUi.afterUndo.includes('A rewritten reply.') && !actionsUi.afterDelete.includes('A rewritten reply.'), actionsUi)
       check('recently deleted panel lists and shows deletions', actionsUi.headCount === '1' && actionsUi.panelItems === 1 && actionsUi.viewShown === 1, actionsUi)
-      writeFileSync(join(outDir, 'e2e-deleted.png'), (await win.webContents.capturePage()).toPNG())
+      await shot('e2e-deleted.png')
 
       // 29. Updates: the releases list, a checksum-verified download, a backup first, and
       // rolling back. In tests the installer is never run.
@@ -1417,9 +1426,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('rolling back downloads the older installer', !!updates.lastTestInstall()?.endsWith(`Twilight-Setup-${bump(cur, -1)}.exe`))
       check('daily check can be turned off', updates.setAutoCheck(false).autoCheck === false && updates.setAutoCheck(true).autoCheck === true)
 
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 900))
+      await reloadUi()
       const updUi = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         const out = { toast: document.querySelector('.update-toast')?.textContent ?? null, chip: document.querySelector('.update-chip')?.textContent ?? null }
@@ -1442,7 +1449,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('rolling back asks to confirm', updUi.confirm.includes(`Roll back to ${bump(cur, -1)}`), updUi.confirm)
       await new Promise((r) => setTimeout(r, 300))
       // A screenshot is a convenience; a capture hiccup shouldn't fail the run.
-      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-updates.png'), img.toPNG()), () => undefined)
+      await shot('e2e-updates.png')
 
       // 30. Context meter, branching, choice keys, highlighting, command menu, rebinding, search.
       const c30 = chat.create().id
@@ -1491,9 +1498,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       chat.send(contents, c31, 'Begin')
       await idle(c31)
 
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 800))
+      await reloadUi()
       const key = async (keyCode: string, modifiers: ('control' | 'shift' | 'alt')[] = []): Promise<void> => {
         win.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
         win.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
@@ -1588,7 +1593,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await new Promise((r) => setTimeout(r, 100))
       await idle(c31)
       check('More options asks the model for others', chat.view(c31).path.at(-2)?.text === 'Give me a few different options.', chat.view(c31).path.at(-2)?.text)
-      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-choicekeys.png'), img.toPNG()), () => undefined)
+      await shot('e2e-choicekeys.png')
 
       // 31. Images and PDFs: sent as the files themselves, in each provider's format.
       const png = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='
@@ -1667,9 +1672,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await docs.writeDoc(gameDoc.path, 'One line.\n\nTwo lines.\n')
 
       // The sidebar: rename a folder in place, and removal asks before it acts.
-      win.webContents.reload()
-      await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
-      await new Promise((r) => setTimeout(r, 800))
+      await reloadUi()
       await key('2', ['control'])
       const folderUi = await js<{ asked: string; stillThere: boolean; renamed: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -1764,7 +1767,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       for (const id of ['phosphor', 'nightshade', 'ember']) {
         await js(`(() => { document.documentElement.dataset.theme = '${id}' })()`)
         await new Promise((r) => setTimeout(r, 250))
-        await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, `e2e-theme-${id}.png`), img.toPNG()), () => undefined)
+        await shot(`e2e-theme-${id}.png`)
       }
       await key(',', ['control'])
       await js(`(async () => {
@@ -1823,7 +1826,278 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('the rail lists every section by name', railUi.labels.join() === 'Chats,Writing,Judge,Insights,Search,Settings' && railUi.selected === 'Writing' && railUi.head === 'Writing', railUi)
       check('the current section on the rail hides and shows the sidebar, and the rail stays', railUi.closed && railUi.railStill && railUi.reopened, railUi)
-      await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, 'e2e-rail.png'), img.toPNG()), () => undefined)
+      await shot('e2e-rail.png')
+
+      // 35. The Judge leaderboard: a running tally by passage label (Elo-style, replayed oldest
+      // first), and rounds of more than two passages, every pair judged as its own judgment.
+      const judgeBase = {
+        authorPrompt: 'Write the harbour at dusk.',
+        systemPrompt: 'You are a co-writer.',
+        contextDocs: [{ name: 'Harbour.md', text: 'Rowan keeps the harbour lamps.' }],
+        extraInstructions: '',
+        judgeProviderId: 'mock',
+        judgeModelId: 'mock-a',
+        effort: null,
+        rubricId: 'general-fiction',
+        bothOrders: true
+      }
+      const settled = async (ids: string[]): Promise<void> => {
+        for (let i = 0; i < 400 && ids.some((id) => judge.getJudgment(id).runs.some((r) => r.status === 'streaming')); i++) await new Promise((r) => setTimeout(r, 25))
+      }
+      const strongPassage = 'GOOD: The harbour lamps came on one mooring at a time.'
+      const plainPassage = 'The harbour lamps came on.'
+      const boardIds = [
+        judge.runJudge(contents, { ...judgeBase, title: 'Board 1', passageA: strongPassage, labelA: 'Lark', passageB: plainPassage, labelB: 'Heron' }).id,
+        judge.runJudge(contents, { ...judgeBase, title: 'Board 2', passageA: plainPassage, labelA: 'Finch', passageB: strongPassage, labelB: ' Heron ' }).id,
+        judge.runJudge(contents, { ...judgeBase, title: 'Board 3', passageA: strongPassage, labelA: 'Lark', passageB: plainPassage, labelB: 'Finch' }).id,
+        // Both passages strong: the two orders disagree, so it's too close to call.
+        judge.runJudge(contents, { ...judgeBase, title: 'Board 4', passageA: strongPassage, labelA: 'Heron', passageB: strongPassage, labelB: 'Finch' }).id,
+        // One side unlabelled: left out of the tally.
+        judge.runJudge(contents, { ...judgeBase, title: 'Board 5', passageA: strongPassage, labelA: 'Lark', passageB: plainPassage, labelB: '  ' }).id
+      ]
+      await settled(boardIds)
+      const overallBoard = judge.getLeaderboard()
+      const boardRow = (label: string) => overallBoard.entries.find((e) => e.label === label)
+      const boardRecord = (label: string): string => {
+        const e = boardRow(label)
+        return e ? `${e.wins}-${e.losses}-${e.ties}/${e.judgments}` : 'missing'
+      }
+      check(
+        'the leaderboard tallies finished, labelled judgments by label',
+        boardRecord('Lark') === '2-0-0/2' && boardRecord('Heron') === '1-1-1/3' && boardRecord('Finch') === '0-2-1/3' && !overallBoard.entries.some((e) => !e.label.trim()),
+        overallBoard.entries.map((e) => [e.label, e.wins, e.losses, e.ties, e.judgments])
+      )
+      check(
+        'a too-close call counts as a tie for both',
+        computeVerdict(judge.getJudgment(boardIds[3]).rubric, judge.getJudgment(boardIds[3]).runs).winner === 'close' && boardRow('Heron')?.ties === 1 && boardRow('Finch')?.ties === 1
+      )
+      check(
+        'the leaderboard averages the overall score of each label',
+        Math.abs((boardRow('Lark')?.averageScore ?? 0) - 8) < 0.01 && Math.abs((boardRow('Heron')?.averageScore ?? 0) - 6.5) < 0.01 && Math.abs((boardRow('Finch')?.averageScore ?? 0) - 5.5) < 0.01,
+        [boardRow('Lark')?.averageScore, boardRow('Heron')?.averageScore, boardRow('Finch')?.averageScore]
+      )
+      // The same Elo replay worked by hand: start 1000, K 24, oldest first, a tie is half a win.
+      const elo: Record<string, number> = { Lark: 1000, Heron: 1000, Finch: 1000 }
+      for (const [a, b, s] of [['Lark', 'Heron', 1], ['Finch', 'Heron', 0], ['Lark', 'Finch', 1], ['Heron', 'Finch', 0.5]] as const) {
+        const d = 24 * (s - 1 / (1 + 10 ** ((elo[b] - elo[a]) / 400)))
+        elo[a] += d
+        elo[b] -= d
+      }
+      const birds = overallBoard.entries.filter((e) => e.label in elo)
+      check(
+        'the leaderboard ranks by an Elo-style rating, replayed oldest first',
+        birds.map((e) => e.label).join() === 'Lark,Heron,Finch' && birds.every((e) => Math.abs(e.rating - elo[e.label]) < 0.001),
+        birds.map((e) => [e.label, e.rating, elo[e.label]])
+      )
+      check('ratings are zero-sum', Math.abs(birds.reduce((n, e) => n + e.rating, 0) - 3000) < 0.001)
+
+      let repeatedLabel = ''
+      try {
+        judge.runRound(contents, { ...judgeBase, title: 'Bad round', passageA: strongPassage, labelA: 'Tern', passageB: plainPassage, labelB: 'Gull', morePassages: [{ passage: plainPassage, label: 'Tern' }] })
+      } catch (err) {
+        repeatedLabel = String(err)
+      }
+      check('a round refuses two passages with the same label', /both labelled Tern/.test(repeatedLabel), repeatedLabel)
+
+      const beforeRound = log.length
+      const harbourRound = judge.runRound(contents, {
+        ...judgeBase,
+        title: 'Harbour round',
+        passageA: strongPassage,
+        labelA: 'Kestrel',
+        passageB: plainPassage,
+        labelB: 'Plover',
+        morePassages: [{ passage: 'The lamps, they came on.', label: 'Swift' }]
+      })
+      const earlyRound = judge.getLeaderboard(harbourRound.roundId)
+      await settled(harbourRound.judgments.map((j) => j.id))
+      const roundStored = harbourRound.judgments.map((j) => judge.getJudgment(j.id))
+      const roundBoard = judge.getLeaderboard(harbourRound.roundId)
+      check(
+        'a three-passage round starts three judgments with one round id',
+        roundStored.length === 3 &&
+          roundStored.every((j) => j.roundId === harbourRound.roundId && j.roundTitle === 'Harbour round' && !('morePassages' in j.input)) &&
+          roundStored.map((j) => j.input.title).join('|') === 'Harbour round · Kestrel vs Plover|Harbour round · Kestrel vs Swift|Harbour round · Plover vs Swift',
+        roundStored.map((j) => [j.input.title, j.roundId === harbourRound.roundId])
+      )
+      const roundReqs = log.slice(beforeRound).filter((r) => r.messages[0]?.content.startsWith('You are an exacting fiction editor'))
+      const roundSent = roundReqs.map((r) => r.messages.at(-1)?.content ?? '')
+      check(
+        'each pair is judged blind, in both orders',
+        roundReqs.length === 6 && roundStored.every((j) => j.runs.length === 2 && j.runs.every((r) => r.status === 'done')) && !roundSent.some((s) => /Kestrel|Plover|Swift/.test(s)),
+        roundStored.map((j) => j.runs.map((r) => [r.status, r.error]))
+      )
+      check(
+        "a round's pairs share one context and wait for the first one's cache",
+        roundSent.every((s) => s.split('<passage id="X">')[0] === roundSent[0].split('<passage id="X">')[0]) &&
+          roundReqs.slice(1).every((r) => r.startedAt >= (roundReqs[0].firstTokenAt ?? Infinity)),
+        roundReqs.map((r) => [r.startedAt, r.firstTokenAt])
+      )
+      check('a round counts nothing until its pairs finish', earlyRound.running === 3 && earlyRound.counted === 0 && earlyRound.entries.length === 0, earlyRound)
+      check(
+        "the round's leaderboard ranks only its own passages",
+        roundBoard.roundTitle === 'Harbour round' &&
+          roundBoard.counted === 3 &&
+          roundBoard.judgments.length === 3 &&
+          roundBoard.entries.map((e) => e.label).sort().join() === 'Kestrel,Plover,Swift' &&
+          roundBoard.entries[0].label === 'Kestrel' &&
+          roundBoard.entries[0].wins === 2 &&
+          roundBoard.entries.every((e) => e.judgments === 2),
+        roundBoard.entries.map((e) => [e.label, e.wins, e.losses, e.ties])
+      )
+      const plainRound = judge.runRound(contents, { ...judgeBase, title: '', passageA: strongPassage, labelA: '', passageB: plainPassage, labelB: '', morePassages: [{ passage: plainPassage, label: '' }] })
+      await settled(plainRound.judgments.map((j) => j.id))
+      const plainBoard = judge.getLeaderboard(plainRound.roundId)
+      check(
+        'an unlabelled round is titled by letter and ranks nothing',
+        plainRound.judgments.map((j) => j.input.title).join() === 'A vs B,A vs C,B vs C' && plainBoard.entries.length === 0 && plainBoard.counted === 0 && plainBoard.judgments.length === 3,
+        plainRound.judgments.map((j) => j.input.title)
+      )
+
+      const boardUi = await js<Record<string, unknown>>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const until = async (fn, ms = 6000) => {
+          const end = Date.now() + ms
+          while (Date.now() < end) {
+            const v = fn()
+            if (v) return v
+            await wait(50)
+          }
+          return null
+        }
+        const setValue = (el, v) => {
+          const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+          Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v)
+          el.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+        const rows = () => [...document.querySelectorAll('.leaderboard .board-table tbody tr[data-label]')].map((r) => ({ label: r.dataset.label, rank: Number(r.dataset.rank), record: r.dataset.record }))
+        const out = {}
+        document.querySelector('.rail [data-mode="judge"]').click()
+        const entry = await until(() => document.querySelector('.judge-board-item'))
+        if (!entry) return { step: 'no leaderboard entry' }
+        entry.click()
+        await until(() => rows().some((r) => r.label === 'Lark'))
+        out.overall = rows()
+        out.entryCurrent = entry.getAttribute('aria-current')
+        out.overallRound = document.querySelector('.leaderboard')?.dataset.round ?? null
+        out.note = [...document.querySelectorAll('.leaderboard > p.field-note')].map((p) => p.textContent).join(' ')
+        out.title = document.querySelector('.chat-title')?.textContent
+
+        // A round from the form: add passages up to six, take three away, then start it.
+        document.querySelectorAll('.sidebar-head .head-actions button')[1].click()
+        if (!(await until(() => document.querySelector('.judge-form')))) return { ...out, step: 'no form' }
+        out.twoButton = document.querySelector('.judge-run').textContent
+        for (let i = 0; i < 4; i++) {
+          document.querySelector('.judge-add-passage')?.click()
+          await until(() => document.querySelectorAll('.judge-passage').length === 3 + i)
+        }
+        out.atMost = document.querySelectorAll('.judge-passage').length
+        out.addHidden = !document.querySelector('.judge-add-passage')
+        for (const side of ['F', 'E', 'D']) {
+          document.querySelector('.judge-passage[data-passage="' + side + '"] .judge-passage-remove')?.click()
+          await until(() => !document.querySelector('.judge-passage[data-passage="' + side + '"]'))
+        }
+        out.afterRemove = [...document.querySelectorAll('.judge-passage')].map((p) => p.dataset.passage).join()
+        setValue(document.querySelector('.judge-form > label.field input'), 'Pier round')
+        await wait(30)
+        const fill = [['A', 'GOOD: The pier lamps woke in order.', 'Tern'], ['B', 'The pier lamps came on.', 'Gull'], ['C', 'The lamps on the pier came on.', 'Skua']]
+        for (const [side, text, label] of fill) {
+          const section = document.querySelector('.judge-passage[data-passage="' + side + '"]')
+          setValue(section.querySelector('textarea'), text)
+          await wait(30)
+          setValue(section.querySelector('.judge-label'), label)
+          await wait(30)
+        }
+        out.roundButton = document.querySelector('.judge-run').textContent
+        out.disabled = document.querySelector('.judge-run').disabled
+        document.querySelector('.judge-run').click()
+        const roundEl = await until(() => {
+          const el = document.querySelector('.leaderboard')
+          return el && el.dataset.round && rows().length === 3 ? el : null
+        }, 8000)
+        if (!roundEl) return { ...out, step: 'no round leaderboard', rows: rows(), text: document.querySelector('.judge-scroll')?.textContent?.slice(0, 300) }
+        out.roundId = roundEl.dataset.round
+        out.round = rows()
+        out.roundTitle = document.querySelector('.chat-title')?.textContent
+        out.pairs = [...document.querySelectorAll('.board-pair .tw-conv-title')].map((e) => e.textContent)
+        await wait(200)
+        return out
+      })()`)
+      check(
+        'the Judge sidebar opens the leaderboard, ranked',
+        boardUi.entryCurrent === 'true' &&
+          boardUi.overallRound === '' &&
+          boardUi.title === 'Leaderboard' &&
+          (() => {
+            const r = (boardUi.overall as { label: string; rank: number; record: string }[] | undefined) ?? []
+            const at = (l: string) => r.find((x) => x.label === l)
+            return at('Lark')?.record === '2-0-0' && at('Heron')?.record === '1-1-1' && at('Finch')?.record === '0-2-1' && at('Lark')!.rank < at('Heron')!.rank && at('Heron')!.rank < at('Finch')!.rank
+          })(),
+        boardUi
+      )
+      check('the leaderboard says how it counts', /Elo-style/.test(String(boardUi.note)) && /both passages are labelled/.test(String(boardUi.note)), boardUi.note)
+      check(
+        'the form adds passages up to six and removes them',
+        boardUi.atMost === 6 && boardUi.addHidden === true && boardUi.afterRemove === 'A,B,C',
+        [boardUi.atMost, boardUi.addHidden, boardUi.afterRemove]
+      )
+      check(
+        'the run button says how many judgments a round starts',
+        boardUi.twoButton === 'Judge (2 runs)' && boardUi.roundButton === 'Start 3 judgments (6 runs)' && boardUi.disabled === false,
+        [boardUi.twoButton, boardUi.roundButton]
+      )
+      const uiRound = (boardUi.round as { label: string; rank: number; record: string }[] | undefined) ?? []
+      check(
+        "starting a round opens that round's leaderboard",
+        boardUi.roundTitle === 'Pier round' &&
+          uiRound.map((r) => r.label).sort().join() === 'Gull,Skua,Tern' &&
+          uiRound[0]?.label === 'Tern' &&
+          uiRound[0]?.record === '2-0-0' &&
+          (boardUi.pairs as string[] | undefined)?.join('|') === 'Pier round · Tern vs Gull|Pier round · Tern vs Skua|Pier round · Gull vs Skua' &&
+          judge.listJudgments().filter((j) => j.roundId === boardUi.roundId).length === 3,
+        boardUi
+      )
+      await shot('e2e-leaderboard.png')
+      const backUi = await js<{ round: string | null; tern: boolean; lark: boolean; title: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('.board-overall')?.click()
+        const has = (l) => !!document.querySelector('.leaderboard .board-table tr[data-label="' + l + '"]')
+        for (let end = Date.now() + 4000; Date.now() < end && !(document.querySelector('.leaderboard')?.dataset.round === '' && has('Lark')); ) await wait(50)
+        return { round: document.querySelector('.leaderboard')?.dataset.round ?? null, tern: has('Tern'), lark: has('Lark'), title: document.querySelector('.chat-title')?.textContent ?? '' }
+      })()`)
+      check('the round view leads back to the overall leaderboard', backUi.round === '' && backUi.tern && backUi.lark && backUi.title === 'Leaderboard', backUi)
+
+      // 36. Prices: the provider's own figure first, then yours (with * patterns), then the built-in list.
+      const u36 = { input: 1000, output: 500, cacheRead: 0, cacheWrite: 0, ms: 1 }
+      setCustomPrices([{ model: 'mock-*', input: 2, output: 10 }])
+      check('your price is used for a model it matches, local ones included', Math.abs((costOf('mock-b', u36, true) ?? 0) - 0.007) < 1e-9, costOf('mock-b', u36, true))
+      check("a provider's reported cost comes before any price list", costOf('mock-b', { ...u36, costUsd: 0.5 }, true) === 0.5)
+      setCustomPrices([{ model: 'claude-opus-5-5', input: 1, output: 1 }])
+      check('your price overrides the built-in one', Math.abs((costOf('claude-opus-5-5', u36, false) ?? 0) - 0.0015) < 1e-9 && costOf('claude-sonnet-5-5', u36, false) === (1000 * 2 + 500 * 10) / 1e6)
+      setCustomPrices([])
+      await key(',', ['control'])
+      const priceUi = await js<{ builtIn: number; after: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Prices')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.price-builtin'); ) await wait(50)
+        const builtIn = document.querySelectorAll('.price-builtin tbody tr').length
+        const usage = () => [...document.querySelectorAll('.msg-usage')].map((e) => e.textContent).join('|')
+        ;[...document.querySelectorAll('.settings-card button')].find((b) => /Add a price/.test(b.textContent))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.price-table input.price-model'); ) await wait(50)
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        const fill = (el, v) => { el.focus(); set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })) }
+        const inputs = document.querySelectorAll('.price-table tbody tr:last-child input')
+        fill(inputs[0], 'mock-a'); fill(inputs[1], '5000'); fill(inputs[2], '5000')
+        inputs[2].blur()
+        await wait(300)
+        document.querySelector('.rail [data-mode="chat"]').click()
+        await wait(200)
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Begin')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.msg-usage'); ) await wait(50)
+        return { builtIn, after: usage() }
+      })()`)
+      check('the Prices page lists the built-in prices', priceUi.builtIn === BUILT_IN_PRICES.length, priceUi.builtIn)
+      check('a price you add re-prices replies on screen', /\$[0-9.]+/.test(priceUi.after) && !/(^|\|)\$0 ·/.test(priceUi.after) && (db.kvGet<{ model: string }[]>('prices') ?? []).some((p) => p.model === 'mock-a'), priceUi.after.slice(0, 200))
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
