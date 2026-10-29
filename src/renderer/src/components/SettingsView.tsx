@@ -21,15 +21,18 @@ import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIc
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'tools' | 'prices' | 'usage' | 'general' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
+type Section = 'providers' | 'tools' | 'prices' | 'usage' | 'general' | 'appearance' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
 
+// Grouped by what people come looking for: how the app behaves and looks, what you write with,
+// the models, and Twilight itself. Each page holds one kind of thing, named the way you'd ask for it.
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
-  { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
-  { id: 'library', group: 'App', label: 'Library', description: 'Your personas and prompts. A persona starts a chat with its instructions; a prompt goes into the message box from the composer.' },
-  { id: 'writing', group: 'App', label: 'Writing', description: 'Where your documents live. Point it at an Obsidian vault and both apps edit the same files.' },
-  { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats and settings, moving them, and backups you can go back to.' },
+  { id: 'general', group: 'App', label: 'General', description: 'How chats behave: the cache status line, spelling, and Game Format for copying replies into a game.' },
+  { id: 'appearance', group: 'App', label: 'Appearance', description: 'How Twilight looks: the theme, a background, motion, the size of chat text and the colour of bold words.' },
+  { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats and settings, backups you can go back to, moving it all, and request logs.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
   { id: 'extras', group: 'App', label: 'Extras', description: "Just for fun: little extras that don't change how anything works. All of them start off." },
+  { id: 'library', group: 'Writing', label: 'Personas and prompts', description: 'Your personas and prompts. A persona starts a chat with its instructions; a prompt goes into the message box from the composer.' },
+  { id: 'writing', group: 'Writing', label: 'Documents', description: 'Where your documents live, and the document library that finds passages for your messages. Point it at an Obsidian vault and both apps edit the same files.' },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
   { id: 'tools', group: 'Models', label: 'Tools', description: 'MCP servers that give chats tools, and the model that makes pictures. Each is switched on per chat in the Tools menu.' },
   { id: 'prices', group: 'Models', label: 'Prices', description: 'What replies cost: your own prices per model, and the built-in ones. A cost the provider reports itself comes first.' },
@@ -425,30 +428,13 @@ function ProvidersSection() {
 function GeneralSection() {
   const [options, setOptions] = useState(readGameFormat)
   const [cacheBar, setCacheBar] = useState(() => !readHidden())
-  const [logs, setLogs] = useState<{ enabled: boolean; folder: string } | null>(null)
-  useEffect(() => {
-    void window.twilight.getRequestLogs().then(setLogs)
-  }, [])
   const setGame = (patch: Partial<typeof options>): void => {
     const next = { ...options, ...patch }
     writeGameFormat(next)
     setOptions(next)
   }
-  const [theme, setThemeState] = useState<Theme>(savedTheme)
-  const pick = (t: Theme): void => {
-    setTheme(t)
-    setThemeState(t)
-  }
   return (
     <>
-      <div className="settings-card">
-        <h3 className="t-heading">Appearance</h3>
-        <ThemePicker value={theme} onPick={pick} custom />
-        {theme === 'custom' && <ThemeBuilder />}
-        <BackgroundPicker />
-        <MotionPicker />
-        <ChatTextPicker />
-      </div>
       <div className="settings-card">
         <h3 className="t-heading">Chat</h3>
         <label className="check">
@@ -463,6 +449,7 @@ function GeneralSection() {
           Show the prompt cache status line under chats
         </label>
       </div>
+      <SpellcheckSwitch />
       <div className="settings-card">
         <h3 className="t-heading">Game Format</h3>
         <p className="field-note">
@@ -478,6 +465,37 @@ function GeneralSection() {
           Remove markdown marks from prose (**bold**, *italic*, # headings)
         </label>
       </div>
+    </>
+  )
+}
+
+/** How Twilight looks: theme, background, motion, chat text. */
+function AppearanceSection() {
+  const [theme, setThemeState] = useState<Theme>(savedTheme)
+  const pick = (t: Theme): void => {
+    setTheme(t)
+    setThemeState(t)
+  }
+  return (
+    <div className="settings-card">
+      <h3 className="t-heading">Theme</h3>
+      <ThemePicker value={theme} onPick={pick} custom />
+      {theme === 'custom' && <ThemeBuilder />}
+      <BackgroundPicker />
+      <MotionPicker />
+      <ChatTextPicker />
+    </div>
+  )
+}
+
+/** Request logs, the safety net for your words: shown with the rest of your data. */
+function RequestLogsCard() {
+  const [logs, setLogs] = useState<{ enabled: boolean; folder: string } | null>(null)
+  useEffect(() => {
+    void window.twilight.getRequestLogs().then(setLogs)
+  }, [])
+  return (
+    <>
       {logs && (
         <div className="settings-card">
           <h3 className="t-heading">Safety net</h3>
@@ -531,7 +549,6 @@ function WritingSection() {
   const folder = useWriting((s) => s.folder)
   return (
     <>
-      <SpellcheckSwitch />
       <LibraryCard />
       <div className="settings-card">
         <h3 className="t-heading">Writing folder</h3>
@@ -615,9 +632,15 @@ export function SettingsView() {
           {section === 'prices' && <PricesSection />}
           {section === 'usage' && <UsageSection />}
           {section === 'general' && <GeneralSection />}
+          {section === 'appearance' && <AppearanceSection />}
           {section === 'library' && <LibrarySection />}
           {section === 'writing' && <WritingSection />}
-          {section === 'data' && <DataSection />}
+          {section === 'data' && (
+            <>
+              <DataSection />
+              <RequestLogsCard />
+            </>
+          )}
           {section === 'shortcuts' && <ShortcutsSection />}
           {section === 'extras' && <ExtrasSection />}
           {section === 'updates' && <UpdatesSection />}

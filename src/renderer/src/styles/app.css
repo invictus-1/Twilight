@@ -1553,7 +1553,10 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .user-actions:has(.delete-menu) { opacity: 1; }
 
 /* Bold text's own colour: the switch, then a swatch to pick any colour, and the way back to the theme's. */
-.bold-color-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
-.bold-tint { width: 32px; height: 24px; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: none; cursor: pointer; }
-.bold-tint::-webkit-color-swatch-wrapper { padding: 2px; }
-.bold-tint::-webkit-color-swatch { border: none; border-radius: 3px; }
+.emphasis-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.emphasis-tint { width: 32px; height: 24px; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: none; cursor: pointer; }
+.emphasis-tint::-webkit-color-swatch-wrapper { padding: 2px; }
+.emphasis-tint::-webkit-color-swatch { border: none; border-radius: 3px; }
+
+/* Italic words get the theme's agent colour, softened toward the ink, as bold gets its writing colour. */
+:root:not([data-italic-color='off']) .thread .md :is(em, i) { color: var(--italic-tint, color-mix(in srgb, var(--dusk) 70%, var(--ink))); }

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { contrast, customTokens, DEFAULT_CUSTOM, loadCustom, saveCustom, type CustomTheme } from '../customTheme'
 import { setTheme } from '../theme'
-import { GRADIENTS, backdropImage, framing, setBackdrop, setBoldColor, setBoldTint, setChatText, setMotion, setScrollFx, useBackdrop, useBoldColor, useBoldTint, useChatText, useMotion, useScrollFx, type Backdrop, type ChatText, type Motion, type ScrollFxStyle } from '../look'
+import { GRADIENTS, backdropImage, framing, setBackdrop, setChatText, setEmphasis, setMotion, setScrollFx, useBackdrop, useChatText, useEmphasis, useMotion, useScrollFx, type Backdrop, type ChatText, type Emphasis, type Motion, type ScrollFxStyle } from '../look'
 import { useStore } from '../store'
 
 /** None, a built-in gradient, or your own picture; then how dark and soft it sits behind the text. */
@@ -154,10 +154,16 @@ const CHAT_TEXTS: { id: ChatText; label: string }[] = [
   { id: 'large', label: 'Large' }
 ]
 
-/** The theme's bold colour as #rrggbb, so the colour picker starts from what you see. */
-function themeTint(): string {
-  const probe = document.createElement('strong')
-  probe.style.cssText = 'position:absolute;visibility:hidden;color:color-mix(in srgb, var(--horizon) 72%, var(--ink))'
+// The theme's own colour for each, as the page draws it.
+const THEME_TINT: Record<Emphasis, string> = {
+  bold: 'color-mix(in srgb, var(--horizon) 72%, var(--ink))',
+  italic: 'color-mix(in srgb, var(--dusk) 70%, var(--ink))'
+}
+
+/** The theme's colour for bold or italic words as #rrggbb, so the colour picker starts from what you see. */
+function themeTint(kind: Emphasis): string {
+  const probe = document.createElement('span')
+  probe.style.cssText = `position:absolute;visibility:hidden;color:${THEME_TINT[kind]}`
   document.body.appendChild(probe)
   // A mixed colour reads back as color(srgb 0.8 0.6 0.4); a plain one as rgb(204, 153, 102).
   const color = getComputedStyle(probe).color
@@ -167,11 +173,41 @@ function themeTint(): string {
   return `#${rgb.map((n) => n.toString(16).padStart(2, '0')).join('')}`
 }
 
-/** How big the words in a chat are: replies, your messages and the message box. */
+/** A switch for coloured bold or italic words, with a swatch to pick any colour and the way back to the theme's. */
+function EmphasisRow({ kind, label }: { kind: Emphasis; label: string }) {
+  const { on, tint } = useEmphasis(kind)
+  return (
+    <div className={`emphasis-row ${kind}-color-row`}>
+      <label className="check">
+        <input type="checkbox" checked={on} onChange={(e) => setEmphasis(kind, { on: e.target.checked })} />
+        Colour {label} text in chats
+      </label>
+      {on && (
+        <>
+          <input
+            type="color"
+            className={`emphasis-tint ${kind}-tint`}
+            aria-label={`Colour for ${label} text`}
+            title={`Pick any colour for ${label} text`}
+            value={tint ?? themeTint(kind)}
+            onChange={(e) => setEmphasis(kind, { tint: e.target.value })}
+          />
+          {tint ? (
+            <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setEmphasis(kind, { tint: null })}>
+              Use the theme's
+            </button>
+          ) : (
+            <span className="field-note">The theme's own</span>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+/** How big the words in a chat are: replies, your messages and the message box; and the colour of bold and italic words. */
 export function ChatTextPicker() {
   const size = useChatText()
-  const bold = useBoldColor()
-  const tint = useBoldTint()
   return (
     <div className="look-block">
       <span className="field-label">Chat text size</span>
@@ -183,31 +219,8 @@ export function ChatTextPicker() {
         ))}
       </div>
       <p className="field-note">The words in chats, your messages and the message box. Menus and labels stay as they are.</p>
-      <div className="bold-color-row">
-        <label className="check">
-          <input type="checkbox" checked={bold} onChange={(e) => setBoldColor(e.target.checked)} />
-          Colour bold text in chats
-        </label>
-        {bold && (
-          <>
-            <input
-              type="color"
-              className="bold-tint"
-              aria-label="Colour for bold text"
-              title="Pick any colour for bold text"
-              value={tint ?? themeTint()}
-              onChange={(e) => setBoldTint(e.target.value)}
-            />
-            {tint ? (
-              <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setBoldTint(null)}>
-                Use the theme's
-              </button>
-            ) : (
-              <span className="field-note">The theme's own</span>
-            )}
-          </>
-        )}
-      </div>
+      <EmphasisRow kind="bold" label="bold" />
+      <EmphasisRow kind="italic" label="italic" />
     </div>
   )
 }

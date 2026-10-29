@@ -1681,7 +1681,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         page('Reports'); await wait(300)
         out.reports = document.querySelectorAll('.report-card').length
         document.querySelector('.rail [data-rail="settings"]').click(); await wait(300)
-        ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('General'))?.click(); await wait(200)
+        ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Appearance'))?.click(); await wait(200)
         ;[...document.querySelectorAll('.theme-option')].find((b) => b.textContent.includes('Ultraviolet'))?.click(); await wait(300)
         out.theme = document.documentElement.dataset.theme ?? 'twilight'
         out.night = getComputedStyle(document.documentElement).getPropertyValue('--night').trim()
@@ -2175,7 +2175,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key(',', ['control'])
       const themesUi = await js<{ options: string[]; nights: Record<string, string> }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click()
         await wait(200)
         const options = [...document.querySelectorAll('.theme-option')].map((o) => o.dataset.themeId)
         const nights = {}
@@ -2229,7 +2229,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const lowChat33 = await js<string[]>(audit33)
       await key(',', ['control'])
       const lowSettings33: string[] = []
-      for (const page of ['General', 'Data', 'Tools', 'Roadmap']) {
+      for (const page of ['General', 'Appearance', 'Data', 'Tools', 'Roadmap']) {
         lowSettings33.push(
           ...(await js<string[]>(`(async () => {
             ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === ${JSON.stringify(page)})?.click()
@@ -2243,7 +2243,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key(',', ['control'])
       await js(`(async () => {
         await new Promise((r) => setTimeout(r, 200))
-        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click()
         await new Promise((r) => setTimeout(r, 200))
         document.querySelector('.theme-option[data-theme-id="twilight"]')?.click()
       })()`)
@@ -2255,7 +2255,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key(',', ['control'])
       const builderUi = await js<{ builder: boolean; night: string; iris: string; overlay: string; ratio: number; note: string }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click()
         await wait(200)
         document.querySelector('.theme-option[data-theme-id="custom"]').click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.theme-builder'); ) await wait(50)
@@ -2846,7 +2846,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key(',', ['control'])
       const libUi = await js<{ group: string; personas: string[]; prompts: string[]; badges: string; made: boolean; deleted: boolean; undo: string }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        const nav = [...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Library')
+        const nav = [...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Personas and prompts')
         const group = nav?.parentElement?.querySelector('.side-section')?.textContent ?? ''
         nav?.click()
         for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.library-item').length < 4; ) await wait(25)
@@ -2879,8 +2879,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check(
-        'the Library page lists personas and prompts under App',
-        libUi.group === 'App' && libUi.personas.join() === 'Ferryman,Lamplighter' && libUi.prompts.join() === 'Describe a place,Plain ask' && /Mock B|mock-b/i.test(libUi.badges) && /Choices/.test(libUi.badges),
+        'the Personas and prompts page lists them, under Writing',
+        libUi.group === 'Writing' && libUi.personas.join() === 'Ferryman,Lamplighter' && libUi.prompts.join() === 'Describe a place,Plain ask' && /Mock B|mock-b/i.test(libUi.badges) && /Choices/.test(libUi.badges),
         libUi
       )
       check(
@@ -3086,7 +3086,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key(',', ['control'])
       const lookUi = await js<{ served: number; aurora: boolean; layer: string; removed: boolean; motionOff: string | null; motionBack: string | null; options: number }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.bg-picker'); ) await wait(50)
         const img = new Image()
         img.src = 'twilight-bg://image/?v=${bgVersion}'
@@ -3117,7 +3117,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key(',', ['control'])
       const frameUi = await js<{ drawn: Record<string, boolean>; frame: boolean; transform: string; before: string; after: string }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.bg-picker'); ) await wait(50)
         const drawn = {}
         for (const b of document.querySelectorAll('.bg-option[data-gradient]')) {
@@ -3155,7 +3155,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check("a background hides the empty chat's own sky", skyUi.sky === false, skyUi)
       await key(',', ['control'])
       await js(`(async () => {
-        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click()
         await new Promise((r) => setTimeout(r, 200))
         document.querySelector('.bg-option.bg-none')?.click()
       })()`)
@@ -3172,8 +3172,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-nav'); ) await wait(25)
         await wait(150)
         // Settings opens on General.
-        const opensOnGeneral = !!document.querySelector('[aria-label="Chat text size"]')
-        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        const opensOnGeneral = [...document.querySelectorAll('label.check')].some((l) => l.textContent.includes('prompt cache status line'))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click()
         await wait(250)
         // Bold text in a colour of your own, and back to the theme's.
         const swatch = document.querySelector('input.bold-tint')
@@ -3610,7 +3610,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         { find1, find2, find3 }
       )
       // Bold words in a reply take the theme's colour, unless that's switched off.
-      const boldUi = await js<{ on: string; off: string; plain: string }>(`(() => {
+      const boldUi = await js<{ on: string; off: string; plain: string; italic: string; italicOff: string }>(`(() => {
         const md = document.querySelector('.thread .tw-msg-ai .md')
         const b = document.createElement('strong')
         b.textContent = 'Gull Point'
@@ -3621,9 +3621,18 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         const off = getComputedStyle(b).color
         delete document.documentElement.dataset.boldColor
         b.remove()
-        return { on, off, plain }
+        const i = document.createElement('em')
+        i.textContent = 'the tide'
+        md.appendChild(i)
+        const italic = getComputedStyle(i).color
+        document.documentElement.dataset.italicColor = 'off'
+        const italicOff = getComputedStyle(i).color
+        delete document.documentElement.dataset.italicColor
+        i.remove()
+        return { on, off, plain, italic, italicOff }
       })()`)
       check('bold words in chats take the theme colour, and plain bold when switched off', boldUi.on !== boldUi.plain && boldUi.off === boldUi.plain, boldUi)
+      check('italic words take their own theme colour, apart from bold, and plain when switched off', boldUi.italic !== boldUi.plain && boldUi.italic !== boldUi.on && boldUi.italicOff === boldUi.plain, boldUi)
       // An edit saved without sending waits as the newest message, with Send under it.
       const ed = chat.create(null)
       chat.send(contents, ed.id, 'Light the lamps')
@@ -4068,7 +4077,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         ${openFx}
         ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50)
-        const general = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.motion-seg'); ) await wait(50) }
+        const general = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.motion-seg'); ) await wait(50) }
         const extras = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50) }
         await general()
         ;[...document.querySelectorAll('.motion-seg button')].find((b) => b.textContent === 'Gentle').click()
@@ -4083,7 +4092,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         ${openFx}
         ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50)
-        const general = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.motion-seg'); ) await wait(50) }
+        const general = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Appearance/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.motion-seg'); ) await wait(50) }
         const extras = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50) }
         await general()
         ;[...document.querySelectorAll('.motion-seg button')].find((b) => b.textContent === 'Full').click()
@@ -4112,7 +4121,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           ruled: getComputedStyle(second).borderTopStyle === 'solid'
         }
       })()`)
-      check('Settings group names stand out from the pages under them', groups44.names.join() === 'App,Models,About' && groups44.heading !== groups44.page && Number(groups44.weight) >= 700 && groups44.ruled, groups44)
+      check('Settings group names stand out from the pages under them', groups44.names.join() === 'App,Writing,Models,About' && groups44.heading !== groups44.page && Number(groups44.weight) >= 700 && groups44.ruled, groups44)
       await shot('e2e-settings-groups.png')
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
 
@@ -4424,7 +4433,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key(',', ['control'])
       const card48 = await js<{ status: string; hits: string[] }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Writing')?.click()
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Documents')?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.library-card'); ) await wait(50)
         const input = document.querySelector('.library-try input')
         const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set

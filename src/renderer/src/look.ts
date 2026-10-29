@@ -168,58 +168,52 @@ export function setChatText(t: ChatText): void {
 
 export const useChatText = (): ChatText => useSyncExternalStore(subscribe, () => chatText)
 
-/** Bold words in chats drawn in the theme's own colour, so they stand out to the eye. On unless switched off. */
-let boldColor = (() => {
+/**
+ * Bold and italic words in chats, each drawn in a colour from the theme (or one you pick), so they
+ * stand out to the eye. Both on unless switched off.
+ */
+export type Emphasis = 'bold' | 'italic'
+export interface EmphasisColor {
+  on: boolean
+  /** A colour of your own (#rrggbb), or null for the theme's. */
+  tint: string | null
+}
+const readEmphasis = (kind: Emphasis): EmphasisColor => {
   try {
-    return localStorage.getItem('twilight.boldColor') !== 'off'
+    const tint = localStorage.getItem(`twilight.${kind}Tint`)
+    return { on: localStorage.getItem(`twilight.${kind}Color`) !== 'off', tint: tint && /^#[0-9a-f]{6}$/i.test(tint) ? tint : null }
   } catch {
-    return true
+    return { on: true, tint: null }
   }
-})()
+}
+const emphasis: Record<Emphasis, EmphasisColor> = { bold: readEmphasis('bold'), italic: readEmphasis('italic') }
 
-/** A colour of your own for bold words (#rrggbb), or null for the theme's. */
-let boldTint: string | null = (() => {
-  try {
-    const v = localStorage.getItem('twilight.boldTint')
-    return v && /^#[0-9a-f]{6}$/i.test(v) ? v : null
-  } catch {
-    return null
+/** Applies both to the page (read before the first paint, like motion). */
+export function applyEmphasis(): void {
+  const root = document.documentElement
+  for (const kind of ['bold', 'italic'] as const) {
+    const { on, tint } = emphasis[kind]
+    if (on) delete root.dataset[`${kind}Color`]
+    else root.dataset[`${kind}Color`] = 'off'
+    if (tint) root.style.setProperty(`--${kind}-tint`, tint)
+    else root.style.removeProperty(`--${kind}-tint`)
   }
-})()
-
-export function applyBoldColor(on: boolean = boldColor): void {
-  if (on) delete document.documentElement.dataset.boldColor
-  else document.documentElement.dataset.boldColor = 'off'
-  if (boldTint) document.documentElement.style.setProperty('--bold-tint', boldTint)
-  else document.documentElement.style.removeProperty('--bold-tint')
 }
 
-export function setBoldTint(tint: string | null): void {
-  boldTint = tint
+export function setEmphasis(kind: Emphasis, patch: Partial<EmphasisColor>): void {
+  emphasis[kind] = { ...emphasis[kind], ...patch }
   try {
-    if (tint) localStorage.setItem('twilight.boldTint', tint)
-    else localStorage.removeItem('twilight.boldTint')
-  } catch {
-    // Storage unavailable: the colour holds for this session.
-  }
-  applyBoldColor()
-  changed()
-}
-
-export const useBoldTint = (): string | null => useSyncExternalStore(subscribe, () => boldTint)
-
-export function setBoldColor(on: boolean): void {
-  boldColor = on
-  try {
-    localStorage.setItem('twilight.boldColor', on ? 'on' : 'off')
+    localStorage.setItem(`twilight.${kind}Color`, emphasis[kind].on ? 'on' : 'off')
+    if (emphasis[kind].tint) localStorage.setItem(`twilight.${kind}Tint`, emphasis[kind].tint!)
+    else localStorage.removeItem(`twilight.${kind}Tint`)
   } catch {
     // Storage unavailable: the setting holds for this session.
   }
-  applyBoldColor(on)
+  applyEmphasis()
   changed()
 }
 
-export const useBoldColor = (): boolean => useSyncExternalStore(subscribe, () => boldColor)
+export const useEmphasis = (kind: Emphasis): EmphasisColor => useSyncExternalStore(subscribe, () => emphasis[kind])
 
 export type ScrollFxStyle = 'stardust' | 'sparks' | 'fireflies' | 'snow' | 'constellations' | 'bats'
 /** Particles while you scroll a chat: off unless you switch them on. */

@@ -94,7 +94,9 @@ export const COMMANDS: Command[] = [
   { id: 'code-new', title: 'New code session', group: 'Code', hint: 'agent project folder', run: () => { go('code'); void useCode.getState().create() } },
   { id: 'settings', title: 'Settings', group: 'Go to', keys: 'Ctrl+,', run: () => settings() },
   { id: 'go-providers', title: 'Model providers', group: 'Go to', hint: 'api key settings', run: () => settings('providers') },
-  { id: 'go-library', title: 'Library', group: 'Go to', hint: 'personas prompts settings', run: () => settings('library') },
+  { id: 'go-library', title: 'Personas and prompts', group: 'Go to', hint: 'library persona prompt settings', run: () => settings('library') },
+  { id: 'go-appearance', title: 'Appearance', group: 'Go to', hint: 'theme colours background motion text size bold settings', run: () => settings('appearance') },
+  { id: 'go-documents', title: 'Documents and document library', group: 'Go to', hint: 'writing folder library embeddings search settings', run: () => settings('writing') },
   { id: 'go-prices', title: 'Prices', group: 'Go to', hint: 'cost price list settings', run: () => settings('prices') },
   { id: 'go-usage', title: 'Usage', group: 'Go to', hint: 'tokens spend cost stats settings', run: () => settings('usage') },
   { id: 'go-updates', title: 'Updates', group: 'Go to', hint: 'version settings', run: () => settings('updates') },
@@ -103,7 +105,7 @@ export const COMMANDS: Command[] = [
   { id: 'go-extras', title: 'Extras', group: 'Go to', hint: 'fun particles scrolling settings', run: () => settings('extras') },
   { id: 'go-keys', title: 'Rebind keys', group: 'Go to', hint: 'shortcuts settings', run: () => settings('shortcuts') },
   ...THEMES.map((t): Command => ({ id: `theme-${t.id}`, title: t.name, group: 'Theme', hint: `theme colors ${t.note}`, run: () => setTheme(t.id) })),
-  { id: 'theme-custom', title: 'Your own', group: 'Theme', hint: 'theme colors custom builder', run: () => (setTheme('custom'), settings('general')) },
+  { id: 'theme-custom', title: 'Your own', group: 'Theme', hint: 'theme colors custom builder', run: () => (setTheme('custom'), settings('appearance')) },
   { id: 'welcome', title: 'Replay the welcome', group: 'App', hint: 'intro tour', run: () => s().setWelcomeOpen(true) },
   { id: 'data-folder', title: 'Open the data folder', group: 'App', run: () => void window.twilight.openDataFolder() }
 ]
