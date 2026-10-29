@@ -4,6 +4,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 0.7.0 · In progress
+
 ### 0.6.0 · October 2026
 - [x] **Animated installer** · Core — the app's evening as the installer, with a glowing progress bar
 - [x] **Your own prices** · Chat — an editable price list, and OpenRouter's reported cost

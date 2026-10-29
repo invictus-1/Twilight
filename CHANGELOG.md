@@ -2,6 +2,8 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## 0.7.0
+
 ## 0.6.0
 
 **Installing**
