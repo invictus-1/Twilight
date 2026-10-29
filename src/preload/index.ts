@@ -2,13 +2,14 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { InsightsEvent, StreamEvent, TwilightApi, UpdateState } from '@shared/types'
 import type { CodeEvent } from '@shared/code'
 import type { McpServerView } from '@shared/mcp'
+import type { LibraryStatus } from '@shared/docLibrary'
 
 const invoke =
   (name: keyof TwilightApi) =>
   (...args: unknown[]) =>
     ipcRenderer.invoke(`twilight:${name}`, ...args)
 
-const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights' | 'onCode' | 'onMcp'>[] = [
+const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights' | 'onCode' | 'onMcp' | 'onDocLibrary'>[] = [
   'listRubrics',
   'saveRubric',
   'deleteRubric',
@@ -74,6 +75,12 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'copyText',
   'listCodeSessions',
   'listMcpServers',
+  'getDocLibrary',
+  'setDocLibrarySettings',
+  'addDocLibraryFolder',
+  'removeDocLibraryFolder',
+  'reindexDocLibrary',
+  'searchDocLibrary',
   'getSpellcheck',
   'setSpellcheck',
   'getDataInfo',
@@ -163,6 +170,12 @@ api.onUpdate = (listener: (state: UpdateState) => void) => {
   const handler = (_e: Electron.IpcRendererEvent, state: UpdateState): void => listener(state)
   ipcRenderer.on('twilight:update', handler)
   return () => ipcRenderer.off('twilight:update', handler)
+}
+
+api.onDocLibrary = (listener: (status: LibraryStatus) => void) => {
+  const handler = (_e: unknown, status: LibraryStatus): void => listener(status)
+  ipcRenderer.on('twilight:library', handler)
+  return () => ipcRenderer.removeListener('twilight:library', handler)
 }
 
 api.onMcp = (listener: (servers: McpServerView[]) => void) => {

@@ -4,6 +4,7 @@ import type { AttachmentKind } from './attachments'
 import type { Theme } from './themes'
 import type { CodeEvent, CodeMode, CodeResponse, CodeSessionSummary, CodeSessionView } from './code'
 import type { BackupInfo, BackupSettings, DataInfo } from './backups'
+import type { LibraryHit, LibrarySettings, LibraryStatus } from './docLibrary'
 import type { GeneratedImage, ImageConfig, McpServerInput, McpServerView, ToolApproval, ToolApprovalResponse, ToolStep } from './mcp'
 import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
@@ -124,6 +125,8 @@ export interface ChatSettings {
   mcpServers: string[]
   /** Offer the generate_image tool (pictures from the image model in Settings → Tools). */
   imageGen: boolean
+  /** Add passages from the document library to each message (and let tool-using models search it). */
+  library: boolean
   /**
    * Instructions to add from the next message on. They go into that message (not the system
    * prompt), so the cached conversation before it stays valid.
@@ -248,6 +251,8 @@ export interface NodeView {
   tools?: ToolStep[]
   /** Pictures made during the reply. */
   images?: GeneratedImage[]
+  /** Passages from the document library that went with a message of yours. */
+  library?: { source: string; line: number }[]
 }
 
 /** A page the model found or read. */
@@ -371,7 +376,8 @@ export type StreamEvent =
   | { kind: 'activity'; conversationId: string; nodeId: string; label: string }
   /** The reply waits for your approval of a tool call (null once answered). */
   | { kind: 'approval'; conversationId: string; nodeId: string; approval: ToolApproval | null }
-  | { kind: 'done'; conversationId: string; nodeId: string; node: NodeView }
+  /** A reply finished; `asked` is your message when something was added to it (library passages). */
+  | { kind: 'done'; conversationId: string; nodeId: string; node: NodeView; asked?: NodeView }
 
 /** A markdown file in the writing folder. `path` is relative to the folder, with forward slashes. */
 export interface DocEntry {
@@ -565,6 +571,15 @@ export interface TwilightApi {
   /** Tokens and spend over a range: totals, a series, and splits by model and by chat. */
   usageStats(range: UsageRange): Promise<UsageStats>
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
+  // ——— Document library ———
+  getDocLibrary(): Promise<{ settings: LibrarySettings; status: LibraryStatus }>
+  setDocLibrarySettings(patch: Partial<LibrarySettings>): Promise<LibrarySettings>
+  /** Asks for a folder to add; null if cancelled. */
+  addDocLibraryFolder(): Promise<LibrarySettings | null>
+  removeDocLibraryFolder(path: string): Promise<LibrarySettings>
+  reindexDocLibrary(): Promise<LibraryStatus>
+  searchDocLibrary(query: string): Promise<LibraryHit[]>
+  onDocLibrary(listener: (status: LibraryStatus) => void): () => void
   /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
   getSpellcheck(): Promise<boolean>
   setSpellcheck(on: boolean): Promise<boolean>

@@ -87,6 +87,12 @@ export function deleteProvider(id: string): ProviderConfig[] {
   return getProviders()
 }
 
+/** A model as last listed (kept on disk, so it works offline). */
+export function modelInfo(providerId: string, modelId: string): ModelInfo | undefined {
+  const list = modelCache ?? kvGet<ModelInfo[]>(`models:${providerId}`) ?? []
+  return list.find((m) => m.providerId === providerId && m.id === modelId)
+}
+
 /** A model's options from the last fetched list (kept on disk, so it works offline). */
 export function modelOptions(providerId: string, modelId: string): ModelOptions | undefined {
   const list = modelCache ?? kvGet<ModelInfo[]>(`models:${providerId}`) ?? []

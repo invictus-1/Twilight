@@ -55,8 +55,11 @@ export function ToolsMenu() {
   const providers = useStore((s) => s.providers)
   const allServers = useStore((s) => s.mcpServers)
   const [hasImageModel, setHasImageModel] = useState(false)
+  const [libraryFolders, setLibraryFolders] = useState(0)
   useEffect(() => {
-    if (open) void window.twilight.getImageConfig().then((c) => setHasImageModel(!!c))
+    if (!open) return
+    void window.twilight.getImageConfig().then((c) => setHasImageModel(!!c))
+    void window.twilight.getDocLibrary().then((l) => setLibraryFolders(l.settings.folders.length))
   }, [open])
   useEffect(() => {
     if (!open) return
@@ -89,7 +92,7 @@ export function ToolsMenu() {
   const fetchOn = settings.webFetch && fetchHas.fetch === null
   const servers = allServers.filter((m) => m.enabled)
   const mcpOn = servers.filter((m) => settings.mcpServers.includes(m.id)).length
-  const active = (settings.choiceCards ? 1 + (settings.choiceTool ? 1 : 0) : 0) + (searchOn ? 1 : 0) + (fetchOn ? 1 : 0) + (settings.dateTime ? 1 : 0) + mcpOn + (settings.imageGen ? 1 : 0)
+  const active = (settings.choiceCards ? 1 + (settings.choiceTool ? 1 : 0) : 0) + (searchOn ? 1 : 0) + (fetchOn ? 1 : 0) + (settings.dateTime ? 1 : 0) + mcpOn + (settings.imageGen ? 1 : 0) + (settings.library ? 1 : 0)
   return (
     <div className="tools-menu" ref={box}>
       <Hint title="Tools" text="Switch on what the model can use in this chat: choice cards, web search and fetch, the date and time, MCP servers and pictures.">
@@ -168,6 +171,19 @@ export function ToolsMenu() {
             note="Puts your local date, time and time zone at the start of each message you send. Earlier messages stay as they were, so the cache holds."
             checked={settings.dateTime}
             onChange={(on) => update({ dateTime: on })}
+          />
+          <div className="tools-head">Your documents{split ? ' · both panes' : ''}</div>
+          <Row
+            tool="library"
+            label="Document library"
+            note={
+              libraryFolders
+                ? 'Each message brings the passages from your library that bear on it, and models that call tools can search it themselves.'
+                : 'Add folders in Settings → Writing first.'
+            }
+            checked={settings.library && libraryFolders > 0}
+            disabled={!libraryFolders}
+            onChange={(on) => update({ library: on })}
           />
           <div className="tools-head">MCP servers and pictures{split ? ' · both panes' : ''}</div>
           {servers.map((m) => (

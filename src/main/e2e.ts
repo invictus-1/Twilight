@@ -10,6 +10,7 @@ import * as code from './code/agent'
 import * as mcp from './mcp'
 import { contextMenuItems, setSpellcheck, showContextMenus } from './contextMenu'
 import { codeWebTools } from './code/llm'
+import { chunk, libraryStatus, reindex as reindexLibrary, searchLibrary, setLibrarySettings } from './docLibrary'
 import Database from 'better-sqlite3'
 import { applyPendingRestore, backupDue, backupSettings, createBackup, listBackups, pruneBackups, setBackupSettings, stageRestore, takeRestoredWindowSettings } from './backups'
 import { checkTarget, resolveDataFolder, stageMove } from './location'
@@ -109,6 +110,24 @@ sha512: ${sha}
   const bytes = installerBytes(v)
   res.setHeader('content-length', String(bytes.length))
   res.end(bytes)
+}
+
+/** Embeddings that are a hashed bag of words: texts sharing words point the same way. */
+let embedCalls = 0
+function mockEmbeddings(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse): void {
+  let body = ''
+  req.on('data', (c) => (body += c))
+  req.on('end', () => {
+    embedCalls++
+    const { input } = JSON.parse(body) as { input: string[] }
+    const vec = (t: string): number[] => {
+      const v = new Array(32).fill(0)
+      for (const w of t.toLowerCase().match(/[a-z]{3,}/g) ?? []) v[[...w].reduce((h, c) => (h * 31 + c.charCodeAt(0)) % 32, 7)] += 1
+      return v
+    }
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify({ data: input.map((t, index) => ({ index, embedding: vec(t) })) }))
+  })
 }
 
 /** A 1×1 picture, for the images endpoint. */
@@ -252,9 +271,10 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       return
     }
     if (req.url === '/mcp') return mockMcpHttp(req, res)
+    if (req.url?.endsWith('/embeddings')) return mockEmbeddings(req, res)
     if (req.url?.endsWith('/models')) {
       res.setHeader('content-type', 'application/json')
-      res.end(JSON.stringify({ data: [{ id: 'mock-a', context_length: 8000 }, { id: 'mock-b', architecture: { output_modalities: ['image', 'text'] } }] }))
+      res.end(JSON.stringify({ data: [{ id: 'mock-a', context_length: 8000 }, { id: 'mock-b', architecture: { output_modalities: ['image', 'text'] }, supported_parameters: ['tools', 'temperature', 'reasoning'] }] }))
       return
     }
     let body = ''
@@ -1306,7 +1326,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         const box = document.querySelector('.settings-content').getBoundingClientRect()
         out.jumped = Math.abs(document.querySelector('[data-release="0.4.0"]').getBoundingClientRect().top - box.top) < 120
         document.querySelector('.settings-content').scrollTop = 0
-        ;[...document.querySelectorAll('.rm-chip')].find((b) => b.textContent.startsWith('Writing'))?.click()
+        ;[...document.querySelectorAll('.rm-chip')].find((b) => b.textContent.startsWith('Core'))?.click()
         await wait(200)
         out.writingCards = [...document.querySelectorAll('.rm-card .rm-area')].map((e) => e.textContent)
         ;[...document.querySelectorAll('.rm-chip')].find((b) => b.textContent.startsWith('Everything'))?.click()
@@ -1320,7 +1340,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
         roadmapUi
       )
-      check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
+      check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Core'), roadmapUi.writingCards)
       await shot('e2e-roadmap.png')
       win.setSize(size31[0], size31[1])
       await new Promise((r) => setTimeout(r, 300))
@@ -4027,6 +4047,87 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await idle(c45)
       const again45 = chat.view(c45).path.at(-1)!
       check('your message can regenerate the reply to it', regenUi45 && again45.role === 'assistant' && again45.siblingCount === 2 && again45.siblingIndex === 1, { regenUi45, siblings: again45.siblingCount })
+
+      // 48. The document library: folders indexed into passages, searched by words (and by meaning
+      // with an embedding model), and the best passages added to a message; tool-using models
+      // can search it themselves.
+      const parts48 = chunk(['First paragraph about lamps.', '', 'Second one.', '', 'x'.repeat(10) + ' ' + 'A sentence here. '.repeat(120)].join('\n'))
+      check('files are cut into passages that remember their line', parts48[0]?.line === 1 && parts48[0].text.startsWith('First paragraph') && parts48.length >= 3 && parts48.every((p) => p.text.length <= 1700), parts48.map((p) => [p.line, p.text.length]))
+      const lib48 = join(outDir, 'library-docs')
+      await mkdir(join(lib48, 'notes'), { recursive: true })
+      await mkdir(join(lib48, '.obsidian'), { recursive: true })
+      await writeFile(join(lib48, 'keeper.md'), '# The keeper\n\nWren keeps the lighthouse. Every evening she trims the wicks of the nine lamps and climbs the stair.\n\nRowan rows the supplies out on Thursdays.\n')
+      await writeFile(join(lib48, 'harbour.md'), 'The fishing boats come in with the tide. Nets dry on the quay.\n')
+      await writeFile(join(lib48, 'recipes.txt'), 'Bread: flour, water, salt. Bake in a hot oven until it sounds hollow.\n')
+      await writeFile(join(lib48, 'notes', 'old.md'), 'An old note about the ferry timetable.\n')
+      await writeFile(join(lib48, '.obsidian', 'hidden.md'), 'Settings that should never be searched: lamps lamps lamps.\n')
+      setLibrarySettings({ folders: [lib48], embedProviderId: null, embedModelId: null })
+      await reindexLibrary()
+      const st48 = libraryStatus()
+      check('a folder is indexed: its text files, not hidden folders', st48.files === 4 && st48.passages >= 4 && !st48.indexing, st48)
+      const top48 = await searchLibrary('who trims the lamps in the lighthouse')
+      check('word search finds the passage that bears on a question', top48[0]?.source === 'library-docs/keeper.md' && top48[0].line >= 1, top48.map((h) => h.source))
+      await writeFile(join(lib48, 'harbour.md'), 'The ferry now leaves at dawn, with crates of lantern oil.\n')
+      await rename(join(lib48, 'recipes.txt'), join(outDir, 'recipes-gone.txt'))
+      await reindexLibrary()
+      const ferry48 = await searchLibrary('lantern oil crates')
+      const bread48 = await searchLibrary('bread oven')
+      check('a changed file is read again and a removed one leaves the index', ferry48[0]?.source === 'library-docs/harbour.md' && !bread48.some((h) => h.source.endsWith('recipes.txt')) && libraryStatus().files === 3, { ferry48, bread48 })
+      await writeFile(join(lib48, 'recipes.txt'), 'Bread: flour, water, salt. Bake in a hot oven until it sounds hollow.\n')
+      const calls48 = embedCalls
+      setLibrarySettings({ embedProviderId: 'mock', embedModelId: 'mock-embed' })
+      await reindexLibrary()
+      const emb48 = libraryStatus()
+      const meaning48 = await searchLibrary('wicks of the lamps')
+      check('with an embedding model every passage gets a vector, and search blends both', emb48.embedded === emb48.passages && emb48.passages > 0 && embedCalls > calls48 && meaning48[0]?.source === 'library-docs/keeper.md', { emb48, top: meaning48[0]?.source })
+
+      const c48 = chat.create().id
+      chat.updateSettings(c48, { providerId: 'mock', modelId: 'mock-a', library: true, choiceCards: false })
+      const before48 = log.length
+      chat.send(contents, c48, 'Who trims the lamps each evening?')
+      await idle(c48)
+      const sent48 = String(log[before48]?.messages.at(-1)?.content ?? '')
+      const asked48 = chat.view(c48).path.at(-2)!
+      check('the best passages go into the message, with their sources', sent48.includes('<library_passages>') && sent48.includes('library-docs/keeper.md') && sent48.trim().endsWith('Who trims the lamps each evening?'), sent48.slice(0, 300))
+      check('the message shows where its passages came from', !!asked48.library?.length && asked48.library[0].source === 'library-docs/keeper.md', asked48.library)
+      check('a model without tool calling is not offered the library tool', !(log[before48]?.body as { tools?: unknown }).tools)
+      const reply48 = chat.view(c48).path.at(-1)!
+      chat.regenerate(contents, c48, reply48.id)
+      await idle(c48)
+      check('a regenerate sends the same passages, so the cache holds', JSON.stringify(log.at(-1)?.messages) === JSON.stringify(log[before48]?.messages))
+      chat.updateSettings(c48, { modelId: 'mock-b' })
+      const before48b = log.length
+      chat.send(contents, c48, 'MCPCALL search_library {"query":"bread oven","count":2}')
+      await idle(c48)
+      const tools48 = ((log[before48b]?.body as { tools?: { function: { name: string } }[] }).tools ?? []).map((t) => t.function.name)
+      const searched48 = chat.view(c48).path.at(-1)!
+      check('a model that calls tools can search the library itself', tools48.includes('search_library') && searched48.text.includes('recipes.txt') && searched48.tools?.[0]?.tool === 'search_library', { tools48, text: searched48.text.slice(0, 160) })
+      db.updateConversation(c48, { started: 1, title: 'Library chat' })
+      await reloadUi()
+      const chip48 = await js<string>(`(async () => {
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Library chat')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.library-chip'); ) await new Promise((r) => setTimeout(r, 50))
+        return document.querySelector('.library-chip')?.textContent ?? ''
+      })()`)
+      check('your message shows a chip for its library passages', /^From your library · \d+ passages?$/.test(chip48), chip48)
+      await key(',', ['control'])
+      const card48 = await js<{ status: string; hits: string[] }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Writing')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.library-card'); ) await wait(50)
+        const input = document.querySelector('.library-try input')
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        set.call(input, 'ferry at dawn')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(100)
+        document.querySelector('.library-try button').click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.library-hit-source'); ) await wait(50)
+        return { status: document.querySelector('.library-status')?.textContent ?? '', hits: [...document.querySelectorAll('.library-hit-source')].map((e) => e.textContent) }
+      })()`)
+      check('Settings → Writing shows the library and lets you try a search', /4 files · \d+ passages · \d+ searchable by meaning/.test(card48.status) && card48.hits[0]?.startsWith('library-docs/harbour.md'), card48)
+      await shot('e2e-library.png')
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+      setLibrarySettings({ folders: [], embedProviderId: null, embedModelId: null })
 
       // 47. Spelling: Windows' own spellchecker marks a misspelled word as you type, offline, and a
       // right-click offers suggestions that replace it.

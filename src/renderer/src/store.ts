@@ -114,7 +114,7 @@ interface State {
   deleteForever(id: string): Promise<void>
   emptyTrash(): Promise<void>
   renameChat(id: string, title: string): Promise<void>
-  applyDone(conversationId: string, node: NodeView): void
+  applyDone(conversationId: string, node: NodeView, asked?: NodeView): void
   setProviders(providers: ProviderConfig[]): void
   toggleSidebar(): void
   setSettingsOpen(open: boolean, section?: string): void
@@ -395,10 +395,10 @@ export const useStore = create<State>((set, get) => {
       await get().refreshList()
     },
 
-    applyDone(conversationId, node) {
+    applyDone(conversationId, node, asked) {
       const current = get().current
       if (current?.id === conversationId) {
-        const swap = (path: NodeView[]): NodeView[] => path.map((n) => (n.id === node.id ? node : n))
+        const swap = (path: NodeView[]): NodeView[] => path.map((n) => (n.id === node.id ? node : asked && n.id === asked.id ? asked : n))
         set({
           current: {
             ...current,

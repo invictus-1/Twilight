@@ -15,6 +15,7 @@ import { RoadmapSection } from './RoadmapSection'
 import { UpdatesSection } from './UpdatesSection'
 import { ToolsSection } from './ToolsSection'
 import { DataSection } from './DataSection'
+import { LibraryCard } from './LibraryCard'
 import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIcon } from './Icons'
 
 // The Settings page: a section list on the left, one section on the right. Each section opens
@@ -530,6 +531,7 @@ function WritingSection() {
   return (
     <>
       <SpellcheckSwitch />
+      <LibraryCard />
       <div className="settings-card">
         <h3 className="t-heading">Writing folder</h3>
         <div className="field-inline">

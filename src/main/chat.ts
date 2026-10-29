@@ -14,6 +14,9 @@ import { allowTool, callTool, chatTools, type ChatTool } from './mcp'
 import { generateImage, imageConfig, IMAGE_TOOL_DEF } from './images'
 import type { McpCallResult } from './mcp/client'
 import type { ClientCall, ClientOutcome, ClientToolDef } from './providers/types'
+import { keepFresh, librarySettings, searchLibrary } from './docLibrary'
+import { LIBRARY_OPEN, libraryBlock } from '@shared/docLibrary'
+import { modelInfo } from './providers'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -38,6 +41,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
   dateTime: false,
   mcpServers: [],
   imageGen: false,
+  library: false,
   pendingInstruction: ''
 }
 
@@ -385,7 +389,9 @@ export function editMessage(contents: WebContents, id: string, nodeId: string, t
     // Keep its attached documents; replace what was typed. The edited message is sent now, so it
     // takes the time now (when the pane sends it) instead of the original's.
     const blocks = node.content ? (JSON.parse(node.content) as { type: string; text?: string }[]) : []
-    const kept = blocks.filter((b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text) && !b.text.startsWith(CLOCK_OPEN)))
+    const kept = blocks.filter(
+      (b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text) && !b.text.startsWith(CLOCK_OPEN) && !b.text.startsWith(LIBRARY_OPEN))
+    )
     const docs = [...(settingsFor(db.getConversation(id), pane).dateTime ? [{ type: 'text', text: clockBlock(new Date()) }] : []), ...kept]
     edited = db.insertNode(
       { ...base, role: 'user', content: JSON.stringify([...docs, ...(text ? [{ type: 'text', text }] : [])]), model: null, provider_id: null, attachments: node.attachments ?? null },
@@ -494,6 +500,38 @@ export function respondApproval(id: string, response: ToolApprovalResponse): voi
   approvals.get(id)?.(response)
 }
 
+/** The library as a tool, so a model that can call tools runs its own searches mid-reply. */
+const LIBRARY_TOOL = {
+  name: 'search_library',
+  description:
+    "Search the user's document library (their own writing and notes) for passages about something. Use it when the passages already given don't cover what you need: a character, a place, an earlier scene, a fact. Search again with other words if the first try misses.",
+  input_schema: {
+    type: 'object',
+    properties: { query: { type: 'string', description: 'What to look for, in plain words.' }, count: { type: 'integer', description: 'How many passages, 1 to 12. Default 6.' } },
+    required: ['query']
+  }
+}
+
+/**
+ * Before a reply: the library's best passages for your message go into it, once (a regenerate
+ * reuses them, so the request stays the same and the cache holds).
+ */
+async function addLibraryPassages(conversationId: string, userNodeId: string, settings: ChatSettings): Promise<boolean> {
+  if (!settings.library || !librarySettings().folders.length) return false
+  keepFresh()
+  const row = db.loadNodes(conversationId).get(userNodeId)
+  if (!row || row.role !== 'user') return false
+  const blocks = row.content ? (JSON.parse(row.content) as { type: string; text?: string }[]) : [{ type: 'text', text: row.text }]
+  if (blocks.some((b) => b.type === 'text' && b.text?.startsWith(LIBRARY_OPEN)) || !row.text.trim()) return false
+  const hits = await searchLibrary(row.text)
+  if (!hits.length) return false
+  // Just before what you typed, after any other context.
+  const at = blocks.length && blocks.at(-1)?.type === 'text' && !isContextText(blocks.at(-1)?.text ?? '') ? blocks.length - 1 : blocks.length
+  blocks.splice(at, 0, { type: 'text', text: libraryBlock(hits) })
+  db.updateNode(userNodeId, { content: JSON.stringify(blocks) })
+  return true
+}
+
 const MAX_RESULT = 50_000
 const MAX_PICTURES = 4
 
@@ -551,6 +589,14 @@ function toolRunner(
         continue
       }
       try {
+        if (call.name === LIBRARY_TOOL.name) {
+          const query = String(call.input.query ?? '').trim()
+          if (!query) throw new Error('Say what to look for in query.')
+          activity(`Searching your library: ${query}`)
+          const hits = await searchLibrary(query, Math.min(12, Math.max(1, Number(call.input.count) || 6)))
+          out.push({ id: call.id, text: hits.length ? libraryBlock(hits) : 'Nothing in the library matched that.' })
+          continue
+        }
         if (call.name === IMAGE_TOOL) {
           const prompt = String(call.input.prompt ?? '').trim()
           if (!prompt) throw new Error('Describe the picture in prompt.')
@@ -624,11 +670,15 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
     if (!contents.isDestroyed()) contents.send('twilight:stream', event)
   }
 
+  // Set when the library added passages to your message, so the window shows them.
+  let asked = false
   void (async () => {
     let text = ''
     let thinking = ''
     try {
       if (after) await after
+      const askedChanged = await addLibraryPassages(conversationId, userNodeId, settings).catch(() => false)
+      if (askedChanged) asked = true
       const nodes = db.loadNodes(conversationId)
       const history = trimHistory(
         db.ancestors(nodes, userNodeId).filter((n) => n.role !== 'root'),
@@ -638,9 +688,12 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
       // MCP tools from the servers on for this chat, then pictures; a server that won't connect
       // fails the reply with its reason.
       const mcpTools = settings.mcpServers.length ? await chatTools(settings.mcpServers) : []
+      // The library tool goes to models that can call tools (Claude, or one its provider lists with tools).
+      const toolsOk = config.kind === 'anthropic' || !!modelInfo(settings.providerId, settings.modelId)?.capabilities?.includes('Tools')
       const clientTools: ClientToolDef[] = [
         ...mcpTools.map(({ name, description, input_schema }) => ({ name, description, input_schema })),
-        ...(settings.imageGen && imageConfig() ? [IMAGE_TOOL_DEF] : [])
+        ...(settings.imageGen && imageConfig() ? [IMAGE_TOOL_DEF] : []),
+        ...(settings.library && toolsOk && librarySettings().folders.length ? [LIBRARY_TOOL] : [])
       ]
       const requestedAt = Date.now()
       let firstTokenAt = 0
@@ -707,7 +760,8 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
       const nodes = db.loadNodes(conversationId)
       const row = nodes.get(assistant.id)
       if (row) {
-        emit({ kind: 'done', conversationId, nodeId: assistant.id, node: db.toView(row, nodes) })
+        const askedRow = asked ? nodes.get(userNodeId) : undefined
+        emit({ kind: 'done', conversationId, nodeId: assistant.id, node: db.toView(row, nodes), ...(askedRow ? { asked: db.toView(askedRow, nodes) } : {}) })
         appendLog({
           kind: 'chat',
           conversationId,

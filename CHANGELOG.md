@@ -4,6 +4,13 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.9.0
 
+**Document library**
+- **Your writing, searched for each message:** add folders of your own writing and notes in Settings → Writing. Turn on Document library in a chat's Tools menu and each message brings the passages that bear on it, with a chip on the message saying where they came from. A regenerate sends the same passages, so the cache holds.
+- **Built for big collections:** a full-text index on this PC (only changed files are read again), so even very large folders are searched in an instant. Hidden folders like .obsidian are left out.
+- **Search by meaning:** choose an embedding model (nomic-embed-text on Ollama, say, which keeps everything on this PC) and searches blend word matches with matches by meaning.
+- **Models that search for themselves:** Claude, and models whose provider lists tool calling, get a search_library tool to look further mid-reply, rephrasing when the first passages aren't enough.
+- **Try a search** in Settings to see what a message would bring.
+
 **Code**
 - **Plan mode:** the agent looks around and writes a numbered plan; edits and commands are declined until you press Run this plan (asking first, or accepting edits). The model is told when the plan is approved.
 - **A task list:** for longer work the agent keeps a checklist of its steps, shown above the message box as it goes.

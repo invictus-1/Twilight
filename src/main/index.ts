@@ -40,6 +40,8 @@ import { searchAll } from './search'
 import * as code from './code/agent'
 import { applyPendingRestore, backupFolder, backupSettings, chooseBackupFolder, createBackup, listBackups, setBackupSettings, stageRestore, startBackupSchedule, takeRestoredWindowSettings } from './backups'
 import { attachContextMenu, setSpellcheck, spellcheckOn } from './contextMenu'
+import { keepFresh, librarySettings, libraryStatus, reindex as reindexLibrary, searchLibrary, setLibrarySettings } from './docLibrary'
+import type { LibrarySettings } from '@shared/docLibrary'
 import { checkTarget, isMoved, lastLocationChange, resolveDataFolder, stageMove, standardFolder } from './location'
 import { toRecycleBin } from './code/workspace'
 import type { BackupSettings, DataInfo } from '@shared/backups'
@@ -393,6 +395,22 @@ function registerIpc(): void {
     runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
     stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
     getAppInfo: () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), electron: process.versions.electron }),
+    getDocLibrary: () => ({ settings: librarySettings(), status: libraryStatus() }),
+    setDocLibrarySettings: (_e, patch: Partial<LibrarySettings>) => setLibrarySettings(patch),
+    addDocLibraryFolder: async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const options: Electron.OpenDialogOptions = { title: 'Add a folder to the document library', properties: ['openDirectory'] }
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      if (result.canceled || !result.filePaths[0]) return null
+      const folders = librarySettings().folders
+      return folders.includes(result.filePaths[0]) ? librarySettings() : setLibrarySettings({ folders: [...folders, result.filePaths[0]] })
+    },
+    removeDocLibraryFolder: (_e, path: string) => setLibrarySettings({ folders: librarySettings().folders.filter((f) => f !== path) }),
+    reindexDocLibrary: async () => {
+      await reindexLibrary()
+      return libraryStatus()
+    },
+    searchDocLibrary: (_e, query: string) => searchLibrary(query),
     getSpellcheck: () => spellcheckOn(),
     setSpellcheck: (e, on: boolean) => setSpellcheck(BrowserWindow.fromWebContents(e.sender), on),
     getDataInfo: () => dataInfo(),
@@ -504,6 +522,8 @@ app.whenReady().then(() => {
     updates.startDailyCheck()
     insights.start()
     startBackupSchedule()
+    // The document library catches up with files changed while Twilight was closed.
+    keepFresh()
   }
   if (selfTestDir) seedSelfTest()
   const win = createWindow()

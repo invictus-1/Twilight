@@ -1,6 +1,7 @@
 import { CLOCK_OPEN, INSTRUCTION_OPEN, clockOf, instructionOf } from '@shared/attachments'
 import { webActivityOf } from '@shared/webTools'
 import { imagesOf, toolStepsOf } from '@shared/mcp'
+import { LIBRARY_OPEN, librarySourcesOf } from '@shared/docLibrary'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { CHOICES_TOOL_NAME, choicesFromTool, type ChoiceSet } from '@shared/choices'
@@ -404,6 +405,7 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
     toolChoices: node.role === 'assistant' ? (toolChoicesOf(node.content) ?? undefined) : undefined,
     instructionUpdate: node.role === 'user' ? instructionUpdateOf(node.content) : undefined,
     dateTime: node.role === 'user' ? dateTimeOf(node.content) : undefined,
+    library: node.role === 'user' ? libraryOf(node.content) : undefined,
     web: node.role === 'assistant' ? webOf(node.content) : undefined,
     ...(node.role === 'assistant' ? toolsOf(node.content) : {})
   }
@@ -416,6 +418,12 @@ function toolsOf(content: string | null): Pick<NodeView, 'tools' | 'images'> {
   const tools = toolStepsOf(blocks)
   const images = imagesOf(blocks)
   return { ...(tools.length ? { tools } : {}), ...(images.length ? { images } : {}) }
+}
+
+function libraryOf(content: string | null): NodeView['library'] {
+  if (!content || !content.includes(LIBRARY_OPEN)) return undefined
+  const block = (JSON.parse(content) as { type: string; text?: string }[]).find((b) => b.type === 'text' && b.text?.startsWith(LIBRARY_OPEN))
+  return block?.text ? librarySourcesOf(block.text) : undefined
 }
 
 function dateTimeOf(content: string | null): string | undefined {

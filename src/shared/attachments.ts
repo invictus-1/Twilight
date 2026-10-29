@@ -2,6 +2,8 @@
 // go as the files themselves, which Claude (and OpenAI-compatible servers that take them) read
 // natively.
 
+import { LIBRARY_OPEN } from './docLibrary'
+
 export type AttachmentKind = 'text' | 'image' | 'pdf'
 
 const MEDIA: Record<string, string> = {
@@ -42,7 +44,7 @@ export function tooBig(kind: AttachmentKind, bytes: number, name: string): strin
 export const INSTRUCTION_OPEN = '<instruction_update>'
 export const CLOCK_OPEN = '<current_time>'
 export const isContextText = (text: string): boolean =>
-  text.startsWith('<document name=') || text.startsWith(INSTRUCTION_OPEN) || text.startsWith(CLOCK_OPEN)
+  text.startsWith('<document name=') || text.startsWith(INSTRUCTION_OPEN) || text.startsWith(CLOCK_OPEN) || text.startsWith(LIBRARY_OPEN)
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 

@@ -99,7 +99,7 @@ export function App() {
       // Writing-tool runs finish inside the editor (Editor.tsx); judge runs in the judgment.
       if (event.conversationId === 'judge') {
         void useJudge.getState().reload(event.node.parentId ?? '').then(() => clearStream(event.nodeId))
-      } else if (event.conversationId !== 'writing') useStore.getState().applyDone(event.conversationId, event.node)
+      } else if (event.conversationId !== 'writing') useStore.getState().applyDone(event.conversationId, event.node, event.asked)
     })
   }, [])
 

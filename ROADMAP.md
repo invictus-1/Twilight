@@ -5,6 +5,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Shipped
 
 ### 0.9.0 · In progress
+- [x] **Document library** · Writing — folders of your writing searched for the passages each message needs: a local full-text index, optional embeddings for search by meaning, and a search tool for models that call tools
 - [x] **Code, further** · Core — plan mode, the agent's own task list, a project instructions file (TWILIGHT.md, AGENTS.md or CLAUDE.md), web search and fetch with Claude, and rewinding to any message
 - [x] **Arrange the rail** · Core — drag sections into your own order, with the others sliding aside
 - [x] **A light theme** · Core — Moonlit Paper: warm paper, dark ink and a dawn sky, with every text colour checked for 4.5:1 contrast
@@ -97,12 +98,12 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 0.8** · Core — fixes from real use of the Code tab, MCP, backups, Extras and backgrounds
-- [ ] **Document library** · Writing — for 0.9: retrieval over very large collections with local embeddings
 
 ## Later
 - [ ] **1.0: the polish pass** · Core — the final pass, then a talk about the road to 2.0: an optimization run and a UI/UX pass over every screen, with more gradients and motion. Startup, chat-open and scroll times are measured before and after, so the gains are real numbers
 
 ## Ideas
+- **Smarter retrieval** · Writing — for 2.0: a small, fast model that searches out the context a prompt needs, passages indexed with context about where they sit, reranking, and graph-based search across a manuscript
 - **Story bible** · Writing — characters, places and facts pulled from a manuscript, with a continuity watcher
 - **Ghost text** · Writing — autocomplete in the editor from a small local model
 - **Multiverse drafts** · Chat — several continuations at once, kept as branches
