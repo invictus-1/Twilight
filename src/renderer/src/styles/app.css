@@ -1330,3 +1330,14 @@ body.resizing .resize-handle { pointer-events: auto; }
 .gen-images { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
 .gen-image { margin: 0; }
 .gen-image img { display: block; max-width: min(100%, 420px); border-radius: var(--radius-md); border: 1px solid var(--line); }
+
+/* ——— Data: where it lives and backups ——— */
+.data-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin: var(--space-2) 0; }
+.data-row { display: flex; align-items: center; gap: var(--space-3); flex-wrap: wrap; margin-top: var(--space-2); }
+.data-keep { display: inline-flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--ink-muted); }
+.data-keep input { width: 64px; height: var(--control-sm, 28px); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0 var(--space-2); font: inherit; }
+.data-last { margin-top: var(--space-1); }
+.backup-list { display: flex; flex-direction: column; gap: var(--space-1); margin-top: var(--space-2); }
+.backup-item { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface); }
+.backup-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.backup-name { font-weight: 500; }

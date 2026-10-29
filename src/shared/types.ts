@@ -3,6 +3,7 @@
 import type { AttachmentKind } from './attachments'
 import type { Theme } from './themes'
 import type { CodeEvent, CodeMode, CodeResponse, CodeSessionSummary, CodeSessionView } from './code'
+import type { BackupInfo, BackupSettings, DataInfo } from './backups'
 import type { GeneratedImage, ImageConfig, McpServerInput, McpServerView, ToolApproval, ToolApprovalResponse, ToolStep } from './mcp'
 import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
@@ -562,6 +563,20 @@ export interface TwilightApi {
   /** Tokens and spend over a range: totals, a series, and splits by model and by chat. */
   usageStats(range: UsageRange): Promise<UsageStats>
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
+  // ——— Data: backups and where it lives ———
+  getDataInfo(): Promise<DataInfo>
+  listBackups(): Promise<BackupInfo[]>
+  backupNow(): Promise<BackupInfo>
+  setBackupSettings(patch: Partial<BackupSettings>): Promise<DataInfo>
+  chooseBackupFolder(): Promise<DataInfo>
+  openBackupFolder(): Promise<void>
+  /** Sends a backup to the Recycle Bin. */
+  removeBackup(path: string): Promise<BackupInfo[]>
+  /** Backs up what's there, then restarts into the backup. */
+  restoreBackup(path: string): Promise<void>
+  /** Asks for a folder and restarts to move the data there; returns why not, or null if cancelled. */
+  moveData(): Promise<string | null>
+  moveDataBack(): Promise<string | null>
   openDataFolder(): Promise<void>
   openExternal(url: string): Promise<void>
   /** Your background picture's version stamp (served as twilight-bg://image), or null. */

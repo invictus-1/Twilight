@@ -6,6 +6,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ### 0.8.0 · In progress
 - [x] **Background framing** · Core — drag and zoom your picture to choose which part shows; brighter Nebula, Embers and Starfield
+- [x] **Your data, your place** · Core — backups now or on a schedule, restore from any of them, and move the data folder anywhere
 - [x] **MCP and pictures** · Chat — MCP servers (programs or addresses) switched on per chat, each call approved in the reply unless allowed, and pictures from an image model
 - [x] **Extras** · Core — a Settings page for things just for fun, starting with scroll particles in six styles that follow how fast you scroll
 - [x] **Code** · Core — its own tab: an agent that reads, edits and runs things in a folder you choose, asks when it's unsure, shows every change as a diff, waits for approval before edits and commands, snapshots before each change so any of it can be undone, and sends deletions to the Recycle Bin
@@ -97,7 +98,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [ ] **A light theme** · Core — Moonlit Paper: a soft, paper-light theme (Twilight is dark throughout today)
 - [ ] **Document library** · Writing — retrieval over very large collections with local embeddings
 - [ ] **Offline spellcheck** · Writing — bundled dictionaries
-- [ ] **Your data, your place** · Core — choose where app data lives, scheduled backups
 
 ## Ideas
 - **Story bible** · Writing — characters, places and facts pulled from a manuscript, with a continuity watcher

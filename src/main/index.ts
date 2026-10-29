@@ -38,6 +38,10 @@ import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { runShowcase } from './showcase'
 import { searchAll } from './search'
 import * as code from './code/agent'
+import { applyPendingRestore, backupFolder, backupSettings, chooseBackupFolder, createBackup, listBackups, setBackupSettings, stageRestore, startBackupSchedule, takeRestoredWindowSettings } from './backups'
+import { checkTarget, isMoved, lastLocationChange, resolveDataFolder, stageMove, standardFolder } from './location'
+import { toRecycleBin } from './code/workspace'
+import type { BackupSettings, DataInfo } from '@shared/backups'
 import * as mcp from './mcp'
 import { imageConfig, setImageConfig } from './images'
 import type { ImageConfig, McpServerInput, ToolApprovalResponse } from '@shared/mcp'
@@ -62,6 +66,31 @@ if (testDir) {
   app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion,IntensiveWakeUpThrottling')
 }
 if (testDir) prepareSelfTest(testDir)
+// Where the data lives (and a move you asked for, done now, before anything opens it).
+else app.setPath('userData', resolveDataFolder())
+
+function dataInfo(): DataInfo {
+  const err = db.kvGet<{ message: string }>('backups.error')
+  return {
+    folder: app.getPath('userData'),
+    moved: isMoved(),
+    standard: standardFolder(),
+    lastChange: db.kvGet<DataInfo['lastChange']>('data.lastRestore') ?? lastLocationChange() ?? null,
+    backups: { ...backupSettings(), resolvedFolder: backupFolder(), last: db.kvGet<number>('backups.last') ?? null, lastError: err?.message ?? null }
+  }
+}
+
+/** A move to another folder: checked, backed up first, then done on a restart. Returns why not, or restarts. */
+async function startMove(target: string): Promise<string | null> {
+  const why = checkTarget(target, app.getPath('userData'))
+  if (why) return why
+  await createBackup('before-move')
+  stageMove(target)
+  db.kvSet('data.lastRestore', null)
+  app.relaunch()
+  app.exit(0)
+  return null
+}
 
 function isWebUrl(url: string): boolean {
   return /^https?:\/\//i.test(url)
@@ -112,6 +141,15 @@ function createWindow(): BrowserWindow {
   win.webContents.on('will-navigate', (event) => event.preventDefault())
   // "#e2e" lets the end-to-end test (and the showcase) reach the editor; it does nothing otherwise.
   const hash = e2eDir || showcaseDir ? 'e2e' : undefined
+  // Window settings a restore brought back (theme, motion, shortcuts) go in once, then a reload.
+  const restoredSettings = takeRestoredWindowSettings(app.getPath('userData'))
+  if (restoredSettings) {
+    win.webContents.once('did-finish-load', () => {
+      void win.webContents
+        .executeJavaScript(`(() => { const s = ${JSON.stringify(restoredSettings)}; for (const k of Object.keys(localStorage)) if (k.startsWith('twilight.')) localStorage.removeItem(k); for (const [k, v] of Object.entries(s)) localStorage.setItem(k, v) })()`)
+        .then(() => win.webContents.reload())
+    })
+  }
   if (devUrl) void win.loadURL(hash ? `${devUrl}#${hash}` : devUrl)
   else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash })
   return win
@@ -352,6 +390,44 @@ function registerIpc(): void {
     runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
     stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
     getAppInfo: () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), electron: process.versions.electron }),
+    getDataInfo: () => dataInfo(),
+    listBackups: () => listBackups(),
+    backupNow: async () => {
+      const made = await createBackup('manual')
+      return made
+    },
+    setBackupSettings: (_e, patch: Partial<BackupSettings>) => {
+      setBackupSettings(patch)
+      return dataInfo()
+    },
+    chooseBackupFolder: async (e) => {
+      await chooseBackupFolder(BrowserWindow.fromWebContents(e.sender))
+      return dataInfo()
+    },
+    openBackupFolder: async () => {
+      await mkdir(backupFolder(), { recursive: true })
+      await shell.openPath(backupFolder())
+    },
+    removeBackup: async (_e, path: string) => {
+      // Only folders that are backups in the backup folder, and to the Recycle Bin.
+      if (!(await listBackups()).some((b) => b.path === path)) throw new Error('That backup is gone.')
+      await toRecycleBin(path)
+      return listBackups()
+    },
+    restoreBackup: async (_e, path: string) => {
+      if (!(await listBackups()).some((b) => b.path === path)) throw new Error('That backup is gone.')
+      await stageRestore(path)
+      app.relaunch()
+      app.exit(0)
+    },
+    moveData: async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const options: Electron.OpenDialogOptions = { title: 'Choose a new folder for Twilight\'s data', properties: ['openDirectory', 'createDirectory'] }
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      if (result.canceled || !result.filePaths[0]) return null
+      return startMove(result.filePaths[0])
+    },
+    moveDataBack: () => startMove(standardFolder()),
     openDataFolder: async () => {
       await shell.openPath(app.getPath('userData'))
     },
@@ -401,7 +477,10 @@ function registerIpc(): void {
 registerBackgroundScheme()
 
 app.whenReady().then(() => {
+  // A restore you asked for goes in before the database opens.
+  const restored = applyPendingRestore(app.getPath('userData'))
   db.openDatabase(join(app.getPath('userData'), 'twilight.db'))
+  if (restored) db.kvSet('data.lastRestore', { kind: 'restored', detail: restored, at: Date.now() })
   setCustomPrices(db.kvGet<CustomPrice[]>('prices') ?? [])
   serveBackground()
   // Tests keep their documents in the throwaway profile, never in the real Documents folder.
@@ -419,6 +498,7 @@ app.whenReady().then(() => {
   if (!testDir) {
     updates.startDailyCheck()
     insights.start()
+    startBackupSchedule()
   }
   if (selfTestDir) seedSelfTest()
   const win = createWindow()

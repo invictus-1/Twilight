@@ -14,6 +14,7 @@ import { readHidden, writeHidden } from './ChatSettingsPanel'
 import { RoadmapSection } from './RoadmapSection'
 import { UpdatesSection } from './UpdatesSection'
 import { ToolsSection } from './ToolsSection'
+import { DataSection } from './DataSection'
 import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIcon } from './Icons'
 
 // The Settings page: a section list on the left, one section on the right. Each section opens
@@ -25,7 +26,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
   { id: 'library', group: 'App', label: 'Library', description: 'Your personas and prompts. A persona starts a chat with its instructions; a prompt goes into the message box from the composer.' },
   { id: 'writing', group: 'App', label: 'Writing', description: 'Where your documents live. Point it at an Obsidian vault and both apps edit the same files.' },
-  { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats, settings and request logs on this machine.' },
+  { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats and settings, moving them, and backups you can go back to.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
   { id: 'extras', group: 'App', label: 'Extras', description: "Just for fun: little extras that don't change how anything works. All of them start off." },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
@@ -517,25 +518,6 @@ function WritingSection() {
         </button>
       </div>
       <p className="field-note">Documents are plain .md files. Twilight's per-document context and edit history stay in its own database, never in your files.</p>
-    </div>
-  )
-}
-
-function DataSection() {
-  const [info, setInfo] = useState<{ version: string; dataFolder: string } | null>(null)
-  useEffect(() => {
-    void window.twilight.getAppInfo().then(setInfo)
-  }, [])
-  return (
-    <div className="settings-card">
-      <h3 className="t-heading">App data</h3>
-      <p className="field-note">Chats, workspaces, settings and encrypted keys live in one database here. Updating or reinstalling Twilight never touches it.</p>
-      <div className="field-inline">
-        <span className="folder-path log-path">{info?.dataFolder}</span>
-        <button className="tw-btn tw-btn-sm" onClick={() => void window.twilight.openDataFolder()}>
-          Open folder
-        </button>
-      </div>
     </div>
   )
 }

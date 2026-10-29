@@ -2,12 +2,15 @@ import { app, clipboard, type BrowserWindow } from 'electron'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { appendFileSync, writeFileSync } from 'node:fs'
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { logsFolder } from './logs'
 import { join } from 'node:path'
 import * as chat from './chat'
 import * as code from './code/agent'
 import * as mcp from './mcp'
+import Database from 'better-sqlite3'
+import { applyPendingRestore, backupDue, backupSettings, createBackup, listBackups, pruneBackups, setBackupSettings, stageRestore, takeRestoredWindowSettings } from './backups'
+import { checkTarget, resolveDataFolder, stageMove } from './location'
 import { setImageConfig } from './images'
 import { DECLINED } from '@shared/mcp'
 import { commandRisk, lineDiff } from '@shared/code'
@@ -3784,6 +3787,113 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('the Tools menu switches servers and pictures per chat', menu45.join() === 'mcp:Lamp tools=false,mcp:Library=false,imageGen=true', menu45)
       mcp.closeAll()
+
+      // 46. Backups and where the data lives. Backups are made from the running app; a restore
+      // and a move are done at start, so they're checked on folders of their own here.
+      const H = 60 * 60 * 1000
+      check(
+        'backups are due on schedule',
+        !backupDue({ schedule: 'off', keep: 10, folder: '' }, undefined, Date.now()) &&
+          backupDue({ schedule: 'daily', keep: 10, folder: '' }, undefined, Date.now()) &&
+          !backupDue({ schedule: 'daily', keep: 10, folder: '' }, Date.now() - 23 * H, Date.now()) &&
+          backupDue({ schedule: 'daily', keep: 10, folder: '' }, Date.now() - 25 * H, Date.now()) &&
+          !backupDue({ schedule: 'weekly', keep: 10, folder: '' }, Date.now() - 6 * 24 * H, Date.now())
+      )
+      check('backups start daily by default', backupSettings().schedule === 'daily' && backupSettings().keep === 10)
+      const made46 = await createBackup('manual')
+      const chats46 = (db.handle().prepare('SELECT COUNT(*) AS n FROM conversations').get() as { n: number }).n
+      const copy46 = new Database(join(made46.path, 'twilight.db'), { readonly: true })
+      const titles46 = (copy46.prepare('SELECT title FROM conversations').all() as { title: string }[]).map((r) => r.title)
+      copy46.close()
+      const windowSettings46 = JSON.parse(await readFile(join(made46.path, 'window-settings.json'), 'utf8')) as Record<string, string>
+      check('a backup holds the whole database, consistent while it runs', made46.chats === chats46 && titles46.includes('Lamps with tools'), { chats: made46.chats, chats46 })
+      check('it holds the pictures and the background too', existsSync(join(made46.path, 'generated')) && existsSync(join(made46.path, 'background', 'image.png')), made46.path)
+      check("and the window's own settings", Object.keys(windowSettings46).length > 0 && Object.keys(windowSettings46).every((k) => k.startsWith('twilight.')), Object.keys(windowSettings46))
+
+      setBackupSettings({ keep: 2 })
+      const scheduled46: string[] = []
+      for (let i = 0; i < 3; i++) {
+        scheduled46.push((await createBackup('scheduled')).name)
+        await new Promise((r) => setTimeout(r, 20))
+      }
+      const pruned46 = await pruneBackups()
+      const left46 = await listBackups()
+      check(
+        'only the newest scheduled backups are kept, the rest go to the Recycle Bin',
+        pruned46.join() === scheduled46[0] && !left46.some((b) => b.name === scheduled46[0]) && left46.some((b) => b.name === made46.name) && (await readdir(join(app.getPath('userData'), 'e2e-recycled'))).some((f) => f.endsWith(scheduled46[0])),
+        { pruned46, left: left46.map((b) => `${b.reason}:${b.name}`) }
+      )
+      setBackupSettings({ keep: 10 })
+
+      // A restore: staged now (backing up what's there first), done on a folder standing in for the data.
+      await stageRestore(made46.path)
+      const fake46 = join(outDir, 'restore-test')
+      await mkdir(join(fake46, 'generated'), { recursive: true })
+      await writeFile(join(fake46, 'twilight.db'), 'not the backup')
+      await writeFile(join(fake46, 'twilight.db-wal'), 'stale')
+      await writeFile(join(fake46, 'generated', 'old.png'), 'x')
+      await rename(join(app.getPath('userData'), 'restore.json'), join(fake46, 'restore.json'))
+      check('a restore backs up what is there first', (await listBackups()).some((b) => b.reason === 'before-restore'))
+      const restored46 = applyPendingRestore(fake46)
+      // Looked at before the database is opened (opening it starts a journal of its own).
+      const files46 = { wal: existsSync(join(fake46, 'twilight.db-wal')), old: existsSync(join(fake46, 'generated', 'old.png')), pending: existsSync(join(fake46, 'restore.json')) }
+      const back46 = new Database(join(fake46, 'twilight.db'), { readonly: true })
+      const restoredChats46 = (back46.prepare('SELECT COUNT(*) AS n FROM conversations').get() as { n: number }).n
+      back46.close()
+      check(
+        'a restore puts the backup in place before the database opens',
+        restored46 === made46.name && restoredChats46 === made46.chats && !files46.wal && !files46.old && !files46.pending,
+        { restored46, restoredChats46, chats: made46.chats, files46 }
+      )
+      const settings46 = takeRestoredWindowSettings(fake46)
+      check("the window's settings come back once", !!settings46 && Object.keys(settings46).length === Object.keys(windowSettings46).length && takeRestoredWindowSettings(fake46) === null)
+      check('nothing happens at start without a restore', applyPendingRestore(fake46) === null)
+
+      // A move: copied and checked at start; caches left behind, the old copy kept.
+      const std46 = join(outDir, 'move-standard')
+      const to46 = join(outDir, 'move-target')
+      await mkdir(join(std46, 'background'), { recursive: true })
+      await mkdir(join(std46, 'Cache'), { recursive: true })
+      await writeFile(join(std46, 'twilight.db'), 'database bytes')
+      await writeFile(join(std46, 'background', 'image.png'), 'picture')
+      await writeFile(join(std46, 'Cache', 'big'), 'cache')
+      check('a move needs an empty folder outside the data', !!checkTarget(std46, std46, std46) && !!checkTarget(join(std46, 'inner'), std46, std46) && !!checkTarget(join(outDir, 'mcp-lamps.cjs').replace('mcp-lamps.cjs', ''), std46, std46) && checkTarget(to46, std46, std46) === null)
+      stageMove(to46, std46)
+      const using46 = resolveDataFolder(std46)
+      const pointer46 = JSON.parse(await readFile(join(std46, 'location.json'), 'utf8')) as { path?: string; last?: { kind: string } }
+      check(
+        'a move copies the data, checks it and uses the new folder',
+        using46 === to46 && (await readFile(join(to46, 'twilight.db'), 'utf8')) === 'database bytes' && existsSync(join(to46, 'background', 'image.png')) && !existsSync(join(to46, 'Cache')) && pointer46.path === to46 && pointer46.last?.kind === 'moved',
+        pointer46
+      )
+      check('the old copy stays until you remove it', existsSync(join(std46, 'twilight.db')))
+      check('the next start keeps using the new folder', resolveDataFolder(std46) === to46)
+      await writeFile(join(to46, 'twilight.db'), 'changed in the new place')
+      stageMove(std46, std46)
+      const home46 = resolveDataFolder(std46)
+      const pointerBack46 = JSON.parse(await readFile(join(std46, 'location.json'), 'utf8')) as { path?: string }
+      check('moving back brings the newer data to the standard place', home46 === std46 && !pointerBack46.path && (await readFile(join(std46, 'twilight.db'), 'utf8')) === 'changed in the new place')
+      await writeFile(join(outDir, 'not-a-folder'), 'x')
+      stageMove(join(outDir, 'not-a-folder'), std46)
+      const failed46 = resolveDataFolder(std46)
+      const pointerFail46 = JSON.parse(await readFile(join(std46, 'location.json'), 'utf8')) as { last?: { kind: string } }
+      check('a move that fails keeps the data where it was, and says so', failed46 === std46 && pointerFail46.last?.kind === 'move-failed', pointerFail46)
+
+      // Settings → Data.
+      await key(',', ['control'])
+      const data46 = await js<{ items: number; reasons: string[]; after: number; folder: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Data')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.backup-item'); ) await wait(50)
+        const items = document.querySelectorAll('.backup-item').length
+        const reasons = [...new Set([...document.querySelectorAll('.backup-item')].map((e) => e.dataset.reason))]
+        document.querySelector('.backup-now')?.click()
+        for (let end = Date.now() + 5000; Date.now() < end && document.querySelectorAll('.backup-item').length === items; ) await wait(50)
+        return { items, reasons, after: document.querySelectorAll('.backup-item').length, folder: document.querySelector('.data-backups .folder-path')?.textContent ?? '' }
+      })()`)
+      check('Settings → Data lists the backups, and Back up now adds one', data46.items >= 4 && data46.after === data46.items + 1 && data46.reasons.includes('manual') && data46.reasons.includes('before-restore'), data46)
+      await shot('e2e-data.png')
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

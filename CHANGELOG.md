@@ -4,6 +4,11 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.8.0
 
+**Your data**
+- **Backups:** Settings → Data backs everything up: chats, workspaces, settings, encrypted keys, your background, generated pictures, and your theme, motion and shortcut settings. Each backup is a plain folder, in "Twilight backups" in Documents or a folder you choose. Back up now whenever you like; automatic backups run daily or weekly and keep the last ten (you can change that). Older automatic ones go to the Recycle Bin, and ones you made stay until you remove them.
+- **Restore:** pick a backup and Twilight backs up what's there first, restarts, and puts the backup in place before anything opens.
+- **Move your data:** keep it on another drive or in a synced folder. Twilight backs up first, restarts, copies everything, checks the copy and only then uses it. The old copy stays where it was until you remove it, and you can move back any time.
+
 **Tools**
 - **MCP servers:** add servers in Settings → Tools, either a program on this PC (stdio) or a server at an address (HTTP), then switch them on per chat in the Tools menu. Test shows whether a server connected and lists its tools. Environment values and headers are encrypted like API keys.
 - **You approve each call:** by default a tool call waits in the reply, showing the tool and its arguments, for Allow once, Always allow, or Decline. A server you trust can be set to run calls without asking. Stopping the reply declines whatever is waiting.
