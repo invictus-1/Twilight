@@ -1,3 +1,4 @@
+import type { McpServerView } from '@shared/mcp'
 import { create } from 'zustand'
 import type {
   Attachment,
@@ -37,6 +38,8 @@ interface State {
   current: ConversationView | null
   models: ModelInfo[]
   providers: ProviderConfig[]
+  /** MCP servers from Settings → Tools, with how each is doing. */
+  mcpServers: McpServerView[]
   defaults: ChatSettings | null
   /** Where the composer sends while split compare is open. */
   target: SendTarget
@@ -145,6 +148,7 @@ export const useStore = create<State>((set, get) => {
     current: null,
     models: [],
     providers: [],
+    mcpServers: [],
     defaults: null,
     target: 'both',
     splitDiff: false,
@@ -176,6 +180,8 @@ export const useStore = create<State>((set, get) => {
       })
       if (!(await api.getWelcomed())) set({ welcomeOpen: true })
       window.twilight.onUpdate((updates) => set({ updates }))
+      window.twilight.onMcp((mcpServers) => set({ mcpServers }))
+      void window.twilight.listMcpServers().then((mcpServers) => set({ mcpServers }))
       void api.getUpdateState().then((updates) => set({ updates }))
       void get().refreshTrash()
       if (conversations[0]) await get().open(conversations[0].id)

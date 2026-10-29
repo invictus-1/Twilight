@@ -53,6 +53,11 @@ export function ToolsMenu() {
   const split = useStore((s) => !!s.current?.split)
   const providerB = useStore((s) => s.current?.split?.settings.providerId)
   const providers = useStore((s) => s.providers)
+  const allServers = useStore((s) => s.mcpServers)
+  const [hasImageModel, setHasImageModel] = useState(false)
+  useEffect(() => {
+    if (open) void window.twilight.getImageConfig().then((c) => setHasImageModel(!!c))
+  }, [open])
   useEffect(() => {
     if (!open) return
     const close = (e: MouseEvent): void => {
@@ -82,10 +87,12 @@ export function ToolsMenu() {
   const fetchHas = usable('fetch')
   const searchOn = settings.webSearch && searchHas.search === null
   const fetchOn = settings.webFetch && fetchHas.fetch === null
-  const active = (settings.choiceCards ? 1 + (settings.choiceTool ? 1 : 0) : 0) + (searchOn ? 1 : 0) + (fetchOn ? 1 : 0) + (settings.dateTime ? 1 : 0)
+  const servers = allServers.filter((m) => m.enabled)
+  const mcpOn = servers.filter((m) => settings.mcpServers.includes(m.id)).length
+  const active = (settings.choiceCards ? 1 + (settings.choiceTool ? 1 : 0) : 0) + (searchOn ? 1 : 0) + (fetchOn ? 1 : 0) + (settings.dateTime ? 1 : 0) + mcpOn + (settings.imageGen ? 1 : 0)
   return (
     <div className="tools-menu" ref={box}>
-      <Hint title="Tools" text="Switch on what the model can use in this chat: choice cards, web search and fetch, and the date and time.">
+      <Hint title="Tools" text="Switch on what the model can use in this chat: choice cards, web search and fetch, the date and time, MCP servers and pictures.">
         <button className="tw-btn tw-btn-ghost tw-btn-sm" aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((o) => !o)}>
           <ToolIcon size={15} />
           Tools
@@ -161,6 +168,30 @@ export function ToolsMenu() {
             note="Puts your local date, time and time zone at the start of each message you send. Earlier messages stay as they were, so the cache holds."
             checked={settings.dateTime}
             onChange={(on) => update({ dateTime: on })}
+          />
+          <div className="tools-head">MCP servers and pictures{split ? ' · both panes' : ''}</div>
+          {servers.map((m) => (
+            <Row
+              key={m.id}
+              tool={`mcp:${m.name}`}
+              label={m.name}
+              note={
+                m.status.state === 'error'
+                  ? `Problem: ${m.status.error}`
+                  : `${m.status.state === 'ready' ? `${m.status.tools.length} tool${m.status.tools.length === 1 ? '' : 's'}` : 'Connects when the chat sends'}. ${m.approval === 'ask' ? 'Asks before each call.' : 'Runs calls without asking.'}`
+              }
+              checked={settings.mcpServers.includes(m.id)}
+              onChange={(on) => update({ mcpServers: on ? [...settings.mcpServers, m.id] : settings.mcpServers.filter((x) => x !== m.id) })}
+            />
+          ))}
+          {servers.length === 0 && <p className="tools-empty">No MCP servers yet. Add one in Settings → Tools.</p>}
+          <Row
+            tool="imageGen"
+            label="Pictures"
+            note={hasImageModel ? 'The model can make an image when you ask for one; it shows under the reply. Billed by the image provider.' : 'Choose an image model in Settings → Tools first.'}
+            checked={settings.imageGen && hasImageModel}
+            disabled={!hasImageModel}
+            onChange={(on) => update({ imageGen: on })}
           />
         </div>
       )}

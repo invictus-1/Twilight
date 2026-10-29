@@ -3,6 +3,7 @@
 import type { AttachmentKind } from './attachments'
 import type { Theme } from './themes'
 import type { CodeEvent, CodeMode, CodeResponse, CodeSessionSummary, CodeSessionView } from './code'
+import type { GeneratedImage, ImageConfig, McpServerInput, McpServerView, ToolApproval, ToolApprovalResponse, ToolStep } from './mcp'
 import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
@@ -116,6 +117,10 @@ export interface ChatSettings {
   webFetch: boolean
   /** Put the local date, time and time zone at the front of each new message. */
   dateTime: boolean
+  /** MCP servers (by id) whose tools this chat offers. */
+  mcpServers: string[]
+  /** Offer the generate_image tool (pictures from the image model in Settings → Tools). */
+  imageGen: boolean
   /**
    * Instructions to add from the next message on. They go into that message (not the system
    * prompt), so the cached conversation before it stays valid.
@@ -236,6 +241,10 @@ export interface NodeView {
   dateTime?: string
   /** What the reply searched for and read on the web, and the sources it cited. */
   web?: WebActivity
+  /** Tools Twilight ran during the reply (MCP servers, pictures). */
+  tools?: ToolStep[]
+  /** Pictures made during the reply. */
+  images?: GeneratedImage[]
 }
 
 /** A page the model found or read. */
@@ -357,6 +366,8 @@ export type StreamEvent =
   | { kind: 'thinking'; conversationId: string; nodeId: string; delta: string }
   /** A search or page read started while the reply streams ("Searching: …"). */
   | { kind: 'activity'; conversationId: string; nodeId: string; label: string }
+  /** The reply waits for your approval of a tool call (null once answered). */
+  | { kind: 'approval'; conversationId: string; nodeId: string; approval: ToolApproval | null }
   | { kind: 'done'; conversationId: string; nodeId: string; node: NodeView }
 
 /** A markdown file in the writing folder. `path` is relative to the folder, with forward slashes. */
@@ -507,6 +518,17 @@ export interface TwilightApi {
   listModels(refresh?: boolean): Promise<ModelInfo[]>
   /** Asks the provider for its models right now; returns the outcome (and remembers it). */
   testProvider(id: string): Promise<ProviderStatus>
+  // ——— Tools: MCP servers and pictures ———
+  listMcpServers(): Promise<McpServerView[]>
+  saveMcpServer(server: McpServerInput): Promise<McpServerView[]>
+  deleteMcpServer(id: string): Promise<McpServerView[]>
+  /** Connects to the server and lists its tools; the outcome is in its status. */
+  testMcpServer(id: string): Promise<McpServerView[]>
+  /** Your answer to a tool call a reply is waiting on. */
+  respondToolApproval(id: string, response: ToolApprovalResponse): Promise<void>
+  getImageConfig(): Promise<ImageConfig | null>
+  setImageConfig(config: ImageConfig | null): Promise<ImageConfig | null>
+  onMcp(listener: (servers: McpServerView[]) => void): () => void
   getDefaults(): Promise<ChatSettings>
   setDefaults(patch: Partial<ChatSettings>): Promise<ChatSettings>
 

@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import { extname, join } from 'node:path'
 import { IMAGE_EXTENSIONS } from '@shared/attachments'
 import { kvGet, kvSet } from './db'
+import { readGenerated } from './images'
 
 // Your own background picture. The chosen file is copied into Twilight's data folder (so moving
 // or deleting the original changes nothing) and served to the window as twilight-bg://image,
@@ -26,7 +27,13 @@ async function current(): Promise<string | null> {
 }
 
 export function serveBackground(): void {
-  protocol.handle(BACKGROUND_SCHEME, async () => {
+  protocol.handle(BACKGROUND_SCHEME, async (request) => {
+    // Pictures a chat made come from their own folder: twilight-bg://generated/<file>.
+    const url = new URL(request.url)
+    if (url.hostname === 'generated') {
+      const pic = await readGenerated(decodeURIComponent(url.pathname.slice(1)))
+      return pic ? new Response(pic.data, { headers: { 'content-type': pic.type, 'cache-control': 'max-age=31536000, immutable' } }) : new Response(null, { status: 404 })
+    }
     const file = await current()
     if (!file) return new Response(null, { status: 404 })
     return new Response(await readFile(file), { headers: { 'content-type': TYPES[extname(file).toLowerCase()] ?? 'application/octet-stream', 'cache-control': 'no-store' } })

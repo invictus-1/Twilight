@@ -9,6 +9,11 @@ import { toWorkspace, workspaceSystemPrompt } from './workspaces'
 import { getPersona } from './library'
 import { CHOICES_INSTRUCTION, CHOICES_TOOL_INSTRUCTION } from '@shared/choices'
 import { CLOCK_OPEN, clockBlock, instructionBlock, isContextText } from '@shared/attachments'
+import { DECLINED, IMAGE_TOOL, type ToolApproval, type ToolApprovalResponse } from '@shared/mcp'
+import { allowTool, callTool, chatTools, type ChatTool } from './mcp'
+import { generateImage, imageConfig, IMAGE_TOOL_DEF } from './images'
+import type { McpCallResult } from './mcp/client'
+import type { ClientCall, ClientOutcome, ClientToolDef } from './providers/types'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -31,6 +36,8 @@ const DEFAULT_SETTINGS: ChatSettings = {
   webSearch: false,
   webFetch: false,
   dateTime: false,
+  mcpServers: [],
+  imageGen: false,
   pendingInstruction: ''
 }
 
@@ -476,6 +483,103 @@ export function closeSplit(id: string, keep: Pane): ConversationView {
   return view(id)
 }
 
+// ——— Tools Twilight runs during a reply ———
+
+/** Approvals the replies are waiting on, by approval id. */
+const approvals = new Map<string, (r: ToolApprovalResponse) => void>()
+
+export function respondApproval(id: string, response: ToolApprovalResponse): void {
+  approvals.get(id)?.(response)
+}
+
+const MAX_RESULT = 50_000
+const MAX_PICTURES = 4
+
+/** An MCP result as text (and any pictures) for the model. */
+function fromMcp(id: string, result: McpCallResult): ClientOutcome {
+  const parts: string[] = []
+  const images: { mediaType: string; data: string }[] = []
+  for (const c of result.content ?? []) {
+    if (c.type === 'text' && c.text) parts.push(c.text)
+    else if (c.type === 'image' && c.data && c.mimeType && images.length < MAX_PICTURES && c.data.length < 5_000_000) images.push({ mediaType: c.mimeType, data: c.data })
+    else if (c.type === 'resource' && c.resource?.text) parts.push(c.resource.text)
+    else if (c.type === 'resource_link' || c.type === 'resource') parts.push(`(${c.type}: ${c.resource?.uri ?? ''})`)
+  }
+  if (!parts.length && result.structuredContent !== undefined) parts.push(JSON.stringify(result.structuredContent, null, 2))
+  let text = parts.join('\n\n')
+  // One huge result would fill the context; the start is kept and the cut is said.
+  if (text.length > MAX_RESULT) text = `${text.slice(0, MAX_RESULT)}\n\n(Cut: the result was ${text.length.toLocaleString()} characters; the first ${MAX_RESULT.toLocaleString()} are shown.)`
+  return { id, text, ...(images.length ? { images } : {}), ...(result.isError ? { isError: true } : {}) }
+}
+
+/**
+ * Runs a round of tool calls for a reply, one after another: each MCP call waits for your
+ * approval unless its server lets calls through or you've allowed that tool, and stopping the
+ * reply declines whatever is still waiting.
+ */
+function toolRunner(
+  tools: ChatTool[],
+  signal: AbortSignal,
+  emit: (approval: ToolApproval | null) => void,
+  activity: (label: string) => void
+): (calls: ClientCall[]) => Promise<ClientOutcome[]> {
+  const ask = (approval: ToolApproval): Promise<ToolApprovalResponse> =>
+    new Promise((resolve) => {
+      if (signal.aborted) return resolve({ approve: false })
+      const finish = (r: ToolApprovalResponse): void => {
+        approvals.delete(approval.id)
+        signal.removeEventListener('abort', onAbort)
+        emit(null)
+        resolve(r)
+      }
+      const onAbort = (): void => finish({ approve: false })
+      signal.addEventListener('abort', onAbort, { once: true })
+      approvals.set(approval.id, finish)
+      emit(approval)
+    })
+  return async (calls) => {
+    const out: ClientOutcome[] = []
+    for (const call of calls) {
+      if (signal.aborted) {
+        out.push({ id: call.id, text: 'Stopped by the user before this ran.', isError: true })
+        continue
+      }
+      if ('__unreadable' in call.input) {
+        out.push({ id: call.id, text: "The call's arguments weren't valid JSON. Send them again.", isError: true })
+        continue
+      }
+      try {
+        if (call.name === IMAGE_TOOL) {
+          const prompt = String(call.input.prompt ?? '').trim()
+          if (!prompt) throw new Error('Describe the picture in prompt.')
+          activity('Making a picture')
+          const file = await generateImage(prompt, typeof call.input.size === 'string' ? call.input.size : undefined, signal)
+          out.push({ id: call.id, text: 'The picture was made and is shown to the user under your reply.', generated: { file, prompt } })
+          continue
+        }
+        const tool = tools.find((t) => t.name === call.name)
+        if (!tool) throw new Error(`There's no tool called ${call.name}.`)
+        if (tool.server.approval === 'ask' && !tool.server.allowedTools.includes(tool.tool)) {
+          const answer = await ask({ id: randomUUID(), server: tool.server.name, tool: tool.tool, input: JSON.stringify(call.input, null, 2), readOnly: tool.readOnly })
+          if (!answer.approve) {
+            out.push({ id: call.id, text: DECLINED, isError: true })
+            continue
+          }
+          if (answer.always) {
+            allowTool(tool.server.id, tool.tool)
+            tool.server.allowedTools.push(tool.tool)
+          }
+        }
+        activity(`Using ${tool.server.name}: ${tool.tool}`)
+        out.push(fromMcp(call.id, await callTool(tool.server, tool.tool, call.input, signal)))
+      } catch (err) {
+        out.push({ id: call.id, text: `The tool failed: ${(err as Error).message}`, isError: true })
+      }
+    }
+    return out
+  }
+}
+
 export function stop(id: string, target: SendTarget = 'both'): void {
   for (const pane of target === 'both' ? (['a', 'b'] as Pane[]) : [target]) running.get(runKey(id, pane))?.abort()
 }
@@ -529,6 +633,13 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
         settings.messageLimit
       )
       const config = getProvider(settings.providerId)
+      // MCP tools from the servers on for this chat, then pictures; a server that won't connect
+      // fails the reply with its reason.
+      const mcpTools = settings.mcpServers.length ? await chatTools(settings.mcpServers) : []
+      const clientTools: ClientToolDef[] = [
+        ...mcpTools.map(({ name, description, input_schema }) => ({ name, description, input_schema })),
+        ...(settings.imageGen && imageConfig() ? [IMAGE_TOOL_DEF] : [])
+      ]
       const requestedAt = Date.now()
       let firstTokenAt = 0
       const first = (): void => {
@@ -559,7 +670,21 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
           // timing from the first real one.
           markStarted()
           emit({ kind: 'activity', conversationId, nodeId: assistant.id, label })
-        }
+        },
+        ...(clientTools.length
+          ? {
+              clientTools,
+              runTools: toolRunner(
+                mcpTools,
+                controller.signal,
+                (approval) => emit({ kind: 'approval', conversationId, nodeId: assistant.id, approval }),
+                (label) => {
+                  markStarted()
+                  emit({ kind: 'activity', conversationId, nodeId: assistant.id, label })
+                }
+              )
+            }
+          : {})
       })
       db.updateNode(assistant.id, {
         text: result.text,

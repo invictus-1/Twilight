@@ -4,7 +4,7 @@ import type { NodeRow } from '../db'
 import { CHOICES_TOOL } from '@shared/choices'
 import { isContextText } from '@shared/attachments'
 import { domainOf } from '@shared/webTools'
-import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
+import { MAX_TOOL_ROUNDS, TOO_MANY_ROUNDS, mergeExtraParams, textBlocks, wantsChoiceTool, type ClientOutcome, type ClientToolDef, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 // Prompt caching is a prefix match, so every request is built to be the previous request plus
 // the new turns: frozen system prompt first (with its own breakpoint), then the history with
@@ -30,8 +30,11 @@ const SERVER_RESULTS = new Set([
   'bash_code_execution_tool_result',
   'text_editor_code_execution_tool_result'
 ])
-/** Block types replayed from a stored reply; anything else (another provider's bookkeeping) is left out. */
-const REPLAYED = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use', 'server_tool_use', ...SERVER_RESULTS])
+/**
+ * Block types replayed from a stored reply; anything else (another provider's bookkeeping, a
+ * picture Twilight made) is left out. tool_results marks where Twilight ran a round of tools.
+ */
+const REPLAYED = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use', 'server_tool_use', 'tool_results', ...SERVER_RESULTS])
 const isDocument = (b: Block): boolean => b.type === 'image' || b.type === 'document' || (b.type === 'text' && typeof b.text === 'string' && isContextText(b.text))
 
 /**
@@ -54,12 +57,52 @@ function keepServerTools(blocks: Block[], tools: ReadonlySet<string>): Block[] {
   })
 }
 
+const resultText = (content: unknown): string =>
+  typeof content === 'string' ? content : Array.isArray(content) ? (content as Block[]).map((b) => (b.type === 'text' ? String(b.text) : '')).join('\n') : ''
+
+/**
+ * A stored reply as the turns it took. Where Twilight ran tools in the middle of it, the reply
+ * becomes the assistant's calls, a user turn with their results, and the assistant carrying on,
+ * exactly as they were sent. A round whose tools are no longer offered (a server switched off)
+ * is told as text instead, since the API takes calls only to tools in the request.
+ */
+export function replyTurns(blocks: Block[], available: ReadonlySet<string> | null = null): Message[] {
+  const turns: Message[] = []
+  let current: Block[] = []
+  for (const b of blocks) {
+    if (b.type !== 'tool_results') {
+      current.push(b)
+      continue
+    }
+    const results = (b.results ?? []) as Block[]
+    const answered = new Set(results.map((r) => r.tool_use_id))
+    const calls = current.filter((c) => c.type === 'tool_use' && answered.has(c.id))
+    if (available && calls.some((c) => !available.has(String(c.name)))) {
+      const names = new Map(calls.map((c) => [c.id, String(c.name)]))
+      current = current.map((c) => (c.type === 'tool_use' && answered.has(c.id) ? { type: 'text', text: `(Called ${c.name} with ${JSON.stringify(c.input)})` } : c))
+      turns.push({ role: 'assistant', content: current })
+      turns.push({ role: 'user', content: results.map((r) => ({ type: 'text', text: `${names.get(r.tool_use_id) ?? 'The tool'} returned: ${resultText(r.content)}` })) })
+    } else {
+      turns.push({ role: 'assistant', content: current })
+      turns.push({ role: 'user', content: results })
+    }
+    current = []
+  }
+  if (current.length) turns.push({ role: 'assistant', content: current })
+  return turns
+}
+
 /**
  * The conversation in Claude's format. `serverTools` names the web tools in this request
  * (web_search, web_fetch): replies that used them replay their calls only while they're sent.
  */
-export function toMessages(history: NodeRow[], serverTools: ReadonlySet<string> = new Set()): Message[] {
+export function toMessages(history: NodeRow[], serverTools: ReadonlySet<string> = new Set(), clientTools: ReadonlySet<string> | null = null): Message[] {
   const messages: Message[] = []
+  const add = (role: 'user' | 'assistant', content: Block[]): void => {
+    const last = messages[messages.length - 1]
+    if (last && last.role === role) last.content.push(...content)
+    else messages.push({ role, content })
+  }
   for (const node of history) {
     let role: 'user' | 'assistant'
     let content: Block[]
@@ -87,10 +130,10 @@ export function toMessages(history: NodeRow[], serverTools: ReadonlySet<string> 
         : textBlocks(node)
       if (node.status !== 'done') content = content.filter((b) => b.type === 'text')
       if (!content.length) continue
+      for (const turn of replyTurns(content, clientTools)) add(turn.role, turn.content)
+      continue
     } else continue
-    const last = messages[messages.length - 1]
-    if (last && last.role === role) last.content.push(...content)
-    else messages.push({ role, content })
+    add(role, content)
   }
   return messages
 }
@@ -210,30 +253,49 @@ const DYNAMIC_FILTERING = /^claude-(opus-5|fable-5|opus-4-[678]|sonnet-5|sonnet-
  * and page reads (searches are billed per use), and max_content_tokens keeps one long page from
  * filling the context.
  */
-export function anthropicTools(settings: ChatSettings): Record<string, unknown>[] {
+export function anthropicTools(settings: ChatSettings, clientTools: ClientToolDef[] = []): Record<string, unknown>[] {
   const dynamic = DYNAMIC_FILTERING.test(settings.modelId)
   const tools: Record<string, unknown>[] = []
   if (wantsChoiceTool(settings)) tools.push(CHOICES_TOOL)
   if (settings.webSearch) tools.push({ type: dynamic ? 'web_search_20260209' : 'web_search_20250305', name: 'web_search', max_uses: 5 })
   if (settings.webFetch) tools.push({ type: dynamic ? 'web_fetch_20260209' : 'web_fetch_20250910', name: 'web_fetch', max_uses: 5, max_content_tokens: 20000 })
+  // MCP tools and pictures come last, in the order chatTools() gives (fixed while the switches stay put).
+  for (const t of clientTools) tools.push({ name: t.name, description: t.description, input_schema: t.input_schema })
   return tools
 }
 
+/** A round of results in Claude's format, stored in the reply and replayed as it is. */
+export function toolResultsBlock(outcomes: ClientOutcome[]): Block {
+  return {
+    type: 'tool_results',
+    results: outcomes.map((o) => ({
+      type: 'tool_result',
+      tool_use_id: o.id,
+      content: [
+        { type: 'text', text: o.text || '(no output)' },
+        ...(o.images ?? []).map((img) => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } }))
+      ],
+      ...(o.isError ? { is_error: true } : {})
+    }))
+  }
+}
+
 /** The request body (all but the stream flag) and the betas it needs. */
-export function anthropicRequest(req: Pick<GenerateRequest, 'system' | 'history' | 'settings' | 'options'>): { body: Record<string, unknown>; betas: string[] } {
+export function anthropicRequest(req: Pick<GenerateRequest, 'system' | 'history' | 'settings' | 'options' | 'clientTools'>): { body: Record<string, unknown>; betas: string[] } {
   const { settings } = req
   const model = settings.modelId
   const options = req.options ?? anthropicOptions(model, undefined)
   const ttl = settings.cacheTtl
   const cache = settings.caching ? { cache_control: { type: 'ephemeral', ttl } } : {}
-  const tools = anthropicTools(settings)
+  const tools = anthropicTools(settings, req.clientTools)
   const serverTools = new Set(tools.map((t) => t.name as string).filter((n) => n === 'web_search' || n === 'web_fetch'))
+  const clientTools = new Set((req.clientTools ?? []).map((t) => t.name))
 
   const body: Record<string, unknown> = {
     model,
     // Claude needs max_tokens; "model default" means the model's maximum, capped at 64k.
     max_tokens: Math.min(settings.maxTokens ?? 64000, options.maxOutput ?? 128000),
-    messages: toMessages(req.history, serverTools),
+    messages: toMessages(req.history, serverTools, clientTools),
     ...cache
   }
   if (req.system) body.system = [{ type: 'text', text: req.system, ...cache }]
@@ -281,6 +343,9 @@ function activityLabel(name: string, input: { query?: string; url?: string }): s
 /** A long run of searches pauses the turn (pause_turn); it's resumed this many times at most. */
 const MAX_CONTINUATIONS = 4
 
+/** What goes back to the API from the reply so far: Twilight's own blocks (pictures made) left out. */
+const sendable = (content: Block[]): Message[] => replyTurns(content.filter((b) => REPLAYED.has(b.type)))
+
 async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> {
   if (!req.apiKey) throw new Error('Add an Anthropic API key in Settings → Providers.')
   const client = anthropicClient(req.config, req.apiKey)
@@ -299,8 +364,10 @@ async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> 
   let broke = false
   let stopReason: string | null = null
   let finalModel = model
+  const clientNames = new Set((req.clientTools ?? []).map((t) => t.name))
+  let toolRounds = 0
   for (let round = 0; round <= MAX_CONTINUATIONS; round++) {
-    const sent = content.length ? [...messages, { role: 'assistant' as const, content: [...content] }] : messages
+    const sent = content.length ? [...messages, ...sendable(content)] : messages
     const stream = client.beta.messages.stream(
       { ...body, messages: sent, betas } as unknown as Parameters<typeof client.beta.messages.stream>[0],
       { signal: req.signal }
@@ -348,10 +415,11 @@ async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> 
       }
     } catch (err) {
       if (req.signal.aborted) {
+        // The rounds already run stay with the reply (shown under it); a stopped reply replays as text.
         return {
           text,
           thinking: thinking || undefined,
-          content: text ? [{ type: 'text', text }] : null,
+          content: content.length ? [...content, ...(text ? [{ type: 'text', text }] : [])] : text ? [{ type: 'text', text }] : null,
           usage: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite, ms: Date.now() - started },
           modelId: finalModel
         }
@@ -368,6 +436,23 @@ async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> 
     usage.cacheWrite += u.cache_creation_input_tokens ?? 0
     usage.webSearches += u.server_tool_use?.web_search_requests ?? 0
     stopReason = final.stop_reason
+    // Calls to Twilight's own tools: run them, add the round, and let the reply carry on. A call
+    // to present_choices among them ends the reply instead (its answer is your next message).
+    const calls = (final.content as unknown as Block[]).filter((b) => b.type === 'tool_use')
+    if (stopReason === 'tool_use' && req.runTools && calls.length && calls.every((c) => clientNames.has(String(c.name)))) {
+      const asked = calls.map((c) => ({ id: String(c.id), name: String(c.name), input: (c.input ?? {}) as Record<string, unknown> }))
+      if (++toolRounds > MAX_TOOL_ROUNDS) {
+        content.push(toolResultsBlock(asked.map((c) => ({ id: c.id, text: TOO_MANY_ROUNDS, isError: true }))))
+        break
+      }
+      const outcomes = await req.runTools(asked)
+      content.push(toolResultsBlock(outcomes))
+      for (const o of outcomes) if (o.generated) content.push({ type: 'generated_image', ...o.generated })
+      broke = true
+      if (req.signal.aborted) break
+      round = -1 // a new round of the conversation, so pause_turn continuations count afresh
+      continue
+    }
     if (stopReason !== 'pause_turn') break
   }
 

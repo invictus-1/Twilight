@@ -3,6 +3,7 @@ import { gameFormat } from '@shared/gameFormat'
 import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import { readGameFormat } from '../gameFormatSettings'
 import type { NodeView, WebSource, WebStep } from '@shared/types'
+import type { GeneratedImage, ToolApproval, ToolStep } from '@shared/mcp'
 import { domainOf } from '@shared/webTools'
 import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
@@ -12,7 +13,7 @@ import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
 import { DiffBody, useDiffed } from './SplitDiff'
-import { AlertIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, TrashIcon } from './Icons'
+import { AlertIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, ToolIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -271,11 +272,78 @@ function WebSources({ sources }: { sources: WebSource[] }) {
   )
 }
 
+/** A tool call the reply is waiting on: what it is, its arguments, and your answer. */
+function ApprovalCard({ approval }: { approval: ToolApproval }) {
+  const [sent, setSent] = useState(false)
+  const answer = (approve: boolean, always = false): void => {
+    setSent(true)
+    void window.twilight.respondToolApproval(approval.id, { approve, always })
+  }
+  return (
+    <div className="tool-approval" role="dialog" aria-label="Allow this tool call?">
+      <div className="tool-approval-head">
+        Allow <code>{approval.tool}</code> from {approval.server}?{approval.readOnly && <span className="tw-badge">read-only</span>}
+      </div>
+      <pre className="tool-approval-input">{approval.input}</pre>
+      <div className="tool-approval-actions">
+        <button className="tw-btn tw-btn-primary tw-btn-sm" autoFocus disabled={sent} onClick={() => answer(true)}>
+          Allow once
+        </button>
+        <button className="tw-btn tw-btn-sm" disabled={sent} title={`Run ${approval.tool} without asking from now on (Settings → Tools)`} onClick={() => answer(true, true)}>
+          Always allow {approval.tool}
+        </button>
+        <button className="tw-btn tw-btn-ghost tw-btn-sm" disabled={sent} onClick={() => answer(false)}>
+          Decline
+        </button>
+      </div>
+    </div>
+  )
+}
+
+/** The tools a finished reply used, each with what it sent and got back. */
+function ToolSteps({ steps }: { steps: ToolStep[] }) {
+  return (
+    <div className="web-steps tool-steps">
+      {steps.map((step, i) => (
+        <details key={i} className={`web-step tool-step tool-${step.status}`}>
+          <summary>
+            <ToolIcon size={13} />
+            <span className="web-what">
+              {step.server ? `${step.server}: ` : ''}
+              {step.tool}
+            </span>
+            {step.status !== 'done' && <span className="web-count">{step.status === 'declined' ? 'declined' : 'failed'}</span>}
+          </summary>
+          <div className="tool-io">
+            <div className="tool-io-label">Sent</div>
+            <pre>{step.input}</pre>
+            <div className="tool-io-label">Got back</div>
+            <pre>{step.output}</pre>
+          </div>
+        </details>
+      ))}
+    </div>
+  )
+}
+
+function Pictures({ images }: { images: GeneratedImage[] }) {
+  return (
+    <div className="gen-images">
+      {images.map((img) => (
+        <figure key={img.file} className="gen-image">
+          <img src={`twilight-bg://generated/${encodeURIComponent(img.file)}`} alt={img.prompt} title={img.prompt} loading="lazy" />
+        </figure>
+      ))}
+    </div>
+  )
+}
+
 function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking: boolean }) {
   const subscribe = (cb: () => void): (() => void) => subscribeStream(nodeId, cb)
   const text = useSyncExternalStore(subscribe, () => readStream(nodeId).text)
   const thinking = useSyncExternalStore(subscribe, () => readStream(nodeId).thinking)
   const activity = useSyncExternalStore(subscribe, () => readStream(nodeId).activity)
+  const approval = useSyncExternalStore(subscribe, () => readStream(nodeId).approval)
   const pane = usePane()
   // A choices block being written stays hidden until its card can show (only when they're read).
   const fenced = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceFenced : true))
@@ -291,15 +359,23 @@ function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking:
         <div className="web-steps">
           {activity.map((line, i) => (
             <div key={i} className="web-step">
-              {!text && i === activity.length - 1 ? <span className="tw-spin" /> : line.startsWith('Reading') ? <DocIcon size={13} /> : <SearchIcon size={13} />}
+              {!text && !approval && i === activity.length - 1 ? (
+                <span className="tw-spin" />
+              ) : line.startsWith('Reading') ? (
+                <DocIcon size={13} />
+              ) : line.startsWith('Using') || line.startsWith('Making') ? (
+                <ToolIcon size={13} />
+              ) : (
+                <SearchIcon size={13} />
+              )}
               <span className="web-what">{line}</span>
             </div>
           ))}
         </div>
       )}
-      {text ? (
-        <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(extractChoices(text, false, fenced).body) }} />
-      ) : activity.length > 0 ? null : (
+      {text && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(extractChoices(text, false, fenced).body) }} />}
+      {approval && <ApprovalCard key={approval.id} approval={approval} />}
+      {text || approval ? null : activity.length > 0 ? null : (
         <div className="msg-pending">
           <span className="tw-spin" /> {thinking ? 'Thinking' : 'Waiting for the first token'}
         </div>
@@ -395,12 +471,14 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
             </details>
           )}
           {node.web && node.web.steps.length > 0 && <WebSteps steps={node.web.steps} />}
+          {node.tools && node.tools.length > 0 && <ToolSteps steps={node.tools} />}
           {body && diffed && (
             <DiffBody pane={pane} nodeId={node.id}>
               <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />
             </DiffBody>
           )}
           {body && !diffed && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />}
+          {node.images && node.images.length > 0 && <Pictures images={node.images} />}
           {node.web && node.web.cited.length > 0 && <WebSources sources={node.web.cited} />}
           {choices && (
             <ChoiceCard choices={choices} active={isLast} answer={next?.role === 'user' ? next.text : null} />

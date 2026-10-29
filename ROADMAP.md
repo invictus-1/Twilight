@@ -6,6 +6,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ### 0.8.0 · In progress
 - [x] **Background framing** · Core — drag and zoom your picture to choose which part shows; brighter Nebula, Embers and Starfield
+- [x] **MCP and pictures** · Chat — MCP servers (programs or addresses) switched on per chat, each call approved in the reply unless allowed, and pictures from an image model
 - [x] **Extras** · Core — a Settings page for things just for fun, starting with scroll particles in six styles that follow how fast you scroll
 - [x] **Code** · Core — its own tab: an agent that reads, edits and runs things in a folder you choose, asks when it's unsure, shows every change as a diff, waits for approval before edits and commands, snapshots before each change so any of it can be undone, and sends deletions to the Recycle Bin
 
@@ -91,8 +92,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [~] **Your feedback on 0.8** · Core — fixes from real use of the Code tab, Extras and backgrounds
 
 ## Later
-- [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion
-- [ ] **More tools and MCP** · Chat — image generation and MCP servers, switched on per chat
+- [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion. Startup, chat-open and scroll times are measured before and after, so the gains are real numbers
 - [ ] **Code, further** · Core — a plan mode that agrees the steps first, a project instructions file the agent reads, web search in Code, and a checkpoint per message you can rewind to
 - [ ] **A light theme** · Core — Moonlit Paper: a soft, paper-light theme (Twilight is dark throughout today)
 - [ ] **Document library** · Writing — retrieval over very large collections with local embeddings

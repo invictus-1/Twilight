@@ -1294,3 +1294,39 @@ body.resizing .resize-handle { pointer-events: auto; }
 .code-answer { display: flex; gap: var(--space-2); padding: 0 var(--space-3) var(--space-3); }
 .code-answer input { flex: 1; }
 .code-usage { font-size: 12px; }
+
+/* ——— Tools: MCP servers and pictures ——— */
+.tools-empty { margin: 0; padding: var(--space-1) var(--space-3) var(--space-2); font-size: 12px; color: var(--ink-faint); }
+.form-error { margin: 0; font-size: 12px; line-height: 16px; color: var(--danger); }
+.mcp-list { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-3) 0; }
+.mcp-server { border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-2) var(--space-3); background: var(--surface); display: flex; flex-direction: column; gap: var(--space-1); }
+.mcp-server-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.mcp-name { font-weight: 600; }
+.mcp-state { font-size: 12px; color: var(--ink-muted); }
+.mcp-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink-faint); flex: none; }
+.mcp-dot.mcp-ready { background: var(--success); }
+.mcp-dot.mcp-error { background: var(--danger); }
+.mcp-dot.mcp-connecting { background: var(--warning); }
+.mcp-enabled { font-size: 12px; }
+.mcp-sub { font-size: 12px; color: var(--ink-faint); font-family: var(--font-mono); overflow-wrap: anywhere; }
+.mcp-tools summary { cursor: pointer; font-size: 12px; color: var(--ink-muted); }
+.mcp-tools ul { margin: var(--space-1) 0 0; padding-left: var(--space-4); display: flex; flex-direction: column; gap: 2px; font-size: 12px; }
+.mcp-tools li { display: flex; gap: var(--space-2); align-items: baseline; flex-wrap: wrap; }
+.mcp-tool-desc { color: var(--ink-faint); }
+.mcp-form { display: flex; flex-direction: column; gap: var(--space-3); border: 1px solid var(--line-strong); }
+.mcp-form-actions { display: flex; gap: var(--space-2); }
+.mcp-add { align-self: flex-start; }
+.tool-approval { border: 1px solid var(--line-strong); border-radius: var(--radius-md); background: var(--surface-raised); margin: var(--space-2) 0; overflow: hidden; }
+.tool-approval-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); font-weight: 600; font-size: 13px; flex-wrap: wrap; }
+.tool-approval-head code { font-family: var(--font-mono); font-weight: 500; }
+.tool-approval-input { margin: 0; padding: var(--space-2) var(--space-3); background: var(--night); border-top: 1px solid var(--line); font-family: var(--font-mono); font-size: 12px; line-height: 18px; max-height: 240px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tool-approval-actions { display: flex; gap: var(--space-2); padding: var(--space-2) var(--space-3); flex-wrap: wrap; }
+.tool-step summary { list-style: none; display: flex; align-items: center; gap: var(--space-2); cursor: pointer; }
+.tool-step summary::-webkit-details-marker { display: none; }
+.tool-step.tool-error .web-count, .tool-step.tool-declined .web-count { color: var(--danger); }
+.tool-io { margin: var(--space-1) 0 var(--space-2) var(--space-4); }
+.tool-io-label { font-size: 11px; color: var(--ink-faint); text-transform: uppercase; letter-spacing: 0.06em; margin-top: var(--space-1); }
+.tool-io pre { margin: 2px 0 0; padding: var(--space-2); background: var(--night); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: 12px; line-height: 18px; max-height: 200px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.gen-images { display: flex; flex-wrap: wrap; gap: var(--space-2); margin: var(--space-2) 0; }
+.gen-image { margin: 0; }
+.gen-image img { display: block; max-width: min(100%, 420px); border-radius: var(--radius-md); border: 1px solid var(--line); }

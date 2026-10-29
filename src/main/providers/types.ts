@@ -16,7 +16,37 @@ export interface GenerateRequest {
   onThinking(delta: string): void
   /** A web search or page read has started ("Searching: …"). */
   onActivity?(label: string): void
+  /** Tools Twilight runs itself (MCP servers, pictures), offered after the built-in ones. */
+  clientTools?: ClientToolDef[]
+  /** Runs a round of calls to those tools (asking you first where needed). */
+  runTools?(calls: ClientCall[]): Promise<ClientOutcome[]>
 }
+
+export interface ClientToolDef {
+  name: string
+  description: string
+  input_schema: Record<string, unknown>
+}
+
+export interface ClientCall {
+  id: string
+  name: string
+  input: Record<string, unknown>
+}
+
+export interface ClientOutcome {
+  id: string
+  text: string
+  /** Pictures a tool returned, passed back to models that can see them. */
+  images?: { mediaType: string; data: string }[]
+  isError?: boolean
+  /** A picture Twilight made, shown in the reply. */
+  generated?: { file: string; prompt: string }
+}
+
+/** A reply that keeps calling tools is stopped after this many rounds. */
+export const MAX_TOOL_ROUNDS = 25
+export const TOO_MANY_ROUNDS = `Stopped: more than ${MAX_TOOL_ROUNDS} rounds of tool calls in one reply.`
 
 export interface GenerateResult {
   text: string

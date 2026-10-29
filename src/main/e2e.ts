@@ -7,6 +7,9 @@ import { logsFolder } from './logs'
 import { join } from 'node:path'
 import * as chat from './chat'
 import * as code from './code/agent'
+import * as mcp from './mcp'
+import { setImageConfig } from './images'
+import { DECLINED } from '@shared/mcp'
 import { commandRisk, lineDiff } from '@shared/code'
 import * as db from './db'
 import * as docs from './docs'
@@ -103,6 +106,68 @@ sha512: ${sha}
   res.end(bytes)
 }
 
+/** A 1×1 picture, for the images endpoint. */
+const TINY_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=='
+
+/**
+ * An MCP server you start as a program: lamp tools over stdin and stdout. count_lamps says
+ * whether the token set for it arrived; light_lamp lights the lamp it's given.
+ */
+const MCP_STDIO_SERVER = `
+let buf = ''
+process.stdin.setEncoding('utf8')
+const send = (m) => process.stdout.write(JSON.stringify(m) + '\\n')
+process.stdout.write('lamp-tools starting\\n')
+process.stdin.on('data', (chunk) => {
+  buf += chunk
+  let nl
+  while ((nl = buf.indexOf('\\n')) >= 0) {
+    const line = buf.slice(0, nl).trim()
+    buf = buf.slice(nl + 1)
+    if (!line) continue
+    const m = JSON.parse(line)
+    if (m.id === undefined) continue
+    if (m.method === 'initialize') send({ jsonrpc: '2.0', id: m.id, result: { protocolVersion: m.params.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'lamp-tools', version: '1.0' } } })
+    else if (m.method === 'tools/list') send({ jsonrpc: '2.0', id: m.id, result: { tools: [
+      { name: 'count_lamps', description: 'Counts the lamps on a street', inputSchema: { type: 'object', properties: { street: { type: 'string' } }, required: ['street'] }, annotations: { readOnlyHint: true } },
+      { name: 'light_lamp', description: 'Lights one lamp', inputSchema: { type: 'object', properties: { n: { type: 'number' } }, required: ['n'] } }
+    ] } })
+    else if (m.method === 'tools/call') {
+      const a = m.params.arguments || {}
+      const text = m.params.name === 'count_lamps' ? a.street + ' has 9 lamps (token:' + (process.env.MOCK_TOKEN === 'tok-123' ? 'set' : 'missing') + ')' : 'Lamp ' + a.n + ' is lit.'
+      send({ jsonrpc: '2.0', id: m.id, result: { content: [{ type: 'text', text }] } })
+    } else send({ jsonrpc: '2.0', id: m.id, error: { code: -32601, message: 'unknown' } })
+  }
+})
+`
+
+/** An MCP server at an address (Streamable HTTP), answering in JSON; it wants an x-token header. */
+function mockMcpHttp(req: import('node:http').IncomingMessage, res: import('node:http').ServerResponse): void {
+  let body = ''
+  req.on('data', (c) => (body += c))
+  req.on('end', () => {
+    if (req.method === 'DELETE') return void res.end()
+    if (req.headers['x-token'] !== 'shelf') {
+      res.statusCode = 401
+      return void res.end('missing token')
+    }
+    const m = JSON.parse(body || '{}') as { id?: number; method?: string; params?: { protocolVersion?: string; arguments?: { title?: string } } }
+    if (m.id === undefined) {
+      res.statusCode = 202
+      return void res.end()
+    }
+    res.setHeader('content-type', 'application/json')
+    res.setHeader('mcp-session-id', 'session-1')
+    const result =
+      m.method === 'initialize'
+        ? { protocolVersion: m.params?.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: 'library', version: '2.1' } }
+        : m.method === 'tools/list'
+          ? { tools: [{ name: 'find_book', description: 'Finds a book', inputSchema: { type: 'object', properties: { title: { type: 'string' } } } }] }
+          : { content: [{ type: 'text', text: `Found ${m.params?.arguments?.title ?? 'nothing'} on shelf 4.` }] }
+    res.end(JSON.stringify({ jsonrpc: '2.0', id: m.id, result }))
+  })
+}
+
 /**
  * The Code tab's scripted agent. The request names a script; each tool result moves it one call
  * on, and after the last call it replies with every result it got, so a check can see them.
@@ -164,6 +229,12 @@ function codeAgentReply(messages: { role: string; content: string | null }[], re
 function startMockServer(log: LoggedRequest[]): Promise<Server> {
   const server = createServer((req, res) => {
     if (req.url?.startsWith('/gh/')) return mockGithub(req.url, `http://${req.headers.host}/gh`, res)
+    if (req.url?.endsWith('/images/generations')) {
+      res.setHeader('content-type', 'application/json')
+      res.end(JSON.stringify({ data: [{ b64_json: TINY_PNG }] }))
+      return
+    }
+    if (req.url === '/mcp') return mockMcpHttp(req, res)
     if (req.url?.endsWith('/models')) {
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ data: [{ id: 'mock-a', context_length: 8000 }, { id: 'mock-b' }] }))
@@ -195,6 +266,28 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })}\n\n`)
         res.end('data: [DONE]\n\n')
         return
+      }
+      // "MCPCALL name {args} ;; name {args}": one tool call per round, in order, then an answer.
+      const mcpScript = /MCPCALL (.*)$/s.exec(lastUser)?.[1]
+      if (mcpScript && (parsed as { tools?: unknown[] }).tools?.length) {
+        const rounds = mcpScript.split(';;').map((r) => r.trim())
+        const lastUserAt = parsed.messages.map((m) => m.role).lastIndexOf('user')
+        const done = parsed.messages.slice(lastUserAt + 1).filter((m) => m.role === 'assistant').length
+        const step = rounds[done]
+        if (step) {
+          const name = step.split(' ')[0]
+          const args = step.slice(name.length).trim() || '{}'
+          const send = (o: unknown): void => void res.write(`data: ${JSON.stringify(o)}\n\n`)
+          res.writeHead(200, { 'content-type': 'text/event-stream' })
+          send({ choices: [{ delta: { content: done ? '' : 'Let me check.' } }] })
+          entry.firstTokenAt ??= Date.now()
+          send({ choices: [{ delta: { tool_calls: [{ index: 0, id: `mcp_${done}`, type: 'function', function: { name, arguments: '' } }] } }] })
+          send({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: args } }] } }] })
+          send({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })
+          send({ choices: [], usage: { prompt_tokens: 100, completion_tokens: 10 } })
+          res.end('data: [DONE]\n\n')
+          return
+        }
       }
       const system = parsed.messages[0]?.content ?? ''
       let reply: string
@@ -3485,6 +3578,212 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('Settings group names stand out from the pages under them', groups44.names.join() === 'App,Models,About' && groups44.heading !== groups44.page && Number(groups44.weight) >= 700 && groups44.ruled, groups44)
       await shot('e2e-settings-groups.png')
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+
+      // 45. MCP servers and pictures. A program started over stdio and a server at an address
+      // give the chat tools; calls wait for approval in the reply unless allowed; rounds are stored
+      // in the reply and replayed exactly; pictures come from the images endpoint.
+      const script45 = join(outDir, 'mcp-lamps.cjs')
+      writeFileSync(script45, MCP_STDIO_SERVER)
+      let list45 = mcp.saveServer({
+        id: '', name: 'Lamp tools', kind: 'stdio', command: process.execPath, args: [script45], cwd: '', url: '', enabled: true, approval: 'ask', allowedTools: [], envKeys: [], headerKeys: [],
+        env: { ELECTRON_RUN_AS_NODE: '1', MOCK_TOKEN: 'tok-123' }
+      })
+      const lamps45 = list45.find((s) => s.name === 'Lamp tools')!
+      list45 = await mcp.testServer(lamps45.id)
+      const st45 = list45.find((s) => s.id === lamps45.id)!.status
+      check('a program started over stdio connects and lists its tools', st45.state === 'ready' && st45.info === 'lamp-tools 1.0' && st45.tools.map((t) => t.name).join() === 'count_lamps,light_lamp' && st45.tools[0].readOnly, st45)
+      check("its environment values stay out of the window's view", !JSON.stringify(mcp.listServers()).includes('tok-123') && lamps45.envKeys.join() === 'ELECTRON_RUN_AS_NODE,MOCK_TOKEN', lamps45.envKeys)
+      check('two servers cannot share a name', (() => { try { mcp.saveServer({ ...lamps45, id: '', name: 'lamp tools' }); return false } catch { return true } })())
+
+      const c45 = chat.create().id
+      chat.updateSettings(c45, { providerId: 'mock', modelId: 'mock-a', mcpServers: [lamps45.id], choiceCards: false })
+      db.updateConversation(c45, { started: 1, title: 'Lamps with tools' })
+      await reloadUi()
+      await js(`(async () => {
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Lamps with tools')?.click()
+        await new Promise((r) => setTimeout(r, 500))
+      })()`)
+      const waitApproval = (): Promise<{ head: string; input: string } | null> =>
+        js(`(async () => {
+          for (let end = Date.now() + 8000; Date.now() < end; ) {
+            const card = document.querySelector('.tool-approval')
+            if (card) return { head: card.querySelector('.tool-approval-head').textContent, input: card.querySelector('.tool-approval-input').textContent }
+            await new Promise((r) => setTimeout(r, 30))
+          }
+          return null
+        })()`)
+      const clickApproval = (label: string): Promise<boolean> =>
+        js(`(() => { const b = [...document.querySelectorAll('.tool-approval button')].find((x) => x.textContent.trim() === ${JSON.stringify(label)}); b?.click(); return !!b })()`)
+      // Sent from the composer, as you would, so the window follows the reply it started.
+      const uiSend = async (text: string): Promise<void> => {
+        win.webContents.focus()
+        await js(`document.querySelector('.tw-composer textarea')?.focus()`)
+        win.webContents.insertText(text)
+        await js(`(async () => {
+          for (let end = Date.now() + 2000; Date.now() < end && document.querySelector('.tw-composer .tw-send')?.disabled; ) await new Promise((r) => setTimeout(r, 30))
+          document.querySelector('.tw-composer .tw-send')?.click()
+          await new Promise((r) => setTimeout(r, 100))
+        })()`)
+      }
+      const before45 = log.length
+      await uiSend('MCPCALL lamp_tools__light_lamp {"n":3}')
+      const card45 = await waitApproval()
+      check('a tool call waits for approval, showing the tool and its arguments', !!card45?.head.includes('light_lamp') && card45.head.includes('Lamp tools') && card45.input.includes('"n": 3'), card45)
+      await shot('e2e-mcp-approval.png')
+      await clickApproval('Allow once')
+      await idle(c45)
+      let last45 = chat.view(c45).path.at(-1)!
+      check('an allowed call runs and the reply carries on with its result', last45.text.includes('Answering the tool result: Lamp 3 is lit.') && last45.tools?.[0]?.tool === 'light_lamp' && last45.tools[0].status === 'done', last45)
+      const req45 = log.slice(before45)
+      const tools45 = ((req45[0]?.body as { tools?: { function: { name: string; description: string } }[] }).tools ?? []).map((t) => t.function)
+      check("the chat offers the server's tools under its name", tools45.map((t) => t.name).join() === 'lamp_tools__count_lamps,lamp_tools__light_lamp' && tools45[0].description.startsWith('[Lamp tools]'), tools45)
+      check(
+        'the second request is the first plus the round, unchanged',
+        req45.length === 2 && JSON.stringify(req45[1].messages.slice(0, req45[0].messages.length)) === JSON.stringify(req45[0].messages) && req45[1].messages.at(-1)?.role === 'tool',
+        req45.map((r) => r.messages.length)
+      )
+
+      await uiSend('MCPCALL lamp_tools__light_lamp {"n":4}')
+      await waitApproval()
+      await clickApproval('Decline')
+      await idle(c45)
+      last45 = chat.view(c45).path.at(-1)!
+      check('a declined call tells the model so, and shows as declined', last45.text.includes(DECLINED) && last45.tools?.[0]?.status === 'declined', last45.tools)
+
+      await uiSend('MCPCALL lamp_tools__light_lamp {"n":5}')
+      await waitApproval()
+      await clickApproval('Always allow light_lamp')
+      await idle(c45)
+      const allowed45 = mcp.listServers().find((s) => s.id === lamps45.id)!.allowedTools
+      const before45b = log.length
+      chat.send(contents, c45, 'MCPCALL lamp_tools__light_lamp {"n":6}')
+      await idle(c45)
+      check('an always-allowed tool runs without asking next time', allowed45.join() === 'light_lamp' && chat.view(c45).path.at(-1)!.text.includes('Lamp 6 is lit.') && log.length - before45b === 2, allowed45)
+
+      // Several rounds in one reply, each replayed in the next request; the server's token arrived.
+      mcp.saveServer({ ...mcp.listServers().find((s) => s.id === lamps45.id)!, approval: 'allow' })
+      const before45c = log.length
+      await uiSend('MCPCALL lamp_tools__count_lamps {"street":"Harrow Lane"} ;; lamp_tools__light_lamp {"n":1}')
+      await idle(c45)
+      last45 = chat.view(c45).path.at(-1)!
+      const req45c = log.slice(before45c)
+      check('a reply can run several rounds of tools', req45c.length === 3 && last45.tools?.map((t) => t.tool).join() === 'count_lamps,light_lamp' && last45.text.includes('Lamp 1 is lit.'), last45.tools)
+      check('a server gets the environment values set for it', !!last45.tools?.[0]?.output.includes('token:set'), last45.tools?.[0])
+      check('each round is replayed exactly in the next', req45c.every((r, i) => i === 0 || JSON.stringify(r.messages.slice(0, req45c[i - 1].messages.length)) === JSON.stringify(req45c[i - 1].messages)), req45c.map((r) => r.messages.length))
+      const ui45 = await js<{ steps: string[]; open: string }>(`(async () => {
+        await new Promise((r) => setTimeout(r, 300))
+        const msg = [...document.querySelectorAll('.tw-msg-ai')].at(-1)
+        const steps = [...(msg?.querySelectorAll('.tool-step .web-what') ?? [])].map((e) => e.textContent)
+        msg?.querySelector('.tool-step summary')?.click()
+        await new Promise((r) => setTimeout(r, 150))
+        return { steps, open: msg?.querySelector('.tool-step[open] .tool-io')?.textContent ?? '' }
+      })()`)
+      check('the reply lists the tools it used, with what went in and out', ui45.steps.join('|') === 'lamp_tools: count_lamps|lamp_tools: light_lamp' && ui45.open.includes('Harrow Lane has 9 lamps'), ui45)
+      await shot('e2e-mcp-steps.png')
+
+      // With the server switched off for the chat, earlier rounds are told as text.
+      chat.updateSettings(c45, { mcpServers: [] })
+      chat.send(contents, c45, 'And now?')
+      await idle(c45)
+      const off45 = log.at(-1)!
+      check(
+        "rounds whose tools aren't offered any more are replayed as text",
+        !(off45.body as { tools?: unknown }).tools && !off45.messages.some((m) => m.role === 'tool') && off45.messages.some((m) => String(m.content).includes('(Called lamp_tools__light_lamp')),
+        off45.messages.length
+      )
+
+      // Stopping while a call waits declines it and ends the reply.
+      mcp.saveServer({ ...mcp.listServers().find((s) => s.id === lamps45.id)!, approval: 'ask', allowedTools: [] })
+      chat.updateSettings(c45, { mcpServers: [lamps45.id] })
+      await uiSend('MCPCALL lamp_tools__light_lamp {"n":8}')
+      await waitApproval()
+      chat.stop(c45)
+      await idle(c45)
+      const gone45 = await js<boolean>(`(async () => { await new Promise((r) => setTimeout(r, 300)); return !document.querySelector('.tool-approval') })()`)
+      check('stopping a reply that waits on a tool declines it', chat.view(c45).path.at(-1)!.status === 'stopped' && gone45)
+
+      // A server at an address, with a header it needs.
+      let http45 = mcp.saveServer({ id: '', name: 'Library', kind: 'http', command: '', args: [], cwd: '', url: `http://127.0.0.1:${port}/mcp`, enabled: true, approval: 'allow', allowedTools: [], envKeys: [], headerKeys: [], headers: { 'x-token': 'wrong' } })
+      const lib45 = http45.find((s) => s.name === 'Library')!
+      http45 = await mcp.testServer(lib45.id)
+      const bad45 = http45.find((s) => s.id === lib45.id)!.status
+      check('a server that refuses shows why', bad45.state === 'error' && /401/.test(bad45.error ?? ''), bad45)
+      mcp.saveServer({ ...lib45, headers: { 'x-token': 'shelf' } })
+      http45 = await mcp.testServer(lib45.id)
+      const good45 = http45.find((s) => s.id === lib45.id)!.status
+      check('a server at an address connects over HTTP', good45.state === 'ready' && good45.info === 'library 2.1' && good45.tools[0]?.name === 'find_book', good45)
+      chat.updateSettings(c45, { mcpServers: [lib45.id] })
+      chat.send(contents, c45, 'MCPCALL library__find_book {"title":"The Lamplighter\'s Log"}')
+      await idle(c45)
+      check('its tools run in a chat', chat.view(c45).path.at(-1)!.text.includes("Found The Lamplighter's Log on shelf 4."), chat.view(c45).path.at(-1)!.text)
+
+      // A server that won't start fails the reply with the reason.
+      const broken45 = mcp.saveServer({ id: '', name: 'Broken', kind: 'stdio', command: 'twilight-no-such-program', args: [], cwd: '', url: '', enabled: true, approval: 'ask', allowedTools: [], envKeys: [], headerKeys: [] }).find((s) => s.name === 'Broken')!
+      chat.updateSettings(c45, { mcpServers: [broken45.id] })
+      chat.send(contents, c45, 'Hello')
+      await idle(c45)
+      const err45 = chat.view(c45).path.at(-1)!
+      check("a server that can't start fails the reply with the reason", err45.status === 'error' && /Broken couldn't connect/.test(err45.error ?? ''), err45.error)
+      mcp.deleteServer(broken45.id)
+
+      // Pictures from the images endpoint, saved and shown in the reply.
+      setImageConfig({ providerId: 'mock', modelId: 'mock-img', size: '1024x1024' })
+      chat.updateSettings(c45, { mcpServers: [], imageGen: true })
+      const before45d = log.length
+      await uiSend('MCPCALL generate_image {"prompt":"a lamp at dusk"}')
+      await idle(c45)
+      const pic45 = chat.view(c45).path.at(-1)!
+      const imgTool45 = ((log[before45d]?.body as { tools?: { function: { name: string } }[] }).tools ?? []).map((t) => t.function.name)
+      check('with Pictures on, the chat offers generate_image', imgTool45.join() === 'generate_image', imgTool45)
+      check('a picture is made, saved and kept with the reply', pic45.images?.length === 1 && pic45.images[0].prompt === 'a lamp at dusk' && existsSync(join(app.getPath('userData'), 'generated', pic45.images[0].file)), pic45.images)
+      const shown45 = await js<number>(`(async () => {
+        for (let end = Date.now() + 4000; Date.now() < end; ) {
+          const img = [...document.querySelectorAll('.gen-image img')].at(-1)
+          if (img?.complete && img.naturalWidth) return img.naturalWidth
+          await new Promise((r) => setTimeout(r, 50))
+        }
+        return 0
+      })()`)
+      check('the picture shows in the reply', shown45 === 1, shown45)
+
+      // Claude's side, on the pure builders: a stored round splits into the turns it took, and a
+      // round whose tools aren't offered is told as text.
+      const round45 = row('assistant', [
+        { type: 'text', text: 'Checking.' },
+        { type: 'tool_use', id: 'toolu_9', name: 'lamp_tools__count_lamps', input: { street: 'Quay' } },
+        { type: 'tool_results', results: [{ type: 'tool_result', tool_use_id: 'toolu_9', content: [{ type: 'text', text: '9 lamps' }] }] },
+        { type: 'generated_image', file: 'x.png', prompt: 'p' },
+        { type: 'text', text: 'Nine.' }
+      ])
+      const split45 = toMessages([row('user', [{ type: 'text', text: 'Count' }]), round45], new Set(), new Set(['lamp_tools__count_lamps']))
+      check('a Claude reply with a round replays as assistant, results, assistant', split45.map((m) => m.role).join() === 'user,assistant,user,assistant' && (split45[2].content as { type: string }[])[0].type === 'tool_result' && (split45[3].content as { text?: string }[])[0].text === 'Nine.', split45)
+      const told45 = toMessages([row('user', [{ type: 'text', text: 'Count' }]), round45], new Set(), new Set())
+      check('without its tool, the round is told as text', !JSON.stringify(told45).includes('"tool_use"') && JSON.stringify(told45).includes('9 lamps'), told45)
+      const claudeTools45 = anthropicTools({ ...chat.getDefaults(), webSearch: true }, [{ name: 'lamp_tools__count_lamps', description: 'x', input_schema: { type: 'object' } }]).map((t) => t.name)
+      check("Claude gets MCP tools after its own, in a fixed order", claudeTools45.join() === 'web_search,lamp_tools__count_lamps', claudeTools45)
+
+      // Settings → Tools and the Tools menu.
+      await key(',', ['control'])
+      const settings45 = await js<{ servers: string[]; states: string[] }>(`(async () => {
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Tools')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.mcp-server'); ) await new Promise((r) => setTimeout(r, 50))
+        return { servers: [...document.querySelectorAll('.mcp-name')].map((e) => e.textContent), states: [...document.querySelectorAll('.mcp-state')].map((e) => e.textContent) }
+      })()`)
+      check('Settings → Tools lists the servers and how they are', settings45.servers.join() === 'Lamp tools,Library' && settings45.states.every((s) => s.startsWith('Connected')), settings45)
+      await shot('e2e-mcp-settings.png')
+      // The chat's switches were changed from here, so the window loads it afresh.
+      await reloadUi()
+      const menu45 = await js<string[]>(`(async () => {
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Lamps with tools')?.click()
+        await new Promise((r) => setTimeout(r, 500))
+        ;[...document.querySelectorAll('.tools-menu button')].find((b) => b.textContent.includes('Tools'))?.click()
+        await new Promise((r) => setTimeout(r, 250))
+        const rows = [...document.querySelectorAll('.tools-row[data-tool^="mcp:"], .tools-row[data-tool="imageGen"]')].map((r) => r.dataset.tool + '=' + r.querySelector('input').checked)
+        ;[...document.querySelectorAll('.tools-menu button')].find((b) => b.textContent.includes('Tools'))?.click()
+        return rows
+      })()`)
+      check('the Tools menu switches servers and pictures per chat', menu45.join() === 'mcp:Lamp tools=false,mcp:Library=false,imageGen=true', menu45)
+      mcp.closeAll()
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

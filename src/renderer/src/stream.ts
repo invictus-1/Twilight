@@ -1,4 +1,5 @@
 import type { StreamEvent } from '@shared/types'
+import type { ToolApproval } from '@shared/mcp'
 
 // Streaming text lives outside React state. Deltas are appended to a buffer and subscribers
 // are notified at most once per animation frame, so a fast model never re-renders the thread
@@ -7,11 +8,13 @@ import type { StreamEvent } from '@shared/types'
 interface Buffer {
   text: string
   thinking: string
-  /** Searches and page reads so far ("Searching: …"), newest last. */
+  /** Searches, page reads and tool calls so far ("Searching: …"), newest last. */
   activity: string[]
+  /** A tool call waiting for your approval. */
+  approval: ToolApproval | null
 }
 
-const EMPTY: Buffer = { text: '', thinking: '', activity: [] }
+const EMPTY: Buffer = { text: '', thinking: '', activity: [], approval: null }
 
 const buffers = new Map<string, Buffer>()
 const listeners = new Map<string, Set<() => void>>()
@@ -26,9 +29,10 @@ function flush(): void {
 
 export function handleStreamEvent(event: StreamEvent): void {
   if (event.kind === 'done') return
-  const buf = buffers.get(event.nodeId) ?? { text: '', thinking: '', activity: [] }
+  const buf = buffers.get(event.nodeId) ?? { text: '', thinking: '', activity: [], approval: null }
   if (event.kind === 'text') buf.text += event.delta
   else if (event.kind === 'thinking') buf.thinking += event.delta
+  else if (event.kind === 'approval') buf.approval = event.approval
   // A new array, so a subscriber comparing snapshots sees the change.
   else buf.activity = [...buf.activity, event.label]
   buffers.set(event.nodeId, buf)

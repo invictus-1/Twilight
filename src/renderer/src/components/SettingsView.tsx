@@ -13,12 +13,13 @@ import { savedTheme, setTheme, type Theme } from '../theme'
 import { readHidden, writeHidden } from './ChatSettingsPanel'
 import { RoadmapSection } from './RoadmapSection'
 import { UpdatesSection } from './UpdatesSection'
+import { ToolsSection } from './ToolsSection'
 import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIcon } from './Icons'
 
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'prices' | 'usage' | 'general' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
+type Section = 'providers' | 'tools' | 'prices' | 'usage' | 'general' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
 
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
   { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
@@ -28,6 +29,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
   { id: 'extras', group: 'App', label: 'Extras', description: "Just for fun: little extras that don't change how anything works. All of them start off." },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
+  { id: 'tools', group: 'Models', label: 'Tools', description: 'MCP servers that give chats tools, and the model that makes pictures. Each is switched on per chat in the Tools menu.' },
   { id: 'prices', group: 'Models', label: 'Prices', description: 'What replies cost: your own prices per model, and the built-in ones. A cost the provider reports itself comes first.' },
   { id: 'usage', group: 'Models', label: 'Usage', description: 'Tokens and spend over time, by model and by chat, counted from every reply and Judge run.' },
   { id: 'updates', group: 'About', label: 'Updates', description: 'Your version, new releases, and rolling back to an earlier one. The daily check is the only request Twilight makes on its own.' },
@@ -602,6 +604,7 @@ export function SettingsView() {
           <h2 className="t-title">{current.label}</h2>
           <p className="section-description">{current.description}</p>
           {section === 'providers' && <ProvidersSection />}
+          {section === 'tools' && <ToolsSection />}
           {section === 'prices' && <PricesSection />}
           {section === 'usage' && <UsageSection />}
           {section === 'general' && <GeneralSection />}

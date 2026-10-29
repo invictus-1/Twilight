@@ -3,7 +3,7 @@ import { isContextText } from '@shared/attachments'
 import { isLocalUrl, isOpenRouter } from '@shared/webTools'
 import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig, WebSource } from '@shared/types'
 import type { NodeRow } from '../db'
-import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
+import { MAX_TOOL_ROUNDS, TOO_MANY_ROUNDS, mergeExtraParams, textBlocks, wantsChoiceTool, type ClientOutcome, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 /** A stored image or PDF block (Claude's format). */
 type Block = { type: string; title?: string; source?: { media_type?: string; data?: string } }
@@ -14,6 +14,39 @@ interface StoredCall {
   name: string
   arguments: string
 }
+
+/** A round of tools Twilight ran inside a reply: the text before the calls, the calls, their results. */
+interface ToolRound {
+  type: 'tool_round'
+  text: string
+  calls: StoredCall[]
+  results: { id: string; content: string; isError?: boolean }[]
+}
+
+function storedRounds(content: string | null): ToolRound[] {
+  if (!content || !content.includes('"tool_round"')) return []
+  return (JSON.parse(content) as { type: string }[]).filter((b): b is ToolRound => b.type === 'tool_round')
+}
+
+/** A round as the messages it was sent as: the assistant's calls, then one tool message per result. */
+function roundMessages(round: ToolRound, available: ReadonlySet<string> | null): Record<string, unknown>[] {
+  if (available && round.calls.some((c) => !available.has(c.name))) {
+    // Its tools aren't offered any more; told as text so the request stays valid.
+    const told = round.calls.map((c) => `(Called ${c.name} with ${c.arguments})`).join('\n')
+    const results = round.results.map((r) => `${round.calls.find((c) => c.id === r.id)?.name ?? 'The tool'} returned: ${r.content}`).join('\n\n')
+    return [
+      { role: 'assistant', content: [round.text, told].filter(Boolean).join('\n\n') },
+      { role: 'user', content: results }
+    ]
+  }
+  return [
+    { role: 'assistant', content: round.text || null, tool_calls: round.calls.map((c) => ({ id: c.id, type: 'function', function: { name: c.name, arguments: c.arguments } })) },
+    ...round.results.map((r) => ({ role: 'tool', tool_call_id: r.id, content: r.content }))
+  ]
+}
+
+/** OpenAI's tool messages take text only; pictures a tool returned are named instead. */
+const outcomeText = (o: ClientOutcome): string => (o.images?.length ? `${o.text}\n(${o.images.length} picture${o.images.length === 1 ? '' : 's'} not shown)` : o.text) || '(no output)'
 
 function storedCalls(content: string | null): StoredCall[] {
   if (!content) return []
@@ -131,6 +164,7 @@ export const openaiProvider: Provider = {
     }
     const { settings } = req
     const started = Date.now()
+    const clientNames = new Set((req.clientTools ?? []).map((t) => t.name))
     const messages: Record<string, unknown>[] = []
     if (req.system) messages.push({ role: 'system', content: req.system })
     let pendingCalls: StoredCall[] = []
@@ -147,6 +181,12 @@ export const openaiProvider: Provider = {
         if (docs || mediaParts(node).length) messages.push({ role: 'user', content: withMedia(node, docs) })
         continue
       }
+      const rounds = node.role === 'assistant' ? storedRounds(node.content) : []
+      if (rounds.length && node.status !== 'done') {
+        if (node.text) messages.push({ role: 'assistant', content: node.text })
+        continue
+      }
+      for (const round of rounds) messages.push(...roundMessages(round, clientNames))
       const text = blocks.map((b) => b.text).join('\n\n')
       const calls = node.role === 'assistant' && node.status === 'done' ? storedCalls(node.content) : []
       if (!text && !calls.length && !mediaParts(node).length) continue
@@ -170,9 +210,11 @@ export const openaiProvider: Provider = {
       if (req.options?.effortParam === 'openrouter') body.reasoning = { effort: settings.effort }
       else body.reasoning_effort = settings.effort
     }
-    if (wantsChoiceTool(settings)) {
-      body.tools = [{ type: 'function', function: { name: CHOICES_TOOL.name, description: CHOICES_TOOL.description, parameters: CHOICES_TOOL.input_schema } }]
-    }
+    const tools = [
+      ...(wantsChoiceTool(settings) ? [{ name: CHOICES_TOOL.name, description: CHOICES_TOOL.description, input_schema: CHOICES_TOOL.input_schema }] : []),
+      ...(req.clientTools ?? [])
+    ]
+    if (tools.length) body.tools = tools.map((t) => ({ type: 'function', function: { name: t.name, description: t.description, parameters: t.input_schema } }))
     // OpenRouter reports what each request cost when asked; that beats any price list.
     if (isOpenRouter(base(req.config))) body.usage = { include: true }
     const plugins = openRouterPlugins(base(req.config), settings)
@@ -181,85 +223,129 @@ export const openaiProvider: Provider = {
 
     let text = ''
     let thinking = ''
-    // Tool calls arrive in pieces, keyed by index: the id and name first, the arguments in fragments.
-    const calls: StoredCall[] = []
+    // This round's text and tool calls; calls arrive in pieces, keyed by index: the id and name
+    // first, the arguments in fragments.
+    let roundText = ''
+    let calls: StoredCall[] = []
+    const rounds: ToolRound[] = []
+    const generated: { type: 'generated_image'; file: string; prompt: string }[] = []
     const sources: WebSource[] = []
     const usage: { input: number; output: number; cacheRead: number; cacheWrite: number; ms: number; costUsd?: number } = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: 0 }
     try {
-      const res = await fetch(`${base(req.config)}/chat/completions`, {
-        method: 'POST',
-        headers: headers(req.apiKey),
-        body: JSON.stringify(body),
-        signal: req.signal
-      })
-      if (!res.ok || !res.body) {
-        const detail = await res.text().catch(() => '')
-        throw new Error(`${req.config.name} returned ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ''}`)
-      }
-      const reader = res.body.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
       for (;;) {
-        const { value, done } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        let nl: number
-        while ((nl = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, nl).trim()
-          buffer = buffer.slice(nl + 1)
-          if (!line.startsWith('data:')) continue
-          const data = line.slice(5).trim()
-          if (data === '[DONE]') continue
-          const chunk = JSON.parse(data) as {
-            choices?: {
-              delta?: {
-                content?: string
-                reasoning_content?: string
-                reasoning?: string
-                tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]
-                annotations?: unknown
-              }
-              message?: { annotations?: unknown }
-            }[]
-            usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number }
-          }
-          const delta = chunk.choices?.[0]?.delta
-          addCitations(sources, delta?.annotations)
-          addCitations(sources, chunk.choices?.[0]?.message?.annotations)
-          const reasoning = delta?.reasoning_content ?? delta?.reasoning
-          if (reasoning) {
-            thinking += reasoning
-            req.onThinking(reasoning)
-          }
-          if (delta?.content) {
-            text += delta.content
-            req.onText(delta.content)
-          }
-          for (const part of delta?.tool_calls ?? []) {
-            const call = (calls[part.index ?? 0] ??= { id: '', name: '', arguments: '' })
-            if (part.id) call.id = part.id
-            if (part.function?.name) call.name += part.function.name
-            if (part.function?.arguments) call.arguments += part.function.arguments
-          }
-          if (chunk.usage) {
-            const cached = chunk.usage.prompt_tokens_details?.cached_tokens ?? 0
-            usage.input = (chunk.usage.prompt_tokens ?? 0) - cached
-            usage.cacheRead = cached
-            usage.output = chunk.usage.completion_tokens ?? 0
-            if (typeof chunk.usage.cost === 'number') usage.costUsd = chunk.usage.cost
+        roundText = ''
+        calls = []
+        const res = await fetch(`${base(req.config)}/chat/completions`, {
+          method: 'POST',
+          headers: headers(req.apiKey),
+          body: JSON.stringify({ ...body, messages: [...messages, ...rounds.flatMap((r) => roundMessages(r, null))] }),
+          signal: req.signal
+        })
+        if (!res.ok || !res.body) {
+          const detail = await res.text().catch(() => '')
+          throw new Error(`${req.config.name} returned ${res.status}${detail ? `: ${detail.slice(0, 300)}` : ''}`)
+        }
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          buffer += decoder.decode(value, { stream: true })
+          let nl: number
+          while ((nl = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, nl).trim()
+            buffer = buffer.slice(nl + 1)
+            if (!line.startsWith('data:')) continue
+            const data = line.slice(5).trim()
+            if (data === '[DONE]') continue
+            const chunk = JSON.parse(data) as {
+              choices?: {
+                delta?: {
+                  content?: string
+                  reasoning_content?: string
+                  reasoning?: string
+                  tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]
+                  annotations?: unknown
+                }
+                message?: { annotations?: unknown }
+              }[]
+              usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number }
+            }
+            const delta = chunk.choices?.[0]?.delta
+            addCitations(sources, delta?.annotations)
+            addCitations(sources, chunk.choices?.[0]?.message?.annotations)
+            const reasoning = delta?.reasoning_content ?? delta?.reasoning
+            if (reasoning) {
+              thinking += reasoning
+              req.onThinking(reasoning)
+            }
+            if (delta?.content) {
+              // Text after a round of tools starts a new paragraph.
+              const part = rounds.length && !roundText && text ? `\n\n${delta.content}` : delta.content
+              roundText += delta.content
+              text += part
+              req.onText(part)
+            }
+            for (const part of delta?.tool_calls ?? []) {
+              const call = (calls[part.index ?? 0] ??= { id: '', name: '', arguments: '' })
+              if (part.id) call.id = part.id
+              if (part.function?.name) call.name += part.function.name
+              if (part.function?.arguments) call.arguments += part.function.arguments
+            }
+            if (chunk.usage) {
+              // Each round is its own request; the reply's usage is all of them.
+              const cached = chunk.usage.prompt_tokens_details?.cached_tokens ?? 0
+              usage.input += (chunk.usage.prompt_tokens ?? 0) - cached
+              usage.cacheRead += cached
+              usage.output += chunk.usage.completion_tokens ?? 0
+              if (typeof chunk.usage.cost === 'number') usage.costUsd = (usage.costUsd ?? 0) + chunk.usage.cost
+            }
           }
         }
+        const asked = calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || `call_${rounds.length}_${i}` }))
+        // Calls to Twilight's own tools are run and the reply carries on; anything else (a
+        // present_choices call) ends it.
+        if (!req.runTools || !asked.length || !asked.every((c) => clientNames.has(c.name))) break
+        if (rounds.length >= MAX_TOOL_ROUNDS) {
+          rounds.push({ type: 'tool_round', text: roundText, calls: asked, results: asked.map((c) => ({ id: c.id, content: TOO_MANY_ROUNDS, isError: true })) })
+          roundText = ''
+          calls = []
+          break
+        }
+        const outcomes = await req.runTools(
+          asked.map((c) => {
+            let input: Record<string, unknown> = {}
+            try {
+              input = c.arguments ? (JSON.parse(c.arguments) as Record<string, unknown>) : {}
+            } catch {
+              input = { __unreadable: c.arguments }
+            }
+            return { id: c.id, name: c.name, input }
+          })
+        )
+        rounds.push({ type: 'tool_round', text: roundText, calls: asked, results: outcomes.map((o) => ({ id: o.id, content: outcomeText(o), ...(o.isError ? { isError: true } : {}) })) })
+        generated.push(...outcomes.flatMap((o) => (o.generated ? [{ type: 'generated_image' as const, ...o.generated }] : [])))
+        roundText = ''
+        calls = []
+        if (req.signal.aborted) break
       }
     } catch (err) {
       if (!req.signal.aborted) throw err
     }
     usage.ms = Date.now() - started
     const made = calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || `call_${i}` }))
-    // Sources are kept for showing under the reply; only text and tool calls are replayed.
+    // Sources are kept for showing under the reply; text, tool rounds and calls are replayed.
     return {
       text,
       thinking: thinking || undefined,
-      content: [{ type: 'text', text }, ...(made.length ? [{ type: 'tool_calls', calls: made }] : []), ...(sources.length ? [{ type: 'web_sources', sources }] : [])],
+      content: [
+        ...rounds,
+        ...generated,
+        { type: 'text', text: rounds.length ? roundText : text },
+        ...(made.length ? [{ type: 'tool_calls', calls: made }] : []),
+        ...(sources.length ? [{ type: 'web_sources', sources }] : [])
+      ],
       usage,
       modelId: settings.modelId
     }

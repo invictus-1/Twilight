@@ -1,5 +1,6 @@
 import { CLOCK_OPEN, INSTRUCTION_OPEN, clockOf, instructionOf } from '@shared/attachments'
 import { webActivityOf } from '@shared/webTools'
+import { imagesOf, toolStepsOf } from '@shared/mcp'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { CHOICES_TOOL_NAME, choicesFromTool, type ChoiceSet } from '@shared/choices'
@@ -403,8 +404,18 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
     toolChoices: node.role === 'assistant' ? (toolChoicesOf(node.content) ?? undefined) : undefined,
     instructionUpdate: node.role === 'user' ? instructionUpdateOf(node.content) : undefined,
     dateTime: node.role === 'user' ? dateTimeOf(node.content) : undefined,
-    web: node.role === 'assistant' ? webOf(node.content) : undefined
+    web: node.role === 'assistant' ? webOf(node.content) : undefined,
+    ...(node.role === 'assistant' ? toolsOf(node.content) : {})
   }
+}
+
+/** Tools Twilight ran and pictures it made during a reply; most replies have neither, so they skip the parse. */
+function toolsOf(content: string | null): Pick<NodeView, 'tools' | 'images'> {
+  if (!content || !(content.includes('"tool_results"') || content.includes('"tool_round"') || content.includes('"generated_image"'))) return {}
+  const blocks = JSON.parse(content) as { type: string; [key: string]: unknown }[]
+  const tools = toolStepsOf(blocks)
+  const images = imagesOf(blocks)
+  return { ...(tools.length ? { tools } : {}), ...(images.length ? { images } : {}) }
 }
 
 function dateTimeOf(content: string | null): string | undefined {

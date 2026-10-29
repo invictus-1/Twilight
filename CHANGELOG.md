@@ -4,6 +4,12 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.8.0
 
+**Tools**
+- **MCP servers:** add servers in Settings → Tools, either a program on this PC (stdio) or a server at an address (HTTP), then switch them on per chat in the Tools menu. Test shows whether a server connected and lists its tools. Environment values and headers are encrypted like API keys.
+- **You approve each call:** by default a tool call waits in the reply, showing the tool and its arguments, for Allow once, Always allow, or Decline. A server you trust can be set to run calls without asking. Stopping the reply declines whatever is waiting.
+- **Tools inside the reply:** a reply can call tools over several rounds and carry on with the results. Each round is stored with the reply and resent exactly, so the cache holds. The reply lists every tool it used, with what went in and what came back.
+- **Pictures:** choose an image model in Settings → Tools (OpenAI's images endpoint or an OpenRouter image model), switch Pictures on for a chat, and the model can make an image when you ask. It's saved in Twilight's data folder and shown in the reply.
+
 **Extras**
 - **A new Extras page** in Settings, for things that are just for fun. Everything there starts off.
 - **Scroll particles:** switch them on and scrolling through a chat throws up particles: a few when you scroll slowly, a shower when you fling. Six styles: Stardust, Sparks, Fireflies, Snow, Constellations (blue stars that join up as they drift) and Bats (dark, outlined in green, flapping up and around). They only follow scrolling you do, not a reply being followed as it streams, show only with Motion on Full, and stop drawing the moment the last one fades.

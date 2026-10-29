@@ -38,6 +38,9 @@ import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { runShowcase } from './showcase'
 import { searchAll } from './search'
 import * as code from './code/agent'
+import * as mcp from './mcp'
+import { imageConfig, setImageConfig } from './images'
+import type { ImageConfig, McpServerInput, ToolApprovalResponse } from '@shared/mcp'
 import type { CodeMode, CodeResponse } from '@shared/code'
 import { backgroundVersion, chooseBackground, clearBackgroundFile, registerBackgroundScheme, serveBackground } from './background'
 import { themeInfo, type Theme } from '@shared/themes'
@@ -260,6 +263,13 @@ function registerIpc(): void {
     closeSplit: (_e, id: string, keep: Pane) => chat.closeSplit(id, keep),
     branchToNewChat: (_e, id: string, nodeId: string, pane?: Pane) => chat.branchToNewChat(id, nodeId, pane),
     searchAll: (_e, query: string) => searchAll(query),
+    listMcpServers: () => mcp.listServers(),
+    saveMcpServer: (_e, server: McpServerInput) => mcp.saveServer(server),
+    deleteMcpServer: (_e, id: string) => mcp.deleteServer(id),
+    testMcpServer: (_e, id: string) => mcp.testServer(id),
+    respondToolApproval: (_e, id: string, response: ToolApprovalResponse) => chat.respondApproval(id, response),
+    getImageConfig: () => imageConfig(),
+    setImageConfig: (_e, config: ImageConfig | null) => setImageConfig(config),
     listCodeSessions: () => code.listSessions(),
     newCodeSession: (e) => code.newSession(BrowserWindow.fromWebContents(e.sender)),
     openCodeSession: (_e, id: string) => code.openSession(id),
@@ -423,3 +433,6 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+// MCP servers Twilight started end with it.
+app.on('will-quit', () => mcp.closeAll())
