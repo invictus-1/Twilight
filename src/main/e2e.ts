@@ -2107,7 +2107,9 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
-      check('no exceptions', false, String(err))
+      // What the mock server saw last, so a stalled reply shows whether its request ever arrived.
+      const recent = log.slice(-3).map((r) => ({ model: r.model, ago: Date.now() - r.startedAt, firstToken: r.firstTokenAt ? r.firstTokenAt - r.startedAt : null, last: String([...r.messages].reverse().find((m) => m.role === 'user')?.content ?? '').slice(0, 40) }))
+      check('no exceptions', false, { error: String(err), requests: log.length, recent })
     } finally {
       server?.close()
       const failed = checks.filter((c) => !c.pass).length
