@@ -1,4 +1,4 @@
-import { memo, useState, useSyncExternalStore } from 'react'
+import { memo, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { gameFormat } from '@shared/gameFormat'
 import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import { readGameFormat } from '../gameFormatSettings'
@@ -72,12 +72,33 @@ function EditBox({ node, onDone }: { node: NodeView; onDone: () => void }) {
 function DeleteButton({ node }: { node: NodeView }) {
   const pane = usePane()
   const [menu, setMenu] = useState(false)
+  const wrap = useRef<HTMLSpanElement>(null)
   const run = (kind: 'single' | 'below'): void => {
     setMenu(false)
     void useStore.getState().deleteMessage(node.id, kind, pane)
   }
+  // Open until you choose, click elsewhere or press Esc; closing when the pointer left the button
+  // shut it before it could be reached.
+  useEffect(() => {
+    if (!menu) return
+    const down = (e: PointerEvent): void => {
+      if (!wrap.current?.contains(e.target as Node)) setMenu(false)
+    }
+    const key = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        setMenu(false)
+      }
+    }
+    document.addEventListener('pointerdown', down)
+    document.addEventListener('keydown', key, true)
+    return () => {
+      document.removeEventListener('pointerdown', down)
+      document.removeEventListener('keydown', key, true)
+    }
+  }, [menu])
   return (
-    <span className="delete-wrap" onMouseLeave={() => setMenu(false)}>
+    <span className="delete-wrap" ref={wrap}>
       <button
         className="tw-btn tw-btn-ghost tw-btn-icon delete-btn"
         aria-label="Delete this message"
