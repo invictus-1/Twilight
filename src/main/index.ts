@@ -12,6 +12,7 @@ import type {
   SendTarget,
   SettingsPreset,
   TwilightApi,
+  UsageRange,
   WorkspacePatch,
   WritingRequest
 } from '@shared/types'
@@ -29,6 +30,7 @@ import * as insights from './insights'
 import * as insightsAi from './insightsAi'
 import * as reports from './reports'
 import * as updates from './updates'
+import { usageStats } from './usage'
 import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { runShowcase } from './showcase'
@@ -237,6 +239,7 @@ function registerIpc(): void {
       setCustomPrices(list)
       return list
     },
+    usageStats: (_e, range: UsageRange) => usageStats(range),
     copyText: (_e, text: string) => clipboard.writeText(String(text)),
     renameDoc: (_e, path: string, name: string) => docs.renameDoc(path, name),
     renameDocFolder: (_e, path: string, name: string) => docs.renameDocFolder(path, name),

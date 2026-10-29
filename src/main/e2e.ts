@@ -23,6 +23,8 @@ import * as insights from './insights'
 import * as insightsAi from './insightsAi'
 import * as reports from './reports'
 import { ACHIEVEMENTS, analyzeText } from '@shared/insights'
+import type { Usage, UsageRange, UsageTotals } from '@shared/types'
+import { usageStats } from './usage'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 
@@ -2098,6 +2100,191 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('the Prices page lists the built-in prices', priceUi.builtIn === BUILT_IN_PRICES.length, priceUi.builtIn)
       check('a price you add re-prices replies on screen', /\$[0-9.]+/.test(priceUi.after) && !/(^|\|)\$0 ·/.test(priceUi.after) && (db.kvGet<{ model: string }[]>('prices') ?? []).some((p) => p.model === 'mock-a'), priceUi.after.slice(0, 200))
+
+      // 37. Usage stats: every reply and Judge run counted, by range, by model and by chat, priced
+      // with today's list; then Settings → Usage drawing it.
+      setCustomPrices([])
+      const ledger = chat.create(null).id
+      chat.send(contents, ledger, 'Usage ledger')
+      await idle(ledger)
+      const binned = chat.create(null).id
+      chat.send(contents, binned, 'Usage binned')
+      await idle(binned)
+      const ledgerRoot = db.getConversation(ledger).root_id
+      const extra = (conversation: string, parent: string, model: string, provider: string, u: Usage, created_at?: number): void =>
+        void db.insertNode(
+          { id: randomUUID(), conversation_id: conversation, parent_id: parent, role: 'assistant', text: 'counted', content: null, thinking: null, model, provider_id: provider, usage: JSON.stringify(u), status: 'done', error: null, ...(created_at ? { created_at } : {}) },
+          { activate: false }
+        )
+      const DAY = 86_400_000
+      // The biggest chats by far: one trashed, one live. Then one reply 20 days old and one 400
+      // days old, from a cloud model with no price.
+      extra(binned, db.getConversation(binned).root_id, 'mock-a', 'mock', { input: 2_000_000, output: 1000, cacheRead: 0, cacheWrite: 0, ms: 1 })
+      db.trashConversation(binned)
+      extra(ledger, ledgerRoot, 'mock-b', 'mock', { input: 1_000_000, output: 500, cacheRead: 0, cacheWrite: 0, ms: 1 })
+      extra(ledger, ledgerRoot, 'mock-b', 'mock', { input: 300, output: 40, cacheRead: 700, cacheWrite: 0, ms: 1 }, Date.now() - 20 * DAY)
+      extra(ledger, ledgerRoot, 'mystery-model', 'anthropic', { input: 1000, output: 200, cacheRead: 3000, cacheWrite: 500, ms: 1 }, Date.now() - 400 * DAY)
+
+      // The same numbers worked out by hand, from each chat's nodes and each judgment's runs.
+      const localProvider = (p: string): boolean => /^http:\/\/127\.0\.0\.1/.test(providers.getProviders().find((x) => x.id === p)?.baseUrl ?? '')
+      const handRows = [
+        ...[...db.listConversations(), ...db.listTrash()].flatMap((c) =>
+          [...db.loadAllNodes(c.id).values()]
+            .filter((n) => n.role === 'assistant' && n.usage)
+            .map((n) => ({ chat: c.id as string | null, model: n.model ?? '', provider: n.provider_id ?? '', at: n.created_at, u: JSON.parse(n.usage!) as Usage }))
+        ),
+        ...judge.listJudgments().flatMap((s) => {
+          const j = judge.getJudgment(s.id)
+          return j.runs.filter((r) => r.usage).map((r) => ({ chat: null, model: r.modelId ?? j.input.judgeModelId, provider: j.input.judgeProviderId ?? '', at: j.createdAt, u: r.usage! }))
+        })
+      ]
+      const today = new Date()
+      const startOf: Record<UsageRange, number> = {
+        '7d': new Date(today.getFullYear(), today.getMonth(), today.getDate() - 6).getTime(),
+        '30d': new Date(today.getFullYear(), today.getMonth(), today.getDate() - 29).getTime(),
+        '12m': new Date(today.getFullYear(), today.getMonth() - 11, 1).getTime(),
+        all: 0
+      }
+      const hand = (range: UsageRange, keep: (r: (typeof handRows)[number]) => boolean = () => true) => {
+        const rows = handRows.filter((r) => r.at >= startOf[range] && keep(r))
+        const costs = rows.map((r) => costOf(r.model, r.u, localProvider(r.provider)))
+        return {
+          requests: rows.length,
+          input: rows.reduce((a, r) => a + r.u.input + r.u.cacheRead + r.u.cacheWrite, 0),
+          output: rows.reduce((a, r) => a + r.u.output, 0),
+          cacheRead: rows.reduce((a, r) => a + r.u.cacheRead, 0),
+          cost: costs.reduce<number>((a, c) => a + (c ?? 0), 0),
+          unpriced: costs.filter((c) => c === null).length
+        }
+      }
+      const sameUsage = (t: UsageTotals, h: ReturnType<typeof hand>): boolean =>
+        t.requests === h.requests && t.input === h.input && t.output === h.output && t.cacheRead === h.cacheRead && t.unpriced === h.unpriced && Math.abs(t.cost - h.cost) < 1e-9
+      const brief = (t: UsageTotals) => [t.requests, t.input, t.output, t.cacheRead, t.unpriced, t.cost]
+      const stats = Object.fromEntries((['7d', '30d', '12m', 'all'] as UsageRange[]).map((r) => [r, usageStats(r)])) as Record<UsageRange, ReturnType<typeof usageStats>>
+      check(
+        'usage totals match every stored reply and Judge run',
+        sameUsage(stats.all.totals, hand('all')) && stats.all.totals.requests > 10 && stats.all.totals.unpriced === 1,
+        [brief(stats.all.totals), hand('all')]
+      )
+      check(
+        'each range counts only its own requests',
+        (['7d', '30d', '12m'] as UsageRange[]).every((r) => sameUsage(stats[r].totals, hand(r))) &&
+          stats['30d'].totals.requests === stats['7d'].totals.requests + 1 &&
+          stats['12m'].totals.requests === stats['30d'].totals.requests &&
+          stats.all.totals.requests === stats['12m'].totals.requests + 1,
+        (['7d', '30d', '12m'] as UsageRange[]).map((r) => [r, brief(stats[r].totals), hand(r)])
+      )
+      const dayKey = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      const old = new Date(Date.now() - 400 * DAY)
+      const tokensOf = (s: ReturnType<typeof usageStats>): number => s.series.reduce((a, b) => a + b.tokens, 0)
+      check(
+        'the series has a bar per day or month and adds up to the totals',
+        stats['7d'].series.length === 7 &&
+          stats['30d'].series.length === 30 &&
+          stats['12m'].series.length === 12 &&
+          stats['30d'].series.at(-1)?.key === dayKey(today) &&
+          stats['30d'].series.find((b) => b.key === dayKey(new Date(Date.now() - 20 * DAY)))?.tokens === 1040 &&
+          stats.all.unit === 'month' &&
+          stats.all.series[0]?.key === dayKey(old).slice(0, 7) &&
+          (['7d', '30d', '12m', 'all'] as UsageRange[]).every((r) => tokensOf(stats[r]) === stats[r].totals.input + stats[r].totals.output),
+        (['7d', '30d', '12m', 'all'] as UsageRange[]).map((r) => [r, stats[r].series.length, stats[r].series[0]?.key, stats[r].series.at(-1)?.key, tokensOf(stats[r])])
+      )
+      const handModels = [...new Set(handRows.map((r) => `${r.provider}\n${r.model}`))]
+      check(
+        'usage splits by model',
+        stats.all.models.length === handModels.length &&
+          stats.all.models.every((m) => sameUsage(m, hand('all', (r) => r.model === m.modelId && r.provider === m.providerId))) &&
+          stats.all.models.some((m) => m.modelId === 'mystery-model' && m.unpriced === 1 && m.cost === 0),
+        stats.all.models.map((m) => [m.providerId, m.modelId, ...brief(m)])
+      )
+      check(
+        "the Judge's runs are their own bucket",
+        stats.all.judge.requests > 0 && sameUsage(stats.all.judge, hand('all', (r) => r.chat === null)),
+        [brief(stats.all.judge), hand('all', (r) => r.chat === null)]
+      )
+      check(
+        'the top chats come by spend, trashed ones marked',
+        stats.all.chats.length === Math.min(10, new Set(handRows.map((r) => r.chat).filter(Boolean)).size) &&
+          stats.all.chats[0].id === binned &&
+          stats.all.chats[0].trashed &&
+          stats.all.chats[1].id === ledger &&
+          stats.all.chats[1].title === 'Usage ledger' &&
+          !stats.all.chats[1].trashed &&
+          stats.all.chats.every((c) => sameUsage(c, hand('all', (r) => r.chat === c.id))),
+        stats.all.chats.slice(0, 3).map((c) => [c.title, c.trashed, ...brief(c)])
+      )
+      setCustomPrices([{ model: 'mock-*', input: 3, output: 15 }])
+      const priced = usageStats('all')
+      check(
+        'usage is priced with your own prices',
+        sameUsage(priced.totals, hand('all')) &&
+          priced.totals.cost > 6 &&
+          sameUsage(priced.models.find((m) => m.modelId === 'mock-b')!, hand('all', (r) => r.model === 'mock-b')) &&
+          priced.chats[0].id === binned &&
+          Math.abs(priced.chats[0].cost - hand('all', (r) => r.chat === binned).cost) < 1e-9,
+        [brief(priced.totals), hand('all')]
+      )
+      setCustomPrices([])
+
+      await js(`document.activeElement?.blur()`)
+      await key('K', ['control'])
+      win.webContents.insertText('usage')
+      await new Promise((r) => setTimeout(r, 150))
+      await key('Return')
+      const usageUi = await js<Record<string, unknown>>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const until = async (fn, ms = 6000) => {
+          for (const end = Date.now() + ms; Date.now() < end; await wait(50)) {
+            const v = fn()
+            if (v) return v
+          }
+          return null
+        }
+        const out = {}
+        if (!(await until(() => document.querySelector('.usage-section[data-loaded="1"]')))) return { step: 'no usage page', title: document.querySelector('.settings-content .t-title')?.textContent }
+        out.heading = document.querySelector('.settings-content .t-title')?.textContent
+        out.navCurrent = document.querySelector('.settings-nav-item[aria-current="true"]')?.textContent
+        document.querySelector('.usage-section button[data-range="all"]').click()
+        await until(() => document.querySelector('.usage-section[data-range="all"][data-loaded="1"]'))
+        await wait(900)
+        out.stats = [...document.querySelectorAll('.usage-stats .ins-stat-label')].map((e) => e.textContent)
+        out.requests = [...document.querySelectorAll('.usage-stats .ins-stat')].find((e) => e.querySelector('.ins-stat-label')?.textContent === 'Requests')?.querySelector('.ins-stat-value')?.getAttribute('title')
+        out.bars = document.querySelectorAll('.usage-section .ins-bar').length
+        out.models = [...document.querySelectorAll('.usage-models tbody tr')].map((r) => r.dataset.model)
+        out.chats = [...document.querySelectorAll('.usage-chats tbody tr')].map((r) => r.dataset.chat)
+        out.trashed = [...document.querySelectorAll('.usage-chats tr[data-trashed="1"]')].map((r) => r.dataset.chat)
+        out.unpriced = document.querySelector('.usage-unpriced')?.textContent
+        ;[...document.querySelectorAll('.usage-section .ins-card .tw-seg button')].find((b) => b.textContent === 'Spend')?.click()
+        await wait(200)
+        out.axis = [...document.querySelectorAll('.usage-section .ins-bars-axis span')].map((e) => e.textContent).join(' ')
+        out.chartTitle = document.querySelector('.usage-section .ins-card-title')?.textContent
+        return out
+      })()`)
+      await shot('e2e-usage.png')
+      const usageOpened = await js<string | null>(`(async () => {
+        document.querySelector('.usage-chats tr[data-chat="${ledger}"] .usage-chat')?.click()
+        for (let end = Date.now() + 4000; Date.now() < end && !(!document.querySelector('.settings-view') && document.querySelector('.chat-title')?.textContent === 'Usage ledger'); ) await new Promise((r) => setTimeout(r, 50))
+        return document.querySelector('.chat-title')?.textContent ?? null
+      })()`)
+      check(
+        'Go to Usage opens Settings on the Usage page',
+        usageUi.heading === 'Usage' && usageUi.navCurrent === 'Usage',
+        usageUi
+      )
+      check(
+        'the Usage page shows the totals, a bar per month, and the rows',
+        (usageUi.stats as string[] | undefined)?.join() === 'Spend,Requests,Input tokens,Output tokens' &&
+          String(usageUi.requests).replace(/\D/g, '') === String(stats.all.totals.requests) &&
+          usageUi.bars === stats.all.series.length &&
+          (usageUi.models as string[] | undefined)?.length === stats.all.models.length &&
+          (usageUi.models as string[]).includes('mystery-model') &&
+          (usageUi.chats as string[] | undefined)?.join() === [...stats.all.chats.map((c) => c.id), 'judge'].join() &&
+          (usageUi.trashed as string[] | undefined)?.join() === binned,
+        usageUi
+      )
+      check('the Usage page says plainly what has no price', usageUi.unpriced === '1 request has no price: add one in Prices.', usageUi.unpriced)
+      check('the Usage chart switches to spend', /\$/.test(String(usageUi.axis)) && usageUi.chartTitle === 'Spend per month', [usageUi.axis, usageUi.chartTitle])
+      check('a chat in the Usage list opens it', usageOpened === 'Usage ledger', usageOpened)
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

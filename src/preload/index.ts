@@ -61,6 +61,7 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'branchToNewChat',
   'getPrices',
   'setPrices',
+  'usageStats',
   'copyText',
   'renameDoc',
   'renameDocFolder',

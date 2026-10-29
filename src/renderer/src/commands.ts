@@ -78,6 +78,7 @@ export const COMMANDS: Command[] = [
   { id: 'settings', title: 'Settings', group: 'Go to', keys: 'Ctrl+,', run: () => settings() },
   { id: 'go-providers', title: 'Model providers', group: 'Go to', hint: 'api key settings', run: () => settings('providers') },
   { id: 'go-prices', title: 'Prices', group: 'Go to', hint: 'cost price list settings', run: () => settings('prices') },
+  { id: 'go-usage', title: 'Usage', group: 'Go to', hint: 'tokens spend cost stats settings', run: () => settings('usage') },
   { id: 'go-updates', title: 'Updates', group: 'Go to', hint: 'version settings', run: () => settings('updates') },
   { id: 'go-roadmap', title: 'Roadmap', group: 'Go to', run: () => settings('roadmap') },
   { id: 'go-keys', title: 'Rebind keys', group: 'Go to', hint: 'shortcuts settings', run: () => settings('shortcuts') },

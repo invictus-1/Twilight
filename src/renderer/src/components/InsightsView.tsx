@@ -72,7 +72,7 @@ function useCountUp(target: number, ms = 750): number {
   return value
 }
 
-function Stat(props: { label: string; value: number | string; format?: (v: number) => string; sub?: string; icon: React.ReactNode; tone: string; index?: number }) {
+export function Stat(props: { label: string; value: number | string; format?: (v: number) => string; sub?: string; icon: React.ReactNode; tone: string; index?: number }) {
   const counted = useCountUp(typeof props.value === 'number' ? props.value : 0)
   const shown = typeof props.value === 'number' ? (props.format ?? n)(counted) : props.value
   return (
@@ -89,9 +89,24 @@ function Stat(props: { label: string; value: number | string; format?: (v: numbe
   )
 }
 
-/** Bars with a few labelled gridlines; used for the last 14 days and the hours of the day. */
-function Bars({ data, label, highlight }: { data: { key: string; label: string; value: number; title: string }[]; label: string; highlight?: string }) {
-  const max = Math.max(1, ...data.map((d) => d.value))
+/**
+ * Bars with a few labelled gridlines; used for the last 14 days, the hours of the day, and
+ * Settings → Usage (which formats its axis as tokens or dollars, and has a smaller floor for cost).
+ */
+export function Bars({
+  data,
+  label,
+  highlight,
+  format = short,
+  floor = 1
+}: {
+  data: { key: string; label: string; value: number; title: string }[]
+  label: string
+  highlight?: string
+  format?: (v: number) => string
+  floor?: number
+}) {
+  const max = Math.max(floor, ...data.map((d) => d.value))
   const step = niceStep(max)
   const top = Math.ceil(max / step) * step
   const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step).reverse()
@@ -99,7 +114,7 @@ function Bars({ data, label, highlight }: { data: { key: string; label: string; 
     <div className="ins-bars" role="img" aria-label={label}>
       <div className="ins-bars-axis">
         {ticks.map((t) => (
-          <span key={t}>{short(t)}</span>
+          <span key={t}>{format(t)}</span>
         ))}
       </div>
       <div className="ins-bars-plot">

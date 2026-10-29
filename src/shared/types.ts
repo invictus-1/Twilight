@@ -147,6 +147,48 @@ export interface Usage {
   costUsd?: number
 }
 
+/** Settings → Usage: how far back the numbers go. */
+export type UsageRange = '7d' | '30d' | '12m' | 'all'
+
+export interface UsageTotals {
+  requests: number
+  /** Every prompt token, cache reads and writes included. */
+  input: number
+  output: number
+  cacheRead: number
+  cacheWrite: number
+  /** USD, over the requests with a known price. */
+  cost: number
+  /** Requests whose model has no price (they add tokens but nothing to cost). */
+  unpriced: number
+}
+
+/** One bar of the chart: a day, or a month for 12 months and all time. */
+export interface UsageBucket {
+  /** "2026-10-28", or "2026-10" for a month. */
+  key: string
+  requests: number
+  /** Input and output together. */
+  tokens: number
+  cost: number
+}
+
+export interface UsageStats {
+  range: UsageRange
+  unit: 'day' | 'month'
+  /** Start of the range (local midnight or the first of a month); 0 for all time. */
+  since: number
+  /** Chats and the Judge together. */
+  totals: UsageTotals
+  series: UsageBucket[]
+  /** Most spent first. */
+  models: (UsageTotals & { providerId: string; modelId: string })[]
+  /** The chats that spent most, trashed ones included and marked. */
+  chats: (UsageTotals & { id: string; title: string; trashed: boolean })[]
+  /** Judge runs, which belong to no chat. */
+  judge: UsageTotals
+}
+
 /** A deleted message (or message and everything below it), restorable from "Recently deleted". */
 export interface DeletionView {
   id: string
@@ -443,6 +485,8 @@ export interface TwilightApi {
   /** Your own prices, per million tokens (see shared/pricing.ts). */
   getPrices(): Promise<CustomPrice[]>
   setPrices(list: CustomPrice[]): Promise<CustomPrice[]>
+  /** Tokens and spend over a range: totals, a series, and splits by model and by chat. */
+  usageStats(range: UsageRange): Promise<UsageStats>
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
   openDataFolder(): Promise<void>
   openExternal(url: string): Promise<void>
