@@ -15,7 +15,9 @@ export const DEFAULT_GAME_FORMAT: GameFormatOptions = { removeDividers: false, s
 type Block = { kind: 'prose'; paragraphs: string[][] } | { kind: 'raw'; lines: string[] } | { kind: 'divider'; line: string }
 
 const FENCE = /^\s*(`{3,}|~{3,})/
-const DIVIDER = /^\s*([-*_])(?:\s*\1){2,}\s*$/
+// Any line drawn across: markdown's --- / *** / ___ (spaced or not), a run of dashes or box rules
+// ("———", "━━━"), or an <hr>.
+const DIVIDER = /^\s*(?:([-*_])(?:\s*\1){2,}|[—–─━═]{3,}|<hr\s*\/?>)\s*$/i
 const HTML_START = /^\s*<\/?([a-z][\w-]*)[\s/>]/i
 
 function stripMarks(line: string): string {
@@ -58,6 +60,11 @@ export function gameFormat(text: string, options: GameFormatOptions = DEFAULT_GA
       blocks.push({ kind: 'raw', lines: raw })
       continue
     }
+    if (DIVIDER.test(line)) {
+      endProse()
+      blocks.push({ kind: 'divider', line: line.trim() })
+      continue
+    }
     const html = HTML_START.exec(line)
     if (html) {
       // An HTML block: <details> runs to its closing tag (it holds blank lines); others to a blank line.
@@ -70,14 +77,10 @@ export function gameFormat(text: string, options: GameFormatOptions = DEFAULT_GA
           depth += (lines[i].match(/<details\b/gi) ?? []).length - (lines[i].match(/<\/details>/gi) ?? []).length
         }
       } else {
-        while (i + 1 < lines.length && lines[i + 1].trim() !== '') raw.push(lines[++i])
+        // To the next blank line, or a divider right under it (which then goes or stays like any other).
+        while (i + 1 < lines.length && lines[i + 1].trim() !== '' && !DIVIDER.test(lines[i + 1])) raw.push(lines[++i])
       }
       blocks.push({ kind: 'raw', lines: raw })
-      continue
-    }
-    if (DIVIDER.test(line)) {
-      endProse()
-      blocks.push({ kind: 'divider', line: line.trim() })
       continue
     }
     if (line.trim() === '') endParagraph()

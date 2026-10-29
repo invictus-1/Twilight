@@ -147,7 +147,8 @@ function groupAbove(lines: string[], end: number): { group: ChoiceGroup; start: 
   while (top > 0 && lines[top - 1].trim() !== '') top--
   const para = p >= 0 ? lines.slice(top, p + 1) : []
   if (para.length > 0 && para.length <= 8 && isTitle(para[0])) {
-    const title = cleanLabel(para[0].replace(/^#+\s*/, ''))
+    // Rules drawn around a title ("—— CHOICES ——") aren't part of it.
+    const title = cleanLabel(para[0].replace(/^#+\s*/, '')).replace(/^[—–-]+\s*|\s*[—–-]+$/g, '')
     return { group: { title, intro: para.slice(1).join('\n').trim(), options }, start: top, asks: writeIn || ASKS.test(title) }
   }
   return { group: { title: null, intro: '', options }, start: i, asks: writeIn }
@@ -160,7 +161,9 @@ function groupAbove(lines: string[], end: number): { group: ChoiceGroup; start: 
  * a title that asks ("What do you do?", "Choices (Night)"); any other numbered list stays a list.
  * Only code blocks, <details> blocks, dividers and blank lines may follow them (a
  * stat block or status card, say); those stay in the reply. "Something else" options become the
- * card's own write-in box.
+ * card's own write-in box. With none at the end, the last group that plainly is a decision (a
+ * title that asks, or a "Something else") is read wherever it sits, for prompts that put the
+ * choices before other sections; the text after it stays in the reply.
  */
 function plainChoices(text: string): { body: string; choices: ChoiceSet | null } {
   const lines = text.split('\n')
@@ -201,9 +204,35 @@ function plainChoices(text: string): { body: string; choices: ChoiceSet | null }
     cursor = found.start - 1
     while (cursor >= 0 && (lines[cursor].trim() === '' || DIVIDER.test(lines[cursor]))) cursor--
   }
-  if (groups.length === 0) return { body: text, choices: null }
+  if (groups.length === 0) return midReplyChoices(lines) ?? { body: text, choices: null }
   const body = [...lines.slice(0, cut), ...lines.slice(end + 1)].join('\n').replace(/\n{3,}/g, '\n\n').trim()
   return { body, choices: { groups } }
+}
+
+/** The last group in the reply that reads as a decision, wherever it is; null if there's none. */
+function midReplyChoices(lines: string[]): { body: string; choices: ChoiceSet } | null {
+  // Lines inside code blocks are never read: a choices block left as written stays as written.
+  const fenced = new Set<number>()
+  for (let i = 0, open: string | null = null; i < lines.length; i++) {
+    const fence = /^\s*(`{3,}|~{3,})/.exec(lines[i])
+    if (open || fence) fenced.add(i)
+    if (fence && !open) open = fence[1].slice(0, 3)
+    else if (open && lines[i].trim().startsWith(open)) open = null
+  }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (fenced.has(i) || !NUMBERED.test(lines[i])) continue
+    // Take in the detail lines under the last option (a blank line ends it).
+    let end = i
+    while (end + 1 < lines.length && lines[end + 1].trim() !== '' && CONTINUES.test(lines[end + 1])) end++
+    const found = groupAbove(lines, end)
+    if (found?.asks) {
+      const body = [...lines.slice(0, found.start), ...lines.slice(end + 1)].join('\n').replace(/\n{3,}/g, '\n\n').trim()
+      return { body, choices: { groups: [found.group] } }
+    }
+    // Not a decision: skip the rest of this list.
+    while (i > 0 && lines[i - 1].trim() !== '' && (NUMBERED.test(lines[i - 1]) || CONTINUES.test(lines[i - 1]))) i--
+  }
+  return null
 }
 
 /**

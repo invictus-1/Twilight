@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { contrast, customTokens, DEFAULT_CUSTOM, loadCustom, saveCustom, type CustomTheme } from '../customTheme'
 import { setTheme } from '../theme'
-import { GRADIENTS, backdropImage, framing, setBackdrop, setChatText, setMotion, setScrollFx, useBackdrop, useChatText, useMotion, useScrollFx, type Backdrop, type ChatText, type Motion, type ScrollFxStyle } from '../look'
+import { GRADIENTS, backdropImage, framing, setBackdrop, setBoldColor, setChatText, setMotion, setScrollFx, useBackdrop, useBoldColor, useChatText, useMotion, useScrollFx, type Backdrop, type ChatText, type Motion, type ScrollFxStyle } from '../look'
 import { useStore } from '../store'
 
 /** None, a built-in gradient, or your own picture; then how dark and soft it sits behind the text. */
@@ -157,6 +157,7 @@ const CHAT_TEXTS: { id: ChatText; label: string }[] = [
 /** How big the words in a chat are: replies, your messages and the message box. */
 export function ChatTextPicker() {
   const size = useChatText()
+  const bold = useBoldColor()
   return (
     <div className="look-block">
       <span className="field-label">Chat text size</span>
@@ -168,6 +169,10 @@ export function ChatTextPicker() {
         ))}
       </div>
       <p className="field-note">The words in chats, your messages and the message box. Menus and labels stay as they are.</p>
+      <label className="check">
+        <input type="checkbox" checked={bold} onChange={(e) => setBoldColor(e.target.checked)} />
+        Colour bold text in chats with the theme
+      </label>
     </div>
   )
 }

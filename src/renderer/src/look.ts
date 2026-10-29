@@ -168,6 +168,33 @@ export function setChatText(t: ChatText): void {
 
 export const useChatText = (): ChatText => useSyncExternalStore(subscribe, () => chatText)
 
+/** Bold words in chats drawn in the theme's own colour, so they stand out to the eye. On unless switched off. */
+let boldColor = (() => {
+  try {
+    return localStorage.getItem('twilight.boldColor') !== 'off'
+  } catch {
+    return true
+  }
+})()
+
+export function applyBoldColor(on: boolean = boldColor): void {
+  if (on) delete document.documentElement.dataset.boldColor
+  else document.documentElement.dataset.boldColor = 'off'
+}
+
+export function setBoldColor(on: boolean): void {
+  boldColor = on
+  try {
+    localStorage.setItem('twilight.boldColor', on ? 'on' : 'off')
+  } catch {
+    // Storage unavailable: the setting holds for this session.
+  }
+  applyBoldColor(on)
+  changed()
+}
+
+export const useBoldColor = (): boolean => useSyncExternalStore(subscribe, () => boldColor)
+
 export type ScrollFxStyle = 'stardust' | 'sparks' | 'fireflies' | 'snow' | 'constellations' | 'bats'
 /** Particles while you scroll a chat: off unless you switch them on. */
 export interface ScrollFx {

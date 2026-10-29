@@ -6,11 +6,12 @@ import './styles/tokens.css'
 import './styles/app.css'
 import './styles/themes.css'
 import { applyTheme, savedTheme } from './theme'
-import { applyChatText, applyMotion } from './look'
+import { applyBoldColor, applyChatText, applyMotion } from './look'
 
 applyTheme(savedTheme())
 applyMotion()
 applyChatText()
+applyBoldColor()
 import { createRoot } from 'react-dom/client'
 import { App } from './components/App'
 

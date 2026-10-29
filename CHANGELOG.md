@@ -5,6 +5,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 ## Unreleased
 
 - **Find on the page (Ctrl+F):** a small find bar lights up every match in the open chat (or Judge, Code, Settings), with "3 of 12", Enter and Shift+Enter to step through them and Esc to close. The writing editor keeps its own find.
+- **Choices in the middle of a reply:** when a model puts its numbered choices before other sections, the list still becomes a card, as long as it plainly is a decision (a title like Choices or What do you do?, or a Something else option). The sections after it stay in the reply. Rules drawn around a title ("—— CHOICES ——") are left off the card.
+- **Bold text in the theme's colour:** bold words in chats take a soft shade of the theme's writing colour, so they stand out as you read. Switch it off in Settings → General.
+- **Game Format catches every divider:** with Remove the dividers on, lines like ———, * * * and <hr> go too, as does a --- right under an HTML line.
 - **Thinking stays folded until you open it,** while it's being written too, and stays open once you do. The "open as it's written" option is gone.
 
 ## 1.2.0

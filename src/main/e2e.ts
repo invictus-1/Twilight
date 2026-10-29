@@ -1071,6 +1071,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         gameFormat(sample) === 'ofjasdoifjasodif\najosdfjasoidfj\nasdofjiasodf\n\n---\n\noidsfjsodjfids\nsdfjosidjf\nsdojfsoidfj',
         gameFormat(sample)
       )
+      // Every kind of line drawn across goes when dividers are removed, even one right under an HTML block.
+      const ruled = ['Wren waits.', '', '———', '', 'The tide turns.', '<hr>', 'Rowan rows.', '', '* * *', '', '<span>Lamp lit</span>', '---', '', 'Gull Point.'].join('\n')
+      const unruled = gameFormat(ruled, { removeDividers: true, stripMarkdown: false })
+      check('Game Format removes every kind of divider line when asked', !/———|<hr>|\* \* \*|---/.test(unruled) && unruled.includes('Gull Point.') && unruled.includes('<span>Lamp lit</span>'), unruled)
       const withBlocks = 'Para one.\n\nPara two.\n\n```\nSTATUS  Wren\n\n        Rowan\n```\n\n<details>\n<summary>status card</summary>\n\n```\nDATE x\n```\n\n</details>\n\nAfter.\n\nMore.'
       const formatted = gameFormat(withBlocks)
       check('game format leaves code blocks alone', formatted.includes('```\nSTATUS  Wren\n\n        Rowan\n```'), formatted)
@@ -1282,6 +1286,15 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('plain numbered options parsed', plain.choices?.groups[0].title === 'What now?' && plain.choices?.groups[0].options.map((o) => o.label).join() === 'Run,Hide' && plain.body.includes('<details>') && !plain.body.includes('Hide'), plain)
       check('plain options ignored with Choices off', extractChoices('Rain.\n\n1. Run\n2. Hide').choices === null)
       check('lists mid-reply are not choices', extractChoices('1. a\n2. b\n\nThe story goes on.', true).choices === null)
+      const midReply = extractChoices(
+        ['Morning on the quay.', '', '—— CHOICES ——', '', '1. Walk Wren down to the boats', '2. Light the lamps early', '3. Something else.', '', '—— ELSEWHERE ——', '', 'Rowan mends a net by the harbour wall.'].join('\n'),
+        true
+      )
+      check(
+        'choices before other sections are read when they plainly are a decision, and the sections after stay',
+        midReply.choices?.groups[0].title === 'CHOICES' && midReply.choices.groups[0].options.map((o) => o.label).join() === 'Walk Wren down to the boats,Light the lamps early' && midReply.body.includes('Rowan mends a net') && !midReply.body.includes('Light the lamps early'),
+        midReply
+      )
       check('lists not numbered from 1 are not choices', extractChoices('Text\n\n2. a\n3. b', true).choices === null)
       const c4 = chat.create(null).id
       chat.updateSettings(c4, { choiceCards: true })
@@ -3563,6 +3576,21 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         find1.bar && /^1 of \d+$/.test(find1.count) && find1.marked >= 1 && /^\d+ of \d+$/.test(find2) && !find3.bar && find3.marked === 0,
         { find1, find2, find3 }
       )
+      // Bold words in a reply take the theme's colour, unless that's switched off.
+      const boldUi = await js<{ on: string; off: string; plain: string }>(`(() => {
+        const md = document.querySelector('.thread .tw-msg-ai .md')
+        const b = document.createElement('strong')
+        b.textContent = 'Gull Point'
+        md.appendChild(b)
+        const plain = getComputedStyle(md).color
+        const on = getComputedStyle(b).color
+        document.documentElement.dataset.boldColor = 'off'
+        const off = getComputedStyle(b).color
+        delete document.documentElement.dataset.boldColor
+        b.remove()
+        return { on, off, plain }
+      })()`)
+      check('bold words in chats take the theme colour, and plain bold when switched off', boldUi.on !== boldUi.plain && boldUi.off === boldUi.plain, boldUi)
       // An edit saved without sending waits as the newest message, with Send under it.
       const ed = chat.create(null)
       chat.send(contents, ed.id, 'Light the lamps')
