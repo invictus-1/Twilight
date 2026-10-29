@@ -4,7 +4,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
-### 0.9.0 · In progress
+### 0.9.0 · October 2026
 - [x] **Document library** · Writing — folders of your writing searched for the passages each message needs: a local full-text index, optional embeddings for search by meaning, and a search tool for models that call tools
 - [x] **Code, further** · Core — plan mode, the agent's own task list, a project instructions file (TWILIGHT.md, AGENTS.md or CLAUDE.md), web search and fetch with Claude, and rewinding to any message
 - [x] **Arrange the rail** · Core — drag sections into your own order, with the others sliding aside
