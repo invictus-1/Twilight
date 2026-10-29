@@ -5,6 +5,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Shipped
 
 ### 0.7.0 · In progress
+- [x] **Usage stats** · Core — tokens and spend over time, by model and by chat
+- [x] **Personas and prompts** · Chat — a library of personas and prompts
 
 ### 0.6.0 · October 2026
 - [x] **Animated installer** · Core — the app's evening as the installer, with a glowing progress bar
@@ -86,8 +88,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [ ] **Agents and code** · Chat — an agent loop for any model with tool calling, with approvals and diffs
 - [ ] **More themes** · Core — Midnight, Synthwave, Aurora, Campfire, Moonlit Paper, High contrast, and a theme builder
 - [ ] **Motion** · Core — a startup animation, a retro home screen, transitions between pages
-- [ ] **Usage stats** · Core — tokens and spend over time, by model and by chat
-- [ ] **Personas and prompts** · Chat — a library of personas and prompts
 - [ ] **Split differences** · Chat — see what changed between the two panes
 - [ ] **Document library** · Writing — retrieval over very large collections with local embeddings
 - [ ] **Offline spellcheck** · Writing — bundled dictionaries

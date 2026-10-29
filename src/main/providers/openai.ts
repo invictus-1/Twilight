@@ -31,7 +31,7 @@ function base(config: ProviderConfig): string {
   return (config.baseUrl ?? '').replace(/\/+$/, '')
 }
 
-function isLocal(url: string): boolean {
+export function isLocal(url: string): boolean {
   return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:|\/|$)/.test(url)
 }
 

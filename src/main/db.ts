@@ -167,6 +167,12 @@ export function openDatabase(file: string): void {
       restored_at INTEGER
     );
   `)
+  // Settings → Usage reads every reply's usage. This index holds just those columns, so the
+  // query never touches message text (on a big database, seconds become milliseconds).
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS nodes_usage ON nodes(created_at, conversation_id, model, provider_id, usage)
+      WHERE role = 'assistant' AND usage IS NOT NULL;
+  `)
   // A crash mid-stream leaves "streaming" rows behind; they are stopped, not lost.
   db.prepare(`UPDATE nodes SET status = 'stopped' WHERE status = 'streaming'`).run()
 }

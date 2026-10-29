@@ -4,6 +4,14 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.7.0
 
+**Chat**
+- **Personas:** a persona is a saved system prompt with a name and a one-line description, and optionally a model and choice cards. Start a chat from one with "New chat from a persona…" in the command menu or from Settings → Library. In a chat that's already going, apply one from Model settings, either as the system prompt (the cache restarts) or as a change from the next message (the cache holds).
+- **Prompts:** save the messages you send often and put one in the message box from the new Prompts button in the composer. A prompt with `{{input}}` asks for that part first. Settings → Library keeps personas and prompts, and exports or imports them as one file.
+
+**Usage**
+- **Usage page:** Settings → Usage shows your tokens and spend over the last 7 days, 30 days, 12 months or all time, with a bar for each day or month, a table by model, and the chats that spent most. Judge runs count as their own line, and anything without a price is named, with a link to Prices.
+- **Priced with your own list:** every count uses today's prices, yours included, so changing a price re-prices the past too. Ctrl+K → Usage goes straight there.
+
 ## 0.6.0
 
 **Installing**

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ShortcutsSection } from './ShortcutsSection'
 import { PricesSection } from './PricesSection'
 import { LibrarySection } from './LibrarySection'
+import { UsageSection } from './UsageSection'
 import type { ModelInfo, ProviderConfig } from '@shared/types'
 import { readGameFormat, writeGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
@@ -16,7 +17,7 @@ import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIc
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'prices' | 'general' | 'library' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
+type Section = 'providers' | 'prices' | 'usage' | 'general' | 'library' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
 
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
   { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
@@ -26,6 +27,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
   { id: 'prices', group: 'Models', label: 'Prices', description: 'What replies cost: your own prices per model, and the built-in ones. A cost the provider reports itself comes first.' },
+  { id: 'usage', group: 'Models', label: 'Usage', description: 'Tokens and spend over time, by model and by chat, counted from every reply and Judge run.' },
   { id: 'updates', group: 'About', label: 'Updates', description: 'Your version, new releases, and rolling back to an earlier one. The daily check is the only request Twilight makes on its own.' },
   { id: 'roadmap', group: 'About', label: 'Roadmap', description: 'What has shipped, what comes next, and the ideas further out.' },
   { id: 'about', group: 'About', label: 'About', description: 'Version and where Twilight lives.' }
@@ -586,6 +588,7 @@ export function SettingsView() {
           <p className="section-description">{current.description}</p>
           {section === 'providers' && <ProvidersSection />}
           {section === 'prices' && <PricesSection />}
+          {section === 'usage' && <UsageSection />}
           {section === 'general' && <GeneralSection />}
           {section === 'library' && <LibrarySection />}
           {section === 'writing' && <WritingSection />}
