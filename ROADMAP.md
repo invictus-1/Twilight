@@ -102,6 +102,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
+- [x] **A retro evening** · Chat — the empty chat as a starry sky with a striped sun and a glowing grid, in every theme
+- [x] **Settings before the first message** · Chat — model settings open with no chat yet, and max output tokens takes any number
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story

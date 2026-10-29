@@ -19,12 +19,28 @@ function NumberSetting(props: {
   min: number
   max: number
   step: number
+  /** The box's own step when it should be finer than the slider's (any whole number of tokens, say). */
+  inputStep?: number
   disabled?: string
   note?: string
   onChange: (value: number | null) => void
 }) {
   const on = props.value !== null && !props.disabled
   const shown = props.value ?? props.fallback
+  // What's typed is kept as typed until it's a number in range, so "1000" isn't clamped to the
+  // minimum at its first digit; leaving the box settles anything out of range.
+  const [draft, setDraft] = useState<string | null>(null)
+  const type = (text: string): void => {
+    setDraft(text)
+    const n = Number(text)
+    if (text.trim() && Number.isFinite(n) && n >= props.min && n <= props.max) props.onChange(n)
+  }
+  const settle = (): void => {
+    if (draft === null) return
+    const n = Number(draft)
+    if (draft.trim() && Number.isFinite(n)) props.onChange(Math.min(props.max, Math.max(props.min, n)))
+    setDraft(null)
+  }
   return (
     <div className={`num-setting ${on ? '' : 'num-off'}`}>
       <div className="num-head">
@@ -37,10 +53,12 @@ function NumberSetting(props: {
           type="number"
           min={props.min}
           max={props.max}
-          step={props.step}
-          value={shown}
+          step={props.inputStep ?? props.step}
+          value={draft ?? shown}
           disabled={!on}
-          onChange={(e) => props.onChange(Math.min(props.max, Math.max(props.min, Number(e.target.value) || props.min)))}
+          onChange={(e) => type(e.target.value)}
+          onBlur={settle}
+          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
         />
       </div>
       <input
@@ -324,6 +342,7 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
         min={256}
         max={options.maxOutput ?? 128000}
         step={256}
+        inputStep={1}
         note={settings.maxTokens ? undefined : provider?.kind === 'anthropic' ? `Off: up to ${Math.min(64000, options.maxOutput ?? 64000).toLocaleString()}.` : 'Off: the server decides.'}
         onChange={(maxTokens) => void update({ maxTokens })}
       />

@@ -467,6 +467,21 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const models = await providers.listModels(true)
       check('mock models listed', models.filter((m) => m.providerId === 'mock').length === 2)
 
+      // Model settings opens before any chat exists: it starts the chat the first message would.
+      const early = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.chat-head'); ) await wait(25)
+        const btn = [...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings'))
+        const enabled = !!btn && !btn.disabled
+        btn?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-panel'); ) await wait(25)
+        const open = !!document.querySelector('.settings-panel')
+        document.querySelector('.settings-panel .panel-head [aria-label="Close"]')?.click()
+        await wait(100)
+        return { enabled, open }
+      })()`)
+      check('model settings opens before any chat exists', early.enabled && early.open, early)
+
       const contents = win.webContents
       const id = chat.create().id
 
@@ -920,6 +935,31 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('model settings closes with its X', afterX === false, { afterX })
       check('opening and closing leaves no panels behind', cycles.join() === '1,0,1,0,1,0', cycles)
       check('the Model settings button opens and closes the panel', afterOpen === true && afterToggle === false, { afterOpen, afterToggle })
+      // Max output tokens takes any number typed, not only steps of 256, and isn't clamped mid-typing.
+      const tokensUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings')).click()
+        await wait(200)
+        const row = () => [...document.querySelectorAll('.settings-panel .num-setting')].find((r) => r.textContent.includes('Max output tokens'))
+        const box = () => row().querySelector('.num-input')
+        const toggle = row().querySelector('input[type="checkbox"]')
+        const wasOn = toggle.checked
+        if (!wasOn) { toggle.click(); await wait(200) }
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        box().focus()
+        const seen = []
+        for (const text of ['1', '10', '100', '1000']) {
+          set.call(box(), text); box().dispatchEvent(new Event('input', { bubbles: true })); await wait(60)
+          seen.push(box().value)
+        }
+        box().blur(); box().dispatchEvent(new FocusEvent('focusout', { bubbles: true })); await wait(250)
+        const result = { seen, settled: box().value, step: box().step }
+        if (!wasOn) { row().querySelector('input[type="checkbox"]').click(); await wait(200) }
+        document.querySelector('.settings-panel .panel-head [aria-label="Close"]')?.click()
+        await wait(100)
+        return result
+      })()`)
+      check('max output tokens takes any number as typed', tokensUi.seen.join() === '1,10,100,1000' && tokensUi.settled === '1000' && tokensUi.step === '1', tokensUi)
 
       // 22. Game Format: paragraphs joined within chunks, dividers kept, code and HTML untouched.
       const sample = 'ofjasdoifjasodif\n\najosdfjasoidfj\n\nasdofjiasodf\n\n---\n\noidsfjsodjfids\n\nsdfjosidjf\n\nsdojfsoidfj'
@@ -2984,6 +3024,9 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await new Promise((r) => setTimeout(r, 1700))
       const emptyUi = await js<{ sky: boolean; sun: boolean; stars: number }>(`({ sky: !!document.querySelector('.empty .empty-sky'), sun: !!document.querySelector('.empty .empty-sun'), stars: document.querySelectorAll('.empty .empty-star').length })`)
       check('an empty chat shows a small evening behind the greeting', emptyUi.sky && emptyUi.sun && emptyUi.stars > 10, emptyUi)
+      const retroUi = await js<{ field: number; grid: boolean; horizon: boolean; sub: string }>(`({ field: document.querySelectorAll('.empty .empty-field circle').length, grid: !!document.querySelector('.empty .empty-plane .empty-grid'), horizon: !!document.querySelector('.empty .empty-horizon'), sub: document.querySelector('.empty .empty-sub')?.textContent ?? '' })`)
+      check('the empty chat is a retro evening: a field of stars, a horizon and a grid', retroUi.field > 100 && retroUi.grid && retroUi.horizon, retroUi)
+      check('the empty chat names the model that is ready', /is ready/.test(retroUi.sub), retroUi)
       await shot('e2e-emptysky.png')
       const enterUi = await js<{ fresh: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))

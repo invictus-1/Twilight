@@ -2,6 +2,13 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## Unreleased
+
+**From your feedback on 1.0**
+- **A retro evening in new chats:** the empty chat is now a fuller sky, with a deep field of stars, a band of the galaxy, a striped sun on the horizon and a glowing grid running toward you. It takes each theme's own colours. The grid drifts, a few stars twinkle and the odd shooting star crosses; under Gentle or Off motion it all stays still. The greeting is larger, and says which model is ready when you've picked one.
+- **Model settings before the first message:** the Model settings button works with no chat open. It starts the chat your first message would, so the model and its options can be set before you type.
+- **Max output tokens takes any number:** type 1000 or 3500 and it stays as typed (it used to jump to the minimum at the first digit, and the arrows moved in steps of 256). The slider still moves in steps of 256.
+
 ## 1.0.0
 
 **Faster**
