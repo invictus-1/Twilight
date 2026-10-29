@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import type { CodeEntry, CodeMode, CodePending, DiffLine } from '@shared/code'
+import type { CodeEntry, CodeMode, CodePending, CodeTask, DiffLine } from '@shared/code'
 import { useCode } from '../codeStore'
 import { renderMarkdownLive } from '../markdown'
 import { modelName, useStore } from '../store'
@@ -8,6 +8,7 @@ import { AlertIcon, CheckIcon, CloseIcon, FolderIcon, SendIcon, SidebarIcon, Sto
 // The Code tab: one session's transcript, the agent's approvals and questions, and your messages.
 
 const MODES: { id: CodeMode; label: string; note: string }[] = [
+  { id: 'plan', label: 'Plan', note: 'The agent looks around and writes a plan; nothing changes until you run it.' },
   { id: 'ask', label: 'Ask first', note: 'Every edit and command waits for you.' },
   { id: 'edits', label: 'Accept edits', note: 'Edits go through (each can be undone); commands and deletions still ask.' },
   { id: 'read', label: 'Read only', note: 'The agent can look but not change anything or run commands.' }
@@ -46,6 +47,49 @@ function ToolEntry({ e }: { e: Extract<CodeEntry, { kind: 'tool' }> }) {
       </button>
       {open && e.diff && <Diff lines={e.diff} />}
       {open && e.output && <pre className="code-output">{e.output}</pre>}
+    </div>
+  )
+}
+
+/** The agent's own checklist for the request, kept with update_tasks. */
+function Tasks({ tasks }: { tasks: CodeTask[] }) {
+  const done = tasks.filter((t) => t.status === 'done').length
+  return (
+    <div className="code-tasks" aria-label="The agent's tasks">
+      <div className="code-tasks-head">
+        Tasks · {done} of {tasks.length} done
+      </div>
+      <ol>
+        {tasks.map((t, i) => (
+          <li key={i} className={`code-task code-task-${t.status}`}>
+            <span className="code-task-mark" aria-hidden="true">
+              {t.status === 'done' ? '✓' : t.status === 'doing' ? '›' : '○'}
+            </span>
+            {t.title}
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
+/** Your message, with Rewind to here (asks once more: it puts files back and cuts what came after). */
+function UserEntry({ text, index, onRewound, busy }: { text: string; index: number; onRewound: (text: string) => void; busy: boolean }) {
+  const [sure, setSure] = useState(false)
+  return (
+    <div className="code-user-row">
+      {!busy &&
+        (sure ? (
+          <button className="tw-btn tw-btn-sm tw-btn-danger code-rewind" autoFocus onBlur={() => setSure(false)} onClick={() => void useCode.getState().rewind(index).then((t) => t !== null && onRewound(t))}>
+            Put files back and rewind
+          </button>
+        ) : (
+          <button className="tw-btn tw-btn-ghost tw-btn-sm code-rewind" title="Go back to just before this message: files changed since are put back" onClick={() => setSure(true)}>
+            <UndoIcon size={13} />
+            Rewind to here
+          </button>
+        ))}
+      <div className="code-user">{text}</div>
     </div>
   )
 }
@@ -173,6 +217,15 @@ export function CodeView() {
           <FolderIcon size={14} />
           {current.folder.split(/[\\/]/).pop()}
         </span>
+        {current.instructions && (
+          <span className="tw-badge code-instructions no-drag" title={`The agent follows ${current.instructions} from the project folder`}>
+            {current.instructions}
+          </span>
+        )}
+        <label className="check code-web no-drag" title={current.webAvailable ? "Claude's web search and page reading, for this session" : 'Web search needs a Claude model'}>
+          <input type="checkbox" checked={current.web && current.webAvailable} disabled={!current.webAvailable} onChange={(e) => void useCode.getState().setOptions({ web: e.target.checked })} />
+          Web
+        </label>
         <div className="tw-seg code-modes no-drag" role="radiogroup" aria-label="What the agent may do">
           {MODES.map((m) => (
             <button key={m.id} role="radio" aria-checked={current.mode === m.id} aria-pressed={current.mode === m.id} title={m.note} onClick={() => void useCode.getState().setOptions({ mode: m.id })}>
@@ -228,9 +281,13 @@ export function CodeView() {
           )}
           {current.entries.map((e, i) =>
             e.kind === 'user' ? (
-              <div key={i} className="code-user">
-                {e.text}
-              </div>
+              e.checkpoint ? (
+                <UserEntry key={i} text={e.text} index={i} busy={current.running} onRewound={setText} />
+              ) : (
+                <div key={i} className="code-user">
+                  {e.text}
+                </div>
+              )
             ) : e.kind === 'assistant' ? (
               e.text && <div key={i} className="code-assistant md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(e.text) }} />
             ) : e.kind === 'tool' ? (
@@ -260,6 +317,21 @@ export function CodeView() {
           )}
         </div>
       </div>
+      {current.planReady && (
+        <div className="code-plan-bar" role="group" aria-label="Run the plan">
+          <span>The plan is ready. Nothing has changed yet.</span>
+          <button
+            className="tw-btn tw-btn-primary tw-btn-sm"
+            onClick={() => void useCode.getState().setOptions({ mode: 'ask' }).then(() => useCode.getState().send('Go ahead with the plan.'))}
+          >
+            Run this plan, asking first
+          </button>
+          <button className="tw-btn tw-btn-sm" onClick={() => void useCode.getState().setOptions({ mode: 'edits' }).then(() => useCode.getState().send('Go ahead with the plan.'))}>
+            Run it, accepting edits
+          </button>
+        </div>
+      )}
+      {current.tasks.length > 0 && <Tasks tasks={current.tasks} />}
       <div className="composer-wrap">
         <div className="tw-composer">
           <textarea

@@ -9,6 +9,7 @@ import * as chat from './chat'
 import * as code from './code/agent'
 import * as mcp from './mcp'
 import { contextMenuItems, setSpellcheck, showContextMenus } from './contextMenu'
+import { codeWebTools } from './code/llm'
 import Database from 'better-sqlite3'
 import { applyPendingRestore, backupDue, backupSettings, createBackup, listBackups, pruneBackups, setBackupSettings, stageRestore, takeRestoredWindowSettings } from './backups'
 import { checkTarget, resolveDataFolder, stageMove } from './location'
@@ -209,7 +210,19 @@ function codeAgentReply(messages: { role: string; content: string | null }[], re
       { name: 'write_file', args: { path: 'x.txt', content: 'x' } },
       { name: 'run_command', args: { command: 'Write-Output hi' } }
     ],
-    CODEASK: [{ name: 'ask_user', args: { question: 'Shall I go on?' } }]
+    CODEASK: [{ name: 'ask_user', args: { question: 'Shall I go on?' } }],
+    CODEPLAN: [{ name: 'write_file', args: { path: 'plan.txt', content: 'x' } }],
+    CODETASKS: [
+      {
+        name: 'update_tasks',
+        args: {
+          tasks: [
+            { title: 'Read the notes', status: 'done' },
+            { title: 'Change the lamps', status: 'doing' }
+          ]
+        }
+      }
+    ]
   }
   const script = Object.entries(scripts).find(([k]) => request.includes(k))?.[1] ?? []
   const call = script[results.length]
@@ -3428,7 +3441,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const replayed42 = steps42.at(-1)?.messages.find((m) => (m as { tool_calls?: unknown[] }).tool_calls) as { tool_calls: { id: string; function: { arguments: string } }[] } | undefined
       check('tool calls are replayed with their arguments exactly as they came', replayed42?.tool_calls[0]?.function.arguments === JSON.stringify({ path: 'notes.txt' }), replayed42)
       const offered42 = ((steps42[0]?.body as { tools?: { function: { name: string } }[] }).tools ?? []).map((t) => t.function.name)
-      check('the agent is offered its tools', offered42.join() === 'list_files,read_file,search_files,edit_file,write_file,delete_file,run_command,ask_user', offered42)
+      check('the agent is offered its tools', offered42.join() === 'list_files,read_file,search_files,edit_file,write_file,delete_file,run_command,update_tasks,ask_user', offered42)
       const usage42 = await js<string>(`document.querySelector('.code-usage')?.textContent ?? ''`)
       check('the session shows what it used and how much came from the cache', /^[\d.]+k? in · [\d.]+k? out · \d+% cached$/.test(usage42), usage42)
       await js(`(() => { const t = [...document.querySelectorAll('.code-tool')].find((e) => e.dataset.tool === 'edit_file'); t?.querySelector('.code-tool-head')?.click() })()`)
@@ -3539,6 +3552,83 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         code.listSessions()
       )
       await untilUi(`!document.querySelector('.code-session-item')`)
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+
+      // 42b. More in Code: plan mode, the agent's task list, the project's instructions file, web
+      // tools (Claude's) and rewinding to any message.
+      await writeFile(join(proj, 'AGENTS.md'), 'Use two spaces for indents.\n')
+      const cp42 = (await code.newSession(null, proj))!
+      code.setOptions(cp42.id, { providerId: 'mock', modelId: 'mock-a', mode: 'plan' })
+      const done42 = async (want: 'pending' | 'done' = 'done'): Promise<ReturnType<typeof code.openSession>> => {
+        for (const end = Date.now() + 15000; Date.now() < end; ) {
+          const v = code.openSession(cp42.id)
+          if (want === 'pending' ? v.pending : !v.running) return v
+          await new Promise((r) => setTimeout(r, 30))
+        }
+        throw new Error('Timed out waiting for the code agent (42b)')
+      }
+      const lastUser42 = (): string => String([...(log.at(-1)?.messages ?? [])].reverse().find((m) => m.role === 'user')?.content ?? '')
+      check('the project instructions file is read into the session', cp42.instructions === 'AGENTS.md')
+      const before42b = log.length
+      code.send(cp42.id, 'CODEPLAN tidy the notes')
+      let v42 = await done42()
+      const system42 = String(log[before42b]?.messages[0]?.content ?? '')
+      check("the agent is given the project's instructions", system42.includes('<project_instructions>') && system42.includes('Use two spaces for indents.'), system42.slice(-200))
+      check('plan mode is told to the model with the message', String(log[before42b]?.messages.at(-1)?.content ?? '').includes('Plan mode:'))
+      const planned42 = v42.entries.filter((e) => e.kind === 'tool').at(-1) as { status?: string; output?: string } | undefined
+      check('in plan mode, changes are declined until the plan is run', planned42?.status === 'declined' && (await fileText('plan.txt')) === null && v42.planReady, { planned42, planReady: v42.planReady })
+
+      await js(`document.querySelector('.rail-item[data-mode="code"]')?.click()`)
+      await untilUi(`!!document.querySelector('.code-session-item')`)
+      await js(`(() => { const row = [...document.querySelectorAll('.code-session-item')].find((r) => r.querySelector('.tw-conv-title')?.textContent.startsWith('CODEPLAN')); row?.click(); return !!row })()`)
+      const bar42 = await untilUi(`!!document.querySelector('.code-plan-bar')`)
+      await new Promise((r) => setTimeout(r, 600))
+      await shot('e2e-code-plan.png')
+      await click42('Run this plan, asking first', '.code-plan-bar')
+      await new Promise((r) => setTimeout(r, 200))
+      v42 = await done42()
+      check('Run this plan carries it out, and the model hears it was approved', bar42 && v42.mode === 'ask' && lastUser42().includes('The user approved the plan') && !v42.planReady, { bar42, mode: v42.mode })
+
+      code.setOptions(cp42.id, { mode: 'edits' })
+      code.send(cp42.id, 'CODETASKS')
+      v42 = await done42()
+      const tasksUi42 = await js<string>(`(async () => { for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.code-tasks'); ) await new Promise((r) => setTimeout(r, 30)); return document.querySelector('.code-tasks-head')?.textContent ?? '' })()`)
+      await new Promise((r) => setTimeout(r, 400))
+      await shot('e2e-code-tasks.png')
+      check('the agent keeps a task list that shows above the message box', v42.tasks.map((t) => `${t.status}:${t.title}`).join() === 'done:Read the notes,doing:Change the lamps' && tasksUi42 === 'Tasks · 1 of 2 done', { tasks: v42.tasks, tasksUi42 })
+
+      await writeFile(join(proj, 'AGENTS.md'), 'Use tabs.\n')
+      const before42c = log.length
+      code.send(cp42.id, 'CODEPLAIN again')
+      await done42()
+      check(
+        'a changed instructions file goes in with the next message, and the system prompt stays',
+        lastUser42().includes('<project_instructions>') && lastUser42().includes('Use tabs.') && log[before42c]?.messages[0]?.content === log[before42b]?.messages[0]?.content
+      )
+
+      const before42d = log.length
+      code.send(cp42.id, 'CODECREATE')
+      v42 = await done42()
+      const madeFile42 = (await fileText('src/new.txt')) === 'fresh\n'
+      const at42 = v42.entries.findIndex((e) => e.kind === 'user' && e.text === 'CODECREATE')
+      await untilUi(`[...document.querySelectorAll('.code-user-row')].some((r) => r.querySelector('.code-user')?.textContent === 'CODECREATE')`)
+      await js(`(() => { const row = [...document.querySelectorAll('.code-user-row')].find((r) => r.querySelector('.code-user')?.textContent === 'CODECREATE'); row?.querySelector('.code-rewind')?.click() })()`)
+      await new Promise((r) => setTimeout(r, 100))
+      await js(`document.querySelector('.code-rewind.tw-btn-danger')?.click()`)
+      const back42 = await untilUi(`document.querySelector('.code-view textarea')?.value === 'CODECREATE'`)
+      v42 = code.openSession(cp42.id)
+      check(
+        'rewinding puts files back, cuts the conversation there, and returns the message to the box',
+        madeFile42 && back42 && (await fileText('src/new.txt')) === null && (await fileText('notes.txt')) === notes0 && v42.entries.length === at42 && v42.undoable.length === 0,
+        { madeFile42, back42, entries: v42.entries.length, at42 }
+      )
+      code.send(cp42.id, 'CODEPLAIN after rewinding')
+      await done42()
+      const prefix42 = log[before42d]!.messages.length - 1
+      check('after a rewind, the next request starts from the same cached prefix', JSON.stringify(log.at(-1)!.messages.slice(0, prefix42)) === JSON.stringify(log[before42d]!.messages.slice(0, prefix42)))
+      check('web tools are offered only with Claude', !v42.webAvailable && codeWebTools('claude-opus-5-5').map((t) => `${t.name}:${t.type}`).join() === 'web_search:web_search_20260209,web_fetch:web_fetch_20260209')
+      await code.deleteSession(cp42.id)
+      await rename(join(proj, 'AGENTS.md'), join(outDir, 'AGENTS-used.md'))
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
 
       // 43. Scroll particles: off until switched on, then each style makes a few on a slow scroll

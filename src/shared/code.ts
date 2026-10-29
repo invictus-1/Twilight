@@ -2,8 +2,17 @@
 // (src/main/code/) and the interface, plus the line diff its approvals show and the check that
 // flags commands able to delete or overwrite things.
 
-/** How much the agent may do without asking: everything asks, edits go through, or nothing changes. */
-export type CodeMode = 'ask' | 'edits' | 'read'
+/**
+ * How much the agent may do without asking: plan first (nothing changes until you approve the
+ * plan), everything asks, edits go through, or nothing changes.
+ */
+export type CodeMode = 'plan' | 'ask' | 'edits' | 'read'
+
+/** A step on the agent's own task list, shown above the message box. */
+export interface CodeTask {
+  title: string
+  status: 'pending' | 'doing' | 'done'
+}
 
 export interface CodeSessionSummary {
   id: string
@@ -22,7 +31,12 @@ export interface DiffLine {
 
 /** One thing that happened, as the transcript shows it. */
 export type CodeEntry =
-  | { kind: 'user'; text: string }
+  | {
+      kind: 'user'
+      text: string
+      /** Where the session stood before this message, so it can be rewound to here. */
+      checkpoint?: { messages: number; snapshots: number; entries: number }
+    }
   | { kind: 'assistant'; text: string }
   | {
       kind: 'tool'
@@ -70,6 +84,15 @@ export interface CodeSessionView {
   allowed: string[]
   error: string | null
   tokens: { input: number; output: number; cacheRead: number }
+  tasks: CodeTask[]
+  /** The project's instructions file the agent follows (TWILIGHT.md, AGENTS.md or CLAUDE.md), if any. */
+  instructions: string | null
+  /** Web search and fetch, on for this session. */
+  web: boolean
+  /** Only Claude has web tools here. */
+  webAvailable: boolean
+  /** The agent finished a plan in plan mode; it's waiting for you to run it. */
+  planReady: boolean
 }
 
 export type CodeEvent = { kind: 'view'; view: CodeSessionView } | { kind: 'text'; sessionId: string; delta: string } | { kind: 'list' }

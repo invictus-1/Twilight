@@ -1389,3 +1389,22 @@ body.resizing .resize-handle { pointer-events: auto; }
 .rail-items { position: relative; }
 .rail-drop { position: absolute; left: 6px; right: 6px; border: 1.5px dashed color-mix(in srgb, var(--iris) 60%, transparent); border-radius: var(--radius-md); background: color-mix(in srgb, var(--iris) 8%, transparent); transition: top 160ms cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
 :root[data-motion='off'] .rail-item { transition: none !important; }
+
+/* Code: plans, tasks, rewinding, instructions and web */
+.code-instructions { font-family: var(--font-mono); }
+.code-web { font-size: 12px; white-space: nowrap; }
+.code-user-row { align-self: flex-end; display: flex; align-items: center; gap: var(--space-2); max-width: 85%; }
+.code-user-row .code-user { max-width: none; }
+.code-rewind { opacity: 0; transition: opacity 120ms ease; white-space: nowrap; }
+.code-user-row:hover .code-rewind, .code-rewind:focus-visible, .code-rewind.tw-btn-danger { opacity: 1; }
+.code-plan-bar { flex: none; display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; max-width: var(--thread); width: calc(100% - 2 * var(--space-6)); margin: 0 auto var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--dusk); border-radius: var(--radius-md); background: var(--dusk-soft); font-size: 13px; }
+.code-plan-bar span { flex: 1; min-width: 200px; }
+.code-tasks { flex: none; max-width: var(--thread); width: calc(100% - 2 * var(--space-6)); margin: 0 auto var(--space-2); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); max-height: 180px; overflow-y: auto; }
+.code-tasks-head { font-size: 11px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--dusk); margin-bottom: var(--space-1); }
+.code-tasks ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 13px; }
+.code-task { display: flex; gap: var(--space-2); align-items: baseline; color: var(--ink-muted); }
+.code-task-mark { width: 14px; flex: none; text-align: center; font-family: var(--font-mono); }
+.code-task-doing { color: var(--ink); font-weight: 500; }
+.code-task-doing .code-task-mark { color: var(--iris); }
+.code-task-done { color: var(--ink-faint); text-decoration: line-through; }
+.code-task-done .code-task-mark { color: var(--success); }

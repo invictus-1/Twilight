@@ -5,6 +5,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Shipped
 
 ### 0.9.0 · In progress
+- [x] **Code, further** · Core — plan mode, the agent's own task list, a project instructions file (TWILIGHT.md, AGENTS.md or CLAUDE.md), web search and fetch with Claude, and rewinding to any message
+- [x] **Arrange the rail** · Core — drag sections into your own order, with the others sliding aside
 - [x] **A light theme** · Core — Moonlit Paper: warm paper, dark ink and a dawn sky, with every text colour checked for 4.5:1 contrast
 - [x] **Offline spellcheck** · Writing — Windows' own spellchecker, so nothing is downloaded: underlines as you type everywhere, with suggestions on right-click
 
@@ -95,11 +97,10 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 0.8** · Core — fixes from real use of the Code tab, MCP, backups, Extras and backgrounds
-- [ ] **Code, further** · Core — for 0.9: a plan mode that agrees the steps first, a project instructions file the agent reads, web search in Code, and a checkpoint per message you can rewind to
 - [ ] **Document library** · Writing — for 0.9: retrieval over very large collections with local embeddings
 
 ## Later
-- [ ] **Polish pass** · Core — the final pass for 1.0: an optimization run and a UI/UX pass over every screen, with more gradients and motion. Startup, chat-open and scroll times are measured before and after, so the gains are real numbers
+- [ ] **1.0: the polish pass** · Core — the final pass, then a talk about the road to 2.0: an optimization run and a UI/UX pass over every screen, with more gradients and motion. Startup, chat-open and scroll times are measured before and after, so the gains are real numbers
 
 ## Ideas
 - **Story bible** · Writing — characters, places and facts pulled from a manuscript, with a continuity watcher

@@ -99,6 +99,7 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'stopCode',
   'undoCode',
   'setCodeOptions',
+  'rewindCode',
   'deleteCodeSession',
   'getBackground',
   'chooseBackground',

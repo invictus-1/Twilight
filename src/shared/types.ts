@@ -600,7 +600,9 @@ export interface TwilightApi {
   stopCode(id: string): Promise<void>
   /** Undoes the newest change still in place, or every one. */
   undoCode(id: string, all: boolean): Promise<CodeSessionView>
-  setCodeOptions(id: string, patch: { mode?: CodeMode; providerId?: string; modelId?: string }): Promise<CodeSessionView>
+  setCodeOptions(id: string, patch: { mode?: CodeMode; providerId?: string; modelId?: string; web?: boolean }): Promise<CodeSessionView>
+  /** Goes back to just before one of your messages (files put back, conversation cut); returns that message. */
+  rewindCode(id: string, entryIndex: number): Promise<{ view: CodeSessionView; text: string }>
   deleteCodeSession(id: string): Promise<void>
   onCode(listener: (event: CodeEvent) => void): () => void
   /** Puts text on the clipboard from the main process (works whether or not the window has focus). */

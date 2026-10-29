@@ -4,6 +4,13 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.9.0
 
+**Code**
+- **Plan mode:** the agent looks around and writes a numbered plan; edits and commands are declined until you press Run this plan (asking first, or accepting edits). The model is told when the plan is approved.
+- **A task list:** for longer work the agent keeps a checklist of its steps, shown above the message box as it goes.
+- **Project instructions:** a TWILIGHT.md, AGENTS.md or CLAUDE.md at the top of the folder is read into the session, and shown in the header. Change it mid-session and the new version goes in with your next message, so the cache holds.
+- **Web search and fetch:** switch Web on for a session with a Claude model, and the agent can search and read pages; each search shows in the transcript.
+- **Rewind to any message:** hover one of your messages and choose Rewind to here. Every file changed since goes back, the conversation is cut there (what came before still reads from the cache), and the message returns to the box to edit and send again.
+
 **Look and feel**
 - **Arrange the rail:** drag the sections on the left into your own order. The one you hold lifts and follows the pointer, the others slide aside, and a soft outline shows where it will land. Alt+Up and Alt+Down move the focused one. The order is remembered.
 - **Moonlit Paper, a light theme:** warm paper, dark ink, accents deep enough to read on it, and a dawn sky on the Roadmap, Insights and the welcome. Every text colour is at least 4.5:1 against what's behind it, and scroll particles paint over the paper instead of glowing. Pick it in Settings → General or with Ctrl+K.

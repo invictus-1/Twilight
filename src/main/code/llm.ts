@@ -39,6 +39,8 @@ export interface StepRequest {
   system: string
   messages: Msg[]
   tools: ToolDef[]
+  /** Claude's own web search and fetch, run on Anthropic's side. */
+  web?: boolean
   signal: AbortSignal
   onText(delta: string): void
 }
@@ -59,30 +61,61 @@ async function stepAnthropic(req: StepRequest): Promise<StepResult> {
   if (!req.apiKey) throw new Error('Add an Anthropic API key in Settings → Model providers.')
   const client = anthropicClient(req.config, req.apiKey)
   const cache = { cache_control: { type: 'ephemeral' as const } }
+  const messages = req.messages.map((m) => ({
+    ...m,
+    // A session that started on another provider keeps its raw call arguments; Claude doesn't take
+    // them. With web tools off, earlier searches are left out (the tools list changed anyway).
+    content: (req.web ? m.content : m.content.filter((b) => !WEB_BLOCKS.has(b.type))).map((b) =>
+      b.type === 'tool_use' && 'raw' in b ? (({ raw: _r, ...rest }) => rest)(b) : b
+    )
+  }))
   const body: Record<string, unknown> = {
     model: req.modelId,
     max_tokens: Math.min(32000, req.options?.maxOutput ?? 32000),
     system: [{ type: 'text', text: req.system, ...cache }],
-    tools: req.tools,
-    // A session that started on another provider keeps its raw call arguments; Claude doesn't take them.
-    messages: req.messages.map((m) => ({ ...m, content: m.content.map((b) => (b.type === 'tool_use' && 'raw' in b ? (({ raw: _r, ...rest }) => rest)(b) : b)) })),
+    tools: [...req.tools, ...(req.web ? codeWebTools(req.modelId) : [])],
+    messages,
     // The second breakpoint follows the end of the transcript, step after step.
     ...cache
   }
   if (req.options?.adaptiveThinking) body.thinking = { type: 'adaptive', display: 'summarized' }
-  const stream = client.messages.stream(body as never, { signal: req.signal })
-  stream.on('text', (delta) => req.onText(delta))
-  const final = await stream.finalMessage()
-  // Stored whole (thinking included) and replayed unchanged, as tool use with thinking requires.
-  const content = final.content as unknown as Block[]
-  const u = final.usage
+  // A long run of searches pauses the turn; it's resumed with what came so far, a few times at most.
+  const content: Block[] = []
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 }
+  let stop: string | null = null
+  for (let round = 0; round < 4; round++) {
+    const sent = content.length ? [...messages, { role: 'assistant', content: [...content] }] : messages
+    const stream = client.messages.stream({ ...body, messages: sent } as never, { signal: req.signal })
+    stream.on('text', (delta) => req.onText(delta))
+    const final = await stream.finalMessage()
+    // Stored whole (thinking included) and replayed unchanged, as tool use with thinking requires.
+    content.push(...(final.content as unknown as Block[]))
+    const u = final.usage
+    usage.input += u.input_tokens
+    usage.output += u.output_tokens
+    usage.cacheRead += u.cache_read_input_tokens ?? 0
+    usage.cacheWrite += u.cache_creation_input_tokens ?? 0
+    stop = final.stop_reason
+    if (stop !== 'pause_turn') break
+  }
   return {
     content,
     text: textOf(content),
     calls: callsOf(content),
-    usage: { input: u.input_tokens, output: u.output_tokens, cacheRead: u.cache_read_input_tokens ?? 0, cacheWrite: u.cache_creation_input_tokens ?? 0 },
-    error: final.stop_reason === 'max_tokens' ? 'The reply ran out of room before it finished.' : final.stop_reason === 'refusal' ? 'The model declined to continue.' : undefined
+    usage,
+    error: stop === 'max_tokens' ? 'The reply ran out of room before it finished.' : stop === 'refusal' ? 'The model declined to continue.' : undefined
   }
+}
+
+const WEB_BLOCKS = new Set(['server_tool_use', 'web_search_tool_result', 'web_fetch_tool_result', 'code_execution_tool_result', 'bash_code_execution_tool_result', 'text_editor_code_execution_tool_result'])
+
+/** Claude's web tools for a Code session, the versions that filter results on newer models. */
+export function codeWebTools(modelId: string): Record<string, unknown>[] {
+  const dynamic = /^claude-(opus-5|fable-5|opus-4-[678]|sonnet-5|sonnet-4-6)/.test(modelId)
+  return [
+    { type: dynamic ? 'web_search_20260209' : 'web_search_20250305', name: 'web_search', max_uses: 5 },
+    { type: dynamic ? 'web_fetch_20260209' : 'web_fetch_20250910', name: 'web_fetch', max_uses: 5, max_content_tokens: 20000 }
+  ]
 }
 
 /** The transcript as OpenAI-style messages: tool results become "tool" messages after the call. */

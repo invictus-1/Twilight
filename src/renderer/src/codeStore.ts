@@ -17,7 +17,9 @@ interface CodeState {
   respond(response: CodeResponse): Promise<void>
   stop(): Promise<void>
   undo(all: boolean): Promise<void>
-  setOptions(patch: { mode?: CodeMode; providerId?: string; modelId?: string }): Promise<void>
+  setOptions(patch: { mode?: CodeMode; providerId?: string; modelId?: string; web?: boolean }): Promise<void>
+  /** Rewinds to before one of your messages; returns its text for the message box. */
+  rewind(entryIndex: number): Promise<string | null>
   remove(id: string): Promise<void>
 }
 
@@ -101,6 +103,19 @@ export const useCode = create<CodeState>((set, get) => ({
       const current = get().current
       if (current) set({ current: await api.setCodeOptions(current.id, patch) })
     }),
+
+  async rewind(entryIndex) {
+    const current = get().current
+    if (!current) return null
+    try {
+      const { view, text } = await api.rewindCode(current.id, entryIndex)
+      set({ current: view })
+      return text
+    } catch (err) {
+      useStore.getState().setError(message(err))
+      return null
+    }
+  },
 
   remove: (id) =>
     guard(async () => {

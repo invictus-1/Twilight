@@ -317,7 +317,8 @@ function registerIpc(): void {
     respondCode: (_e, id: string, pendingId: string, response: CodeResponse) => code.respond(id, pendingId, response),
     stopCode: (_e, id: string) => code.stop(id),
     undoCode: (_e, id: string, all: boolean) => code.undo(id, all),
-    setCodeOptions: (_e, id: string, patch: { mode?: CodeMode; providerId?: string; modelId?: string }) => code.setOptions(id, patch),
+    setCodeOptions: (_e, id: string, patch: { mode?: CodeMode; providerId?: string; modelId?: string; web?: boolean }) => code.setOptions(id, patch),
+    rewindCode: (_e, id: string, entryIndex: number) => code.rewind(id, entryIndex),
     deleteCodeSession: (_e, id: string) => code.deleteSession(id),
     getPrices: () => db.kvGet<CustomPrice[]>('prices') ?? [],
     setPrices: (_e, list: CustomPrice[]) => {
