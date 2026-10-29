@@ -5,6 +5,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 ## 0.9.0
 
 **Look and feel**
+- **Moonlit Paper, a light theme:** warm paper, dark ink, accents deep enough to read on it, and a dawn sky on the Roadmap, Insights and the welcome. Every text colour is at least 4.5:1 against what's behind it, and scroll particles paint over the paper instead of glowing. Pick it in Settings → General or with Ctrl+K.
 - **The way to 1.0:** on a wide window, the Roadmap has a panel beside it: how far along 1.0 is, each release as a step you can click to jump to, and what has shipped in each area.
 
 **Writing**

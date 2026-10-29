@@ -5,6 +5,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Shipped
 
 ### 0.9.0 · In progress
+- [x] **A light theme** · Core — Moonlit Paper: warm paper, dark ink and a dawn sky, with every text colour checked for 4.5:1 contrast
 - [x] **Offline spellcheck** · Writing — Windows' own spellchecker, so nothing is downloaded: underlines as you type everywhere, with suggestions on right-click
 
 ### 0.8.0 · October 2026
@@ -95,7 +96,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Next
 - [~] **Your feedback on 0.8** · Core — fixes from real use of the Code tab, MCP, backups, Extras and backgrounds
 - [ ] **Code, further** · Core — for 0.9: a plan mode that agrees the steps first, a project instructions file the agent reads, web search in Code, and a checkpoint per message you can rewind to
-- [ ] **A light theme** · Core — for 0.9, Moonlit Paper: a soft, paper-light theme (Twilight is dark throughout today)
 - [ ] **Document library** · Writing — for 0.9: retrieval over very large collections with local embeddings
 
 ## Later

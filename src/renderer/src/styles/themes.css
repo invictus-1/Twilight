@@ -288,6 +288,48 @@
   background: radial-gradient(1000px 420px at 50% 115%, #5a2a0e 0%, transparent 62%), var(--surface);
 }
 
+/* Moonlit Paper: the light theme. Warm paper, dark ink, and accents deep enough to read on it
+   (every text colour is 4.5:1 or better on every ground). The skies turn to dawn. */
+:root[data-theme='moonlit'] {
+  color-scheme: light;
+  --night: #ebe8f1;
+  --surface: #f8f6f1;
+  --surface-raised: #fffdf9;
+  --surface-overlay: #e9e5f0;
+  --surface-hover: #1d1b310d;
+  --line: #dcd7e5;
+  --line-strong: #8f88aa;
+  --ink: #1d1b31;
+  --ink-muted: #4a4666;
+  --ink-faint: #5f5b7d;
+  --iris: #4146c8;
+  --iris-soft: #e2e2fa;
+  --on-iris: #ffffff;
+  --dusk: #7140bf;
+  --dusk-soft: #ece2f8;
+  --horizon: #a5481a;
+  --horizon-soft: #f9e4d6;
+  --on-horizon: #ffffff;
+  --success: #18764e;
+  --warning: #855b00;
+  --danger: #b9352b;
+  --danger-soft: #f9e0dd;
+  --on-danger: #ffffff;
+  --selection: #4146c833;
+  --shadow-sm: 0 1px 2px #1d1b3324;
+  --shadow-lg: 0 12px 32px -6px #1d1b3333, 0 0 0 1px #dcd7e5;
+  --focus-ring: 0 0 0 2px #f8f6f1, 0 0 0 4px #4146c8;
+}
+:root[data-theme='moonlit'] .ins-hero, :root[data-theme='moonlit'] .rm-hero { background: linear-gradient(180deg, #e7e2f6 0%, #f2e5ef 55%, #fbe1cf 100%); }
+:root[data-theme='moonlit'] .rm-band, :root[data-theme='moonlit'] .wl-band { background: #f8f6f1; }
+:root[data-theme='moonlit'] .rm-progress { background: #1d1b311a; }
+:root[data-theme='moonlit'] .ins-chip { background: #1d1b310d; }
+:root[data-theme='moonlit'] .welcome { background: linear-gradient(180deg, #dcd6f2 0%, #e9e2f4 30%, #f3e4ee 62%, #fbdcc8 86%, #f7c9a8 100%); }
+/* The sun at dawn: soft peach, not the deep orange the text uses. */
+:root[data-theme='moonlit'] .rm-sun, :root[data-theme='moonlit'] .wl-sun, :root[data-theme='moonlit'] .empty-sun { background: radial-gradient(circle at 50% 40%, #fff1e2 0%, #fbcfa6 45%, #f2a77a 100%); }
+/* Stars by day: faint ink, not white. */
+:root[data-theme='moonlit'] .wl-star { background: #7140bf; }
+
 /* High contrast: black and white, yellow for actions, strong lines and a thick focus ring. */
 :root[data-theme='contrast'] {
   --night: #000000;

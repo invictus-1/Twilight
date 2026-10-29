@@ -96,6 +96,15 @@ export const THEMES = [
     symbol: '#e3c3a2'
   },
   {
+    id: 'moonlit',
+    name: 'Moonlit Paper',
+    note: 'Light: warm paper, ink and a dawn sky.',
+    swatch: 'linear-gradient(180deg, #e9e4f7, #fbe3d4)',
+    dots: ['#4146c8', '#7140bf', '#a5481a'],
+    night: '#ebe8f1',
+    symbol: '#4a4666'
+  },
+  {
     id: 'contrast',
     name: 'High contrast',
     note: 'Black and white with yellow, for the clearest reading.',

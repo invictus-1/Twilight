@@ -278,8 +278,10 @@ export function attachScrollFx(scroller: HTMLElement, canvas: HTMLCanvasElement 
   fit()
 
   // Theme colours, read when a burst starts (the theme may have changed since the last).
+  let light = false
   const readColors = (): void => {
     const css = getComputedStyle(document.documentElement)
+    light = css.colorScheme === 'light'
     const now = style.colors.map((v) => (v.startsWith('--') ? css.getPropertyValue(v).trim() || '#ffffff' : v))
     if (now.join() !== colors.join()) {
       colors = now
@@ -296,7 +298,7 @@ export function attachScrollFx(scroller: HTMLElement, canvas: HTMLCanvasElement 
     const dt = Math.min(50, now - last || 16)
     last = now
     ctx.clearRect(0, 0, w, h)
-    ctx.globalCompositeOperation = style.blend ?? 'lighter'
+    ctx.globalCompositeOperation = style.blend ?? (light ? 'source-over' : 'lighter')
     let keep = 0
     for (const p of particles) {
       p.age += dt
