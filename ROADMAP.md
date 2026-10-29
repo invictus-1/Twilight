@@ -106,6 +106,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
+- [x] **Remembers its window** · Core — opens at the size and place you left it, maximized if it was
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story
@@ -113,6 +114,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [ ] **Context scout** · Writing — for 2.0: a small, fast model reads each message first and gathers what the main model needs: passages, earlier scenes, facts about the characters in play
 - [ ] **Story bible** · Writing — for 2.0: characters, places, relationships and facts pulled from the manuscript and chats into pages you can read and edit
 - [ ] **Continuity watcher** · Writing — for 2.0: flags where a reply or a draft contradicts the story bible
+- [ ] **Local models, made easy** · Core — for 2.0: search and download models from Hugging Face, a check of what this PC can run, and llama.cpp or LM Studio directly, simple enough for anyone
 - [ ] **Better retrieval underneath** · Writing — for 2.0: passages indexed with context about where they sit, and a reranking pass
 
 ## Ideas

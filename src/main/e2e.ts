@@ -46,6 +46,7 @@ import type { Usage, UsageRange, UsageTotals } from '@shared/types'
 import { usageStats } from './usage'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
+import { placement } from './windowState'
 
 // Dev-only end-to-end check, run with TWILIGHT_E2E=<output folder> (and a throwaway profile, see
 // selftest.ts). Starts a fake OpenAI-compatible model server in-process, then drives a chat,
@@ -466,6 +467,23 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       chat.setDefaults({ providerId: 'mock', modelId: 'mock-a', systemPrompt: 'You are a test.' })
       const models = await providers.listModels(true)
       check('mock models listed', models.filter((m) => m.providerId === 'mock').length === 2)
+
+      // The window opens where it was last closed; a place no longer on any screen falls back to centred.
+      const screens = [{ x: 0, y: 0, width: 1920, height: 1040 }]
+      const kept = placement({ x: 200, y: 100, width: 1400, height: 900, maximized: false }, screens)
+      const maxed = placement({ x: 0, y: 0, width: 1280, height: 820, maximized: true }, screens)
+      const offScreen = placement({ x: 3000, y: 200, width: 1400, height: 900, maximized: false }, screens)
+      const huge = placement({ x: 0, y: 0, width: 5000, height: 300, maximized: false }, screens)
+      check(
+        'the window reopens at its last size and place, maximized if it was',
+        kept.x === 200 && kept.y === 100 && kept.width === 1400 && kept.height === 900 && !kept.maximized && maxed.maximized && placement(null, screens).maximized === false,
+        { kept, maxed }
+      )
+      check(
+        'a window last left on a screen that is gone opens centred, and never larger than a screen',
+        offScreen.x === undefined && offScreen.width === 1400 && huge.width === 1920 && huge.height === 480,
+        { offScreen, huge }
+      )
 
       // Model settings opens before any chat exists: it starts the chat the first message would.
       const early = await win.webContents.executeJavaScript(`(async () => {

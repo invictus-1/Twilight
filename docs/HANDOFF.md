@@ -106,6 +106,7 @@ The owner's answers (2026-10-29, after 1.1.0):
 - **The bible:** a middle ground. The user picks which documents feed it (their library has documents such as character profiles and a world state), a model reads those and proposes entries, and retrieval later finds them while writing. It draws on the document library only, so nothing else is touched.
 - **Every 2.0 part can be switched off.** Not everyone wants it.
 - **Retrieval must be exceptional,** using the newest methods, not the same RAG everyone ships. The research is the first job of the next session.
+- **Local models, made easy:** search Hugging Face for models and download them in the app, with a built-in check of what this PC can run (like LM Studio's), so anyone can use local models without the convoluted interfaces most wrappers have. To be explored alongside the retrieval research.
 - **Motion:** explore new animations across the app, unique to Twilight, for the owner and for everyone.
 
 Standalone ideas for 2.x afterwards (on the roadmap under Ideas):

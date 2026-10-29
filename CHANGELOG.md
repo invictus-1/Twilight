@@ -2,6 +2,10 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## Unreleased
+
+- **The window opens as you left it:** the size and place it had when you closed it, or maximized if it was. A window last left on a monitor that's since been unplugged opens centred on the screen you have.
+
 ## 1.1.0
 
 **From your feedback on 1.0**

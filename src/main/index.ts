@@ -1,4 +1,5 @@
-import { app, clipboard, BrowserWindow, dialog, ipcMain, Menu, session, shell } from 'electron'
+import { app, clipboard, BrowserWindow, dialog, ipcMain, Menu, screen, session, shell } from 'electron'
+import { placement, trackWindow, type WindowState } from './windowState'
 import { join } from 'node:path'
 import { appendFileSync } from 'node:fs'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
@@ -123,14 +124,19 @@ const frameFor = (theme: string | undefined): { night: string; symbol: string } 
 
 function createWindow(): BrowserWindow {
   const frame = db.kvGet<{ night: string; symbol: string }>('themeFrame') ?? frameFor(db.kvGet<string>('theme'))
+  // The window opens where it was last closed, maximized or not. Test runs keep the fixed size their
+  // screenshots and timings expect.
+  const place = testDir ? { maximized: false } : placement(db.kvGet<WindowState>('windowState') ?? null, screen.getAllDisplays().map((d) => d.workArea))
   const win = new BrowserWindow({
-    width: 1280,
-    height: 820,
+    width: place.width ?? 1280,
+    height: place.height ?? 820,
+    ...(place.x !== undefined && place.y !== undefined ? { x: place.x, y: place.y } : {}),
     minWidth: 720,
     minHeight: 480,
     // Shown at once in the theme's own colour: waiting for the first paint of a hidden window kept
     // it from view a few hundred milliseconds longer than the page needed.
-    show: true,
+    // A maximized window shows as it maximizes, so it never flashes at its smaller size first.
+    show: !place.maximized,
     backgroundColor: frame.night,
     title: 'Twilight',
     titleBarStyle: 'hidden',
@@ -143,6 +149,8 @@ function createWindow(): BrowserWindow {
       spellcheck: true
     }
   })
+  if (place.maximized) win.maximize()
+  if (!testDir) trackWindow(win, (state) => db.kvSet('windowState', state))
   mark('windowShown')
   attachContextMenu(win)
   win.webContents.setWindowOpenHandler(({ url }) => {
