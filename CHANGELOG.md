@@ -4,6 +4,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **A chat begins under the evening sky:** above the first message is half a screen of the sky from the empty chat, so scrolling to the top of a chat brings it back into view. At its foot is the chat's system prompt.
+- **The system prompt, where you can see it:** read, copy or edit it at the top of the chat. Saving a change sends the chat again under the new prompt (the prompt cache restarts), or choose From the next message on to keep the cache.
+- **No lost system prompts:** every prompt a chat replaces is kept under Earlier system prompts, with when it was replaced, to read and copy. Replies written under an earlier prompt say so quietly, and open to show the prompt they were written under.
 - **The model's thinking, always there:** every reply that thought has a folded Thoughts section under the model's name, saying how long it thought ("Thought for 1m 13s"). Open it to read the thinking. While a reply is being written the thinking shows as it comes; turn that off in Model settings to keep it folded.
 - **Chat text size:** Small, Medium or Large in Settings → General, for the words in chats, your messages and the message box. Medium, the new default, is a step bigger than before.
 - **Model settings closes when you click outside it.** Pin it with the pin beside the close button to keep it open while you work.

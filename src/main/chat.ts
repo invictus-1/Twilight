@@ -181,6 +181,11 @@ export function create(folderId: string | null = null, personaId: string | null 
 export function updateSettings(id: string, patch: Partial<ChatSettings>, pane: Pane = 'a'): ConversationView {
   const conv = db.getConversation(id)
   const split = splitOf(conv)
+  // Once the chat has started, a replaced system prompt is kept (the last 20), with when it changed.
+  const before = pane === 'b' && split ? split.settings : settingsFor(conv, 'a')
+  if (conv.started && patch.systemPrompt !== undefined && patch.systemPrompt !== before.systemPrompt && before.systemPrompt.trim()) {
+    patch = { ...patch, promptHistory: [...(before.promptHistory ?? []), { text: before.systemPrompt, until: Date.now() }].slice(-20) }
+  }
   if (pane === 'b' && split) setSplit(id, { ...split, settings: { ...split.settings, ...patch } })
   else db.updateConversation(id, { settings: JSON.stringify({ ...settingsFor(conv, 'a'), ...patch }) })
   return view(id)

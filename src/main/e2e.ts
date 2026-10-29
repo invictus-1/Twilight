@@ -3429,6 +3429,28 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('a reply shows its thinking folded, with how long it thought', toolsUi41.thought === 'Thought for 1m 13s' && toolsUi41.thoughtOpen === false, { thought: toolsUi41.thought, open: toolsUi41.thoughtOpen })
+      // The top of a chat: the sky, then its system prompt; a replaced prompt is kept and flagged on older replies.
+      chat.updateSettings(c40w, { systemPrompt: 'Answer as the harbour master.' })
+      chat.updateSettings(c40w, { systemPrompt: 'Answer as the lighthouse keeper.' })
+      const history41 = chat.view(c40w).settings.promptHistory ?? []
+      await reloadUi()
+      const topUi = await js<{ sky: boolean; prompt: string; history: number; marker: number; tall: number }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="chat"]')?.click()
+        await wait(200)
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Keepers on the web')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.thread-top .chat-prompt-text')?.textContent.includes('lighthouse keeper'); ) await wait(50)
+        const top = document.querySelector('.thread-top')
+        return {
+          sky: !!top?.querySelector('.empty-sky'),
+          prompt: top?.querySelector('.chat-prompt > .chat-prompt-text')?.textContent ?? '',
+          history: top?.querySelectorAll('.chat-prompt-old').length ?? 0,
+          marker: document.querySelectorAll('.tw-msg-ai .earlier-prompt').length,
+          tall: top ? Math.round((top.getBoundingClientRect().height / innerHeight) * 100) : 0
+        }
+      })()`)
+      check('a chat begins under half a screen of sky, with its system prompt at the top', topUi.sky && topUi.prompt === 'Answer as the lighthouse keeper.' && topUi.tall >= 45, topUi)
+      check('replaced system prompts are kept, and replies written under one say so', history41.at(-1)?.text === 'Answer as the harbour master.' && topUi.history === history41.length && topUi.marker === 1, { kept: history41.map((h) => h.text), ...topUi })
       check('the message shows it carried the date and time', toolsUi41.chip === 'Date and time' && /^Sent /.test(toolsUi41.chipTitle ?? ''), toolsUi41)
       const rows41 = Object.fromEntries(toolsUi41.rows.map((r) => [r.tool, r]))
       check(

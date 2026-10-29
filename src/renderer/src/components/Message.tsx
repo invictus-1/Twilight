@@ -7,6 +7,7 @@ import type { GeneratedImage, ToolApproval, ToolStep } from '@shared/mcp'
 import { domainOf } from '@shared/webTools'
 import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
+import { EarlierPrompt } from './ChatTop'
 import { modelName, paneOf, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
@@ -494,6 +495,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
         {node.usage && <span className="msg-time">· {(node.usage.ms / 1000).toFixed(1)}s</span>}
         {node.status === 'stopped' && <span className="msg-time">· stopped</span>}
       </div>
+      <EarlierPrompt createdAt={node.createdAt} />
       {streaming ? (
         <StreamingBody nodeId={node.id} showThinking={showThinking} />
       ) : (

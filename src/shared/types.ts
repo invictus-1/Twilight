@@ -132,6 +132,11 @@ export interface ChatSettings {
    * prompt), so the cached conversation before it stays valid.
    */
   pendingInstruction: string
+  /**
+   * System prompts this chat (pane) used before, each with when it was replaced, oldest first, so
+   * replies written under one can show it and it's never lost.
+   */
+  promptHistory?: { text: string; until: number }[]
 }
 
 /** A saved set of model settings. */

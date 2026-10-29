@@ -1,0 +1,119 @@
+import { useState } from 'react'
+import { paneOf, useStore } from '../store'
+import { usePane } from '../pane'
+import { CopyIcon, PenIcon } from './Icons'
+import { EmptySky } from './Sky'
+
+/** Copies text, saying so on the button for a moment. */
+function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      className="tw-btn tw-btn-ghost tw-btn-sm"
+      onClick={() => {
+        void navigator.clipboard.writeText(text)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1200)
+      }}
+    >
+      <CopyIcon size={13} />
+      {copied ? 'Copied' : label}
+    </button>
+  )
+}
+
+/**
+ * The top of a chat: half a screen of the evening sky, then the chat's system prompt, editable in
+ * place. A change either replaces the system prompt (the cache restarts) or goes in from the next
+ * message on (the cache holds), and every replaced prompt stays here to read and copy.
+ */
+export function ChatTop() {
+  const pane = usePane()
+  const settings = useStore((s) => paneOf(s.current!, pane).settings)
+  const [draft, setDraft] = useState<string | null>(null)
+  const prompt = settings.systemPrompt
+  const history = settings.promptHistory ?? []
+  const update = (patch: Parameters<ReturnType<typeof useStore.getState>['updateSettings']>[0]): void => {
+    void useStore.getState().updateSettings(patch, pane)
+    setDraft(null)
+  }
+  const changed = draft !== null && draft !== prompt
+
+  return (
+    <div className="thread-top">
+      <EmptySky />
+      <section className="chat-prompt" aria-label="System prompt">
+        <div className="chat-prompt-head">
+          <span className="chat-prompt-label">System prompt</span>
+          {draft === null && (
+            <>
+              {prompt && <CopyButton text={prompt} />}
+              <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setDraft(prompt)}>
+                <PenIcon size={13} />
+                {prompt ? 'Edit' : 'Add one'}
+              </button>
+            </>
+          )}
+        </div>
+        {draft === null ? (
+          prompt ? <div className="chat-prompt-text">{prompt}</div> : <p className="chat-prompt-none">None. The model gets only your messages.</p>
+        ) : (
+          <>
+            <textarea className="chat-prompt-edit" rows={6} value={draft} autoFocus onChange={(e) => setDraft(e.target.value)} placeholder="Instructions the model follows for this chat" />
+            <div className="chat-prompt-actions">
+              <button className="tw-btn tw-btn-sm tw-btn-primary" disabled={!changed} onClick={() => update({ systemPrompt: draft })} title="Every message is sent again under the new system prompt">
+                Save, restarting the cache
+              </button>
+              <button
+                className="tw-btn tw-btn-sm"
+                disabled={!changed || !draft.trim()}
+                onClick={() => update({ pendingInstruction: [settings.pendingInstruction, draft].filter((t) => t.trim()).join('\n\n') })}
+                title="Goes into your next message instead, so everything before it stays cached"
+              >
+                From the next message on
+              </button>
+              <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setDraft(null)}>
+                Cancel
+              </button>
+            </div>
+            <p className="field-note">Saving sends the whole chat again under the new prompt, so the prompt cache restarts. From the next message on keeps it.</p>
+          </>
+        )}
+        {settings.pendingInstruction.trim() && draft === null && (
+          <p className="chat-prompt-pending">From your next message: {settings.pendingInstruction}</p>
+        )}
+        {history.length > 0 && (
+          <details className="chat-prompt-history">
+            <summary>Earlier system prompts ({history.length})</summary>
+            {[...history].reverse().map((h) => (
+              <div key={h.until} className="chat-prompt-old">
+                <div className="chat-prompt-old-head">
+                  <span>Used until {new Date(h.until).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}</span>
+                  <CopyButton text={h.text} />
+                </div>
+                <div className="chat-prompt-text">{h.text}</div>
+              </div>
+            ))}
+          </details>
+        )}
+      </section>
+    </div>
+  )
+}
+
+/** A quiet line on a reply written under an earlier system prompt, to read or copy that prompt. */
+export function EarlierPrompt({ createdAt }: { createdAt: number }) {
+  const pane = usePane()
+  const history = useStore((s) => (s.current ? paneOf(s.current, pane).settings.promptHistory : undefined))
+  const now = useStore((s) => (s.current ? paneOf(s.current, pane).settings.systemPrompt : ''))
+  const used = history?.find((h) => createdAt < h.until)
+  // Changed and changed back: the reply's prompt is the one in use, so there's nothing to flag.
+  if (!used || used.text === now) return null
+  return (
+    <details className="earlier-prompt">
+      <summary>Written under an earlier system prompt</summary>
+      <div className="chat-prompt-text">{used.text}</div>
+      <CopyButton text={used.text} label="Copy that prompt" />
+    </details>
+  )
+}

@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { usePane } from '../pane'
+import { ChatTop } from './ChatTop'
 import { paneOf, useStore } from '../store'
 import { subscribeStream } from '../stream'
 import { Message } from './Message'
@@ -114,6 +115,7 @@ export function Thread() {
   return (
     <div className="thread-wrap">
       <div className="thread-scroll" ref={scroller} onClick={onClick}>
+        <ChatTop />
         <div className="thread" ref={content}>
           {path.map((node, i) => (
             <Message key={node.id} node={node} next={path[i + 1]} isLast={i === path.length - 1} />
