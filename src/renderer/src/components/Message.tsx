@@ -2,7 +2,8 @@ import { memo, useState, useSyncExternalStore } from 'react'
 import { gameFormat } from '@shared/gameFormat'
 import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import { readGameFormat } from '../gameFormatSettings'
-import type { NodeView } from '@shared/types'
+import type { NodeView, WebSource, WebStep } from '@shared/types'
+import { domainOf } from '@shared/webTools'
 import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
 import { modelName, paneOf, useStore } from '../store'
@@ -10,7 +11,7 @@ import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
-import { AlertIcon, BranchIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
+import { AlertIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -129,6 +130,14 @@ function UserMessage({ node }: { node: NodeView }) {
       </span>
       <BranchSwitcher node={node} />
       <div className="tw-msg-user">
+        {node.dateTime && (
+          <div className="msg-attachments">
+            <span className="tw-badge attach-chip instruction-chip" title={node.dateTime}>
+              <CalendarIcon size={13} />
+              Date and time
+            </span>
+          </div>
+        )}
         {node.instructionUpdate && (
           <div className="msg-attachments">
             <span className="tw-badge attach-chip instruction-chip" title={node.instructionUpdate}>
@@ -189,10 +198,83 @@ function BranchSwitcher({ node }: { node: NodeView }) {
   )
 }
 
+const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? '' : 's'}`
+
+/** A source link; the thread opens it in the browser (the window itself never loads it). */
+const SourceLink = ({ source }: { source: WebSource }) => (
+  <>
+    <a href={source.url} title={source.url}>
+      {source.title}
+    </a>
+    <span className="web-domain">{domainOf(source.url)}</span>
+  </>
+)
+
+/** What a reply searched for and read, above its text. A search opens to the results it found. */
+function WebSteps({ steps }: { steps: WebStep[] }) {
+  return (
+    <div className="web-steps">
+      {steps.map((step, i) =>
+        step.kind === 'search' ? (
+          <details key={i} className="web-step">
+            <summary>
+              <SearchIcon size={13} />
+              <span className="web-what">{step.query ? `Searched: ${step.query}` : 'Searched the web'}</span>
+              <span className="web-count">{step.error ? `failed (${step.error})` : plural(step.sources.length, 'result')}</span>
+            </summary>
+            {step.sources.length > 0 && (
+              <ul className="web-links">
+                {step.sources.map((source) => (
+                  <li key={source.url}>
+                    <SourceLink source={source} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </details>
+        ) : (
+          <div key={i} className="web-step">
+            <DocIcon size={13} />
+            <span className="web-what">
+              Read:{' '}
+              {step.sources[0] ? (
+                <a href={step.sources[0].url} title={step.sources[0].url}>
+                  {domainOf(step.sources[0].url)}
+                </a>
+              ) : (
+                domainOf(step.query)
+              )}
+            </span>
+            {step.error && <span className="web-count">failed ({step.error})</span>}
+          </div>
+        )
+      )}
+    </div>
+  )
+}
+
+/** The sources a reply cited, numbered in the order it first cited them. */
+function WebSources({ sources }: { sources: WebSource[] }) {
+  return (
+    <div className="web-sources">
+      <div className="web-sources-head">Sources</div>
+      <ol>
+        {sources.map((source, i) => (
+          <li key={source.url}>
+            <span className="web-num">{i + 1}</span>
+            <SourceLink source={source} />
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
+}
+
 function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking: boolean }) {
   const subscribe = (cb: () => void): (() => void) => subscribeStream(nodeId, cb)
   const text = useSyncExternalStore(subscribe, () => readStream(nodeId).text)
   const thinking = useSyncExternalStore(subscribe, () => readStream(nodeId).thinking)
+  const activity = useSyncExternalStore(subscribe, () => readStream(nodeId).activity)
   const pane = usePane()
   // A choices block being written stays hidden until its card can show (only when they're read).
   const fenced = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceFenced : true))
@@ -204,9 +286,19 @@ function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking:
           <div className="thinking-body">{thinking}</div>
         </details>
       )}
+      {activity.length > 0 && (
+        <div className="web-steps">
+          {activity.map((line, i) => (
+            <div key={i} className="web-step">
+              {!text && i === activity.length - 1 ? <span className="tw-spin" /> : line.startsWith('Reading') ? <DocIcon size={13} /> : <SearchIcon size={13} />}
+              <span className="web-what">{line}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {text ? (
         <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(extractChoices(text, false, fenced).body) }} />
-      ) : (
+      ) : activity.length > 0 ? null : (
         <div className="msg-pending">
           <span className="tw-spin" /> {thinking ? 'Thinking' : 'Waiting for the first token'}
         </div>
@@ -249,6 +341,7 @@ function UsageLine({ node }: { node: NodeView }) {
   const detail =
     `Input ${u.input.toLocaleString()} · cache read ${u.cacheRead.toLocaleString()} · ` +
     `cache write ${u.cacheWrite.toLocaleString()} · output ${u.output.toLocaleString()} · ${(u.ms / 1000).toFixed(1)}s` +
+    (u.webSearches ? ` · ${plural(u.webSearches, 'web search')}` : '') +
     (typeof u.costUsd === 'number' ? ' · cost as reported by the provider' : '') +
     (u.ttftMs ? ` · first token after ${(u.ttftMs / 1000).toFixed(1)}s` : '')
   return (
@@ -299,7 +392,9 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
               <div className="thinking-body">{node.thinking}</div>
             </details>
           )}
+          {node.web && node.web.steps.length > 0 && <WebSteps steps={node.web.steps} />}
           {body && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />}
+          {node.web && node.web.cited.length > 0 && <WebSources sources={node.web.cited} />}
           {choices && (
             <ChoiceCard choices={choices} active={isLast} answer={next?.role === 'user' ? next.text : null} />
           )}

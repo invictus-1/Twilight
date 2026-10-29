@@ -56,10 +56,18 @@ export function priceFor(modelId: string | undefined): Price | null {
   return BUILT_IN_PRICES.find((b) => b.re.test(modelId))?.price ?? null
 }
 
+/** Anthropic bills web searches on top of tokens: $10 per 1,000. */
+export const WEB_SEARCH_USD = 0.01
+
 /** Cost of one response in USD, or null when the model's price is unknown. */
 export function costOf(modelId: string | undefined, usage: Usage | undefined, local: boolean): number | null {
   if (!usage) return null
   if (typeof usage.costUsd === 'number') return usage.costUsd
+  const tokens = tokenCost(modelId, usage, local)
+  return tokens === null ? null : tokens + (usage.webSearches ?? 0) * WEB_SEARCH_USD
+}
+
+function tokenCost(modelId: string | undefined, usage: Usage, local: boolean): number | null {
   const writeMultiplier = usage.cacheTtl === '1h' ? 2 : 1.25
   const mine = customPriceFor(modelId)
   if (mine) {

@@ -7,7 +7,11 @@ import type { StreamEvent } from '@shared/types'
 interface Buffer {
   text: string
   thinking: string
+  /** Searches and page reads so far ("Searching: …"), newest last. */
+  activity: string[]
 }
+
+const EMPTY: Buffer = { text: '', thinking: '', activity: [] }
 
 const buffers = new Map<string, Buffer>()
 const listeners = new Map<string, Set<() => void>>()
@@ -22,16 +26,18 @@ function flush(): void {
 
 export function handleStreamEvent(event: StreamEvent): void {
   if (event.kind === 'done') return
-  const buf = buffers.get(event.nodeId) ?? { text: '', thinking: '' }
+  const buf = buffers.get(event.nodeId) ?? { text: '', thinking: '', activity: [] }
   if (event.kind === 'text') buf.text += event.delta
-  else buf.thinking += event.delta
+  else if (event.kind === 'thinking') buf.thinking += event.delta
+  // A new array, so a subscriber comparing snapshots sees the change.
+  else buf.activity = [...buf.activity, event.label]
   buffers.set(event.nodeId, buf)
   dirty.add(event.nodeId)
   if (!frame) frame = requestAnimationFrame(flush)
 }
 
 export function readStream(nodeId: string): Buffer {
-  return buffers.get(nodeId) ?? { text: '', thinking: '' }
+  return buffers.get(nodeId) ?? EMPTY
 }
 
 export function clearStream(nodeId: string): void {

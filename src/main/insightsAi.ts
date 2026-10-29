@@ -159,6 +159,8 @@ async function call(system: string, user: string, maxTokens: number, signal: Abo
     messageLimit: null,
     temperature: null,
     extraParams: '',
+    webSearch: false,
+    webFetch: false,
     choiceCards: false
   }
   const result = await implFor(provider).generate({

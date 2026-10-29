@@ -353,7 +353,10 @@ function startRun(
         maxTokens: 16000,
         messageLimit: null,
         temperature: null,
-        extraParams: ''
+        extraParams: '',
+        // The Judge reads only the passages.
+        webSearch: false,
+        webFetch: false
       }
       const content = buildContent(input, order, settings.caching ? settings.cacheTtl : null)
       const result = await implFor(config).generate({

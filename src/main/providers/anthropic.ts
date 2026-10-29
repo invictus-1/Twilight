@@ -1,8 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
+import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
 import type { NodeRow } from '../db'
 import { CHOICES_TOOL } from '@shared/choices'
 import { isContextText } from '@shared/attachments'
+import { domainOf } from '@shared/webTools'
 import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 // Prompt caching is a prefix match, so every request is built to be the previous request plus
@@ -18,11 +19,46 @@ const SUPPORTS_FALLBACK = /^claude-(opus-5|opus-5-5|fable-5-1|sonnet-5-5)$/
 type Block = { type: string; [key: string]: unknown }
 type Message = { role: 'user' | 'assistant'; content: Block[] }
 
+/**
+ * Results of Anthropic's server tools: web search and fetch, and the code the newer versions run
+ * to filter what they find. They come back in the reply and are replayed with it.
+ */
+const SERVER_RESULTS = new Set([
+  'web_search_tool_result',
+  'web_fetch_tool_result',
+  'code_execution_tool_result',
+  'bash_code_execution_tool_result',
+  'text_editor_code_execution_tool_result'
+])
 /** Block types replayed from a stored reply; anything else (another provider's bookkeeping) is left out. */
-const REPLAYED = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use'])
+const REPLAYED = new Set(['text', 'thinking', 'redacted_thinking', 'tool_use', 'server_tool_use', ...SERVER_RESULTS])
 const isDocument = (b: Block): boolean => b.type === 'image' || b.type === 'document' || (b.type === 'text' && typeof b.text === 'string' && isContextText(b.text))
 
-export function toMessages(history: NodeRow[]): Message[] {
+/**
+ * Keeps a reply's server tool calls (each with its result) while their tool is in the request.
+ * With a tool switched off they're left out, and so are web citations on the text, which point
+ * into the search results; the cache starts over then anyway, since the tools list changed.
+ */
+function keepServerTools(blocks: Block[], tools: ReadonlySet<string>): Block[] {
+  const answered = new Set(blocks.filter((b) => SERVER_RESULTS.has(b.type)).map((b) => b.tool_use_id))
+  const allowed = (name: unknown): boolean => (name === 'web_search' || name === 'web_fetch' ? tools.has(name) : tools.size > 0)
+  const kept = new Set(blocks.filter((b) => b.type === 'server_tool_use' && answered.has(b.id) && allowed(b.name)).map((b) => b.id))
+  return blocks.flatMap((b): Block[] => {
+    if (b.type === 'server_tool_use') return kept.has(b.id) ? [b] : []
+    if (SERVER_RESULTS.has(b.type)) return kept.has(b.tool_use_id) ? [b] : []
+    if (b.type === 'text' && !tools.has('web_search') && Array.isArray(b.citations) && b.citations.length) {
+      const { citations: _, ...plain } = b
+      return [plain as Block]
+    }
+    return [b]
+  })
+}
+
+/**
+ * The conversation in Claude's format. `serverTools` names the web tools in this request
+ * (web_search, web_fetch): replies that used them replay their calls only while they're sent.
+ */
+export function toMessages(history: NodeRow[], serverTools: ReadonlySet<string> = new Set()): Message[] {
   const messages: Message[] = []
   for (const node of history) {
     let role: 'user' | 'assistant'
@@ -47,7 +83,7 @@ export function toMessages(history: NodeRow[]): Message[] {
       // Replay Claude's own blocks unchanged (thinking blocks included) so the prefix and any
       // preserved thinking stay valid. Other providers store plain text blocks.
       content = node.content
-        ? (JSON.parse(node.content) as Block[]).filter((b) => REPLAYED.has(b.type))
+        ? keepServerTools((JSON.parse(node.content) as Block[]).filter((b) => REPLAYED.has(b.type)), serverTools)
         : textBlocks(node)
       if (node.status !== 'done') content = content.filter((b) => b.type === 'text')
       if (!content.length) continue
@@ -164,92 +200,195 @@ async function listAnthropicModels(config: ProviderConfig, apiKey?: string): Pro
   return models
 }
 
-async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> {
-  if (!req.apiKey) throw new Error('Add an Anthropic API key in Settings → Providers.')
-  const client = anthropicClient(req.config, req.apiKey)
+/** Models whose web tools filter results with code before they reach the context (the 20260209 versions). */
+const DYNAMIC_FILTERING = /^claude-(opus-5|fable-5|opus-4-[678]|sonnet-5|sonnet-4-6)/
+
+/**
+ * The tools a request offers, in a fixed order: the choice tool, then web search, then web fetch.
+ * Tools sit at the very start of the cached prefix, so they're the same on every turn while the
+ * switches stay put. Server tools run on Anthropic's side; max_uses caps each reply's searches
+ * and page reads (searches are billed per use), and max_content_tokens keeps one long page from
+ * filling the context.
+ */
+export function anthropicTools(settings: ChatSettings): Record<string, unknown>[] {
+  const dynamic = DYNAMIC_FILTERING.test(settings.modelId)
+  const tools: Record<string, unknown>[] = []
+  if (wantsChoiceTool(settings)) tools.push(CHOICES_TOOL)
+  if (settings.webSearch) tools.push({ type: dynamic ? 'web_search_20260209' : 'web_search_20250305', name: 'web_search', max_uses: 5 })
+  if (settings.webFetch) tools.push({ type: dynamic ? 'web_fetch_20260209' : 'web_fetch_20250910', name: 'web_fetch', max_uses: 5, max_content_tokens: 20000 })
+  return tools
+}
+
+/** The request body (all but the stream flag) and the betas it needs. */
+export function anthropicRequest(req: Pick<GenerateRequest, 'system' | 'history' | 'settings' | 'options'>): { body: Record<string, unknown>; betas: string[] } {
   const { settings } = req
   const model = settings.modelId
   const options = req.options ?? anthropicOptions(model, undefined)
   const ttl = settings.cacheTtl
   const cache = settings.caching ? { cache_control: { type: 'ephemeral', ttl } } : {}
-  const started = Date.now()
+  const tools = anthropicTools(settings)
+  const serverTools = new Set(tools.map((t) => t.name as string).filter((n) => n === 'web_search' || n === 'web_fetch'))
 
   const body: Record<string, unknown> = {
     model,
     // Claude needs max_tokens; "model default" means the model's maximum, capped at 64k.
     max_tokens: Math.min(settings.maxTokens ?? 64000, options.maxOutput ?? 128000),
-    messages: toMessages(req.history),
+    messages: toMessages(req.history, serverTools),
     ...cache
   }
   if (req.system) body.system = [{ type: 'text', text: req.system, ...cache }]
   if (options.adaptiveThinking) body.thinking = { type: 'adaptive', display: settings.thinkingDisplay }
   // Only levels this model lists; a level from another model would be rejected.
   if (settings.effort && options.efforts.includes(settings.effort)) body.output_config = { effort: settings.effort }
-  // Tools sit at the very start of the cached prefix, so the choice tool is sent on every turn
-  // while the mode is on. Its input is a few short labels: the API's default buffering (which
-  // validates the JSON before streaming it) is worth more here than eager input streaming.
-  if (wantsChoiceTool(settings)) body.tools = [CHOICES_TOOL]
+  // The choice tool's input is a few short labels: the API's default buffering (which validates
+  // the JSON before streaming it) is worth more here than eager input streaming.
+  if (tools.length) body.tools = tools
   const betas: string[] = []
   if (SUPPORTS_FALLBACK.test(model)) {
     betas.push('server-side-fallback-2026-07-01')
     body.fallbacks = 'default'
   }
   mergeExtraParams(body, settings.extraParams ?? '')
+  return { body, betas }
+}
 
-  const stream = client.beta.messages.stream(
-    { ...body, betas } as unknown as Parameters<typeof client.beta.messages.stream>[0],
-    { signal: req.signal }
-  )
+/**
+ * A reply's text as one string. Text that follows a search or another tool call starts a new
+ * paragraph; text split only by citations joins straight on.
+ */
+export function replyText(blocks: { type: string; text?: string }[]): string {
+  let out = ''
+  let broke = false
+  for (const b of blocks) {
+    if (b.type !== 'text') {
+      if (b.type !== 'thinking' && b.type !== 'redacted_thinking') broke = true
+      continue
+    }
+    if (broke && out && b.text) out += '\n\n'
+    out += b.text ?? ''
+    if (b.text) broke = false
+  }
+  return out
+}
 
+/** A short line for a server tool call as it starts. */
+function activityLabel(name: string, input: { query?: string; url?: string }): string | null {
+  if (name === 'web_search') return `Searching: ${input.query ?? ''}`
+  if (name === 'web_fetch') return `Reading: ${input.url ? domainOf(input.url) : ''}`
+  return null
+}
+
+/** A long run of searches pauses the turn (pause_turn); it's resumed this many times at most. */
+const MAX_CONTINUATIONS = 4
+
+async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> {
+  if (!req.apiKey) throw new Error('Add an Anthropic API key in Settings → Providers.')
+  const client = anthropicClient(req.config, req.apiKey)
+  const model = req.settings.modelId
+  const started = Date.now()
+  const { body, betas } = anthropicRequest(req)
+  const messages = body.messages as Message[]
+
+  // Everything the reply has produced so far, across continuations. A paused turn is resumed by
+  // sending it back as the assistant turn; the next response carries on from there.
+  const content: Block[] = []
+  const usage = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, webSearches: 0 }
   let text = ''
   let thinking = ''
-  try {
-    for await (const event of stream) {
-      if (event.type !== 'content_block_delta') continue
-      if (event.delta.type === 'text_delta') {
-        text += event.delta.text
-        req.onText(event.delta.text)
-      } else if (event.delta.type === 'thinking_delta') {
-        thinking += event.delta.thinking
-        req.onThinking(event.delta.thinking)
+  // Text after a tool call starts a new paragraph, as replyText() joins it.
+  let broke = false
+  let stopReason: string | null = null
+  let finalModel = model
+  for (let round = 0; round <= MAX_CONTINUATIONS; round++) {
+    const sent = content.length ? [...messages, { role: 'assistant' as const, content: [...content] }] : messages
+    const stream = client.beta.messages.stream(
+      { ...body, messages: sent, betas } as unknown as Parameters<typeof client.beta.messages.stream>[0],
+      { signal: req.signal }
+    )
+    // Server tool inputs stream as JSON fragments; the line shows once the input is complete.
+    const inputs = new Map<number, { name: string; json: string }>()
+    try {
+      for await (const event of stream) {
+        if (event.type === 'content_block_start') {
+          const block = event.content_block
+          if (block.type === 'text') {
+            if (broke && text) {
+              text += '\n\n'
+              req.onText('\n\n')
+            }
+            broke = false
+          } else if (block.type === 'server_tool_use') {
+            inputs.set(event.index, { name: block.name, json: '' })
+            broke = true
+          } else if (block.type !== 'thinking' && block.type !== 'redacted_thinking') broke = true
+        } else if (event.type === 'content_block_delta') {
+          if (event.delta.type === 'text_delta') {
+            text += event.delta.text
+            req.onText(event.delta.text)
+          } else if (event.delta.type === 'thinking_delta') {
+            thinking += event.delta.thinking
+            req.onThinking(event.delta.thinking)
+          } else if (event.delta.type === 'input_json_delta') {
+            const call = inputs.get(event.index)
+            if (call) call.json += event.delta.partial_json
+          }
+        } else if (event.type === 'content_block_stop') {
+          const call = inputs.get(event.index)
+          if (!call) continue
+          inputs.delete(event.index)
+          let input: { query?: string; url?: string } = {}
+          try {
+            input = JSON.parse(call.json || '{}')
+          } catch {
+            // A cut-off input shows without its terms.
+          }
+          const label = activityLabel(call.name, input)
+          if (label) req.onActivity?.(label)
+        }
       }
-    }
-  } catch (err) {
-    if (req.signal.aborted) {
-      return {
-        text,
-        thinking: thinking || undefined,
-        content: text ? [{ type: 'text', text }] : null,
-        usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: Date.now() - started },
-        modelId: model
+    } catch (err) {
+      if (req.signal.aborted) {
+        return {
+          text,
+          thinking: thinking || undefined,
+          content: text ? [{ type: 'text', text }] : null,
+          usage: { input: usage.input, output: usage.output, cacheRead: usage.cacheRead, cacheWrite: usage.cacheWrite, ms: Date.now() - started },
+          modelId: finalModel
+        }
       }
+      throw err
     }
-    throw err
+    const final = await stream.finalMessage()
+    content.push(...(final.content as unknown as Block[]))
+    finalModel = final.model
+    const u = final.usage
+    usage.input += u.input_tokens
+    usage.output += u.output_tokens
+    usage.cacheRead += u.cache_read_input_tokens ?? 0
+    usage.cacheWrite += u.cache_creation_input_tokens ?? 0
+    usage.webSearches += u.server_tool_use?.web_search_requests ?? 0
+    stopReason = final.stop_reason
+    if (stopReason !== 'pause_turn') break
   }
 
-  const final = await stream.finalMessage()
-  const finalText = final.content
-    .filter((b): b is Extract<typeof b, { type: 'text' }> => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-  const finalThinking = final.content
-    .filter((b): b is Extract<typeof b, { type: 'thinking' }> => b.type === 'thinking')
-    .map((b) => b.thinking)
+  const finalThinking = content
+    .filter((b) => b.type === 'thinking')
+    .map((b) => b.thinking as string)
     .join('\n\n')
-  const usage = final.usage
   return {
-    text: finalText,
+    text: replyText(content as { type: string; text?: string }[]),
     thinking: finalThinking || undefined,
-    content: final.content,
-    modelId: final.model,
+    content,
+    modelId: finalModel,
     usage: {
-      input: usage.input_tokens,
-      output: usage.output_tokens,
-      cacheRead: usage.cache_read_input_tokens ?? 0,
-      cacheWrite: usage.cache_creation_input_tokens ?? 0,
-      ms: Date.now() - started
+      input: usage.input,
+      output: usage.output,
+      cacheRead: usage.cacheRead,
+      cacheWrite: usage.cacheWrite,
+      ms: Date.now() - started,
+      ...(usage.webSearches ? { webSearches: usage.webSearches } : {})
     },
-    error: final.stop_reason === 'refusal' ? 'The model declined this request.' : undefined
+    error: stopReason === 'refusal' ? 'The model declined this request.' : undefined
   }
 }
 

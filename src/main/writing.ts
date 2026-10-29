@@ -73,7 +73,10 @@ export function runWritingTool(contents: WebContents, requestId: string, req: Wr
     ...defaults,
     effort: options?.efforts.includes('low') && config.kind === 'anthropic' ? 'low' : defaults.effort,
     maxTokens: 8000,
-    messageLimit: null
+    messageLimit: null,
+    // Editor tools work on the passage alone, whatever the chat defaults switch on.
+    webSearch: false,
+    webFetch: false
   }
   const controller = new AbortController()
   running.set(requestId, controller)

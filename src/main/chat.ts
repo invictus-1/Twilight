@@ -8,7 +8,7 @@ import { describeAnthropicError } from './providers/anthropic'
 import { toWorkspace, workspaceSystemPrompt } from './workspaces'
 import { getPersona } from './library'
 import { CHOICES_INSTRUCTION, CHOICES_TOOL_INSTRUCTION } from '@shared/choices'
-import { instructionBlock, isContextText } from '@shared/attachments'
+import { CLOCK_OPEN, clockBlock, instructionBlock, isContextText } from '@shared/attachments'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -28,6 +28,9 @@ const DEFAULT_SETTINGS: ChatSettings = {
   choiceFenced: true,
   choicePlain: true,
   choiceInstructions: true,
+  webSearch: false,
+  webFetch: false,
+  dateTime: false,
   pendingInstruction: ''
 }
 
@@ -209,9 +212,16 @@ export function send(
   ]
   const nodes = db.loadNodes(id)
   const userNodes = targets.map((pane) => {
-    // A queued instruction change goes in front of this message, once, in this pane.
-    const pending = settingsFor(conv, pane).pendingInstruction.trim()
+    // A queued instruction change goes in front of this message, once, in this pane; the date and
+    // time (when on) in front of that. Both are stored with the message, so later requests replay
+    // them unchanged.
+    const paneSettings = settingsFor(conv, pane)
+    const pending = paneSettings.pendingInstruction.trim()
     if (pending) updateSettings(id, { pendingInstruction: '' }, pane)
+    const context = [
+      ...(paneSettings.dateTime ? [{ type: 'text', text: clockBlock(new Date()) }] : []),
+      ...(pending ? [{ type: 'text', text: instructionBlock(pending) }] : [])
+    ]
     const user = db.insertNode(
       {
         id: randomUUID(),
@@ -219,7 +229,7 @@ export function send(
         parent_id: leafOf(conv, nodes, pane),
         role: 'user',
         text,
-        content: JSON.stringify(pending ? [{ type: 'text', text: instructionBlock(pending) }, ...content] : content),
+        content: JSON.stringify([...context, ...content]),
         thinking: null,
         model: null,
         provider_id: null,
@@ -363,9 +373,11 @@ export function editMessage(contents: WebContents, id: string, nodeId: string, t
   }
   let edited: db.NodeRow
   if (node.role === 'user') {
-    // Keep its attached documents; replace what was typed.
+    // Keep its attached documents; replace what was typed. The edited message is sent now, so it
+    // takes the time now (when the pane sends it) instead of the original's.
     const blocks = node.content ? (JSON.parse(node.content) as { type: string; text?: string }[]) : []
-    const docs = blocks.filter((b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text)))
+    const kept = blocks.filter((b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text) && !b.text.startsWith(CLOCK_OPEN)))
+    const docs = [...(settingsFor(db.getConversation(id), pane).dateTime ? [{ type: 'text', text: clockBlock(new Date()) }] : []), ...kept]
     edited = db.insertNode(
       { ...base, role: 'user', content: JSON.stringify([...docs, ...(text ? [{ type: 'text', text }] : [])]), model: null, provider_id: null, attachments: node.attachments ?? null },
       { activate: pane === 'a' }
@@ -541,6 +553,12 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
           first()
           thinking += delta
           emit({ kind: 'thinking', conversationId, nodeId: assistant.id, delta })
+        },
+        onActivity: (label) => {
+          // The prompt has been read (and cached) by now, but no token has come: tok/s keeps
+          // timing from the first real one.
+          markStarted()
+          emit({ kind: 'activity', conversationId, nodeId: assistant.id, label })
         }
       })
       db.updateNode(assistant.id, {
