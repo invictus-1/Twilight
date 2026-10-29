@@ -1501,7 +1501,7 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
    reveals the sky, with the system prompt at its foot. Skipped from rendering when off screen. */
 .thread-top { --sun: clamp(110px, 20vh, 220px); --horizon-at: 58%; position: relative; overflow: hidden; isolation: isolate; min-height: 52vh; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding: 0 var(--space-6) var(--space-4); content-visibility: auto; contain-intrinsic-size: auto 52vh; }
 .thread-top > :not(.empty-sky) { position: relative; z-index: 1; }
-.chat-prompt { width: 100%; max-width: calc(var(--thread) - 2 * var(--space-6)); background: color-mix(in srgb, var(--surface-raised) 88%, transparent); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+.chat-prompt { width: 100%; max-width: calc(var(--thread) - 2 * var(--space-6)); background: color-mix(in srgb, var(--surface-raised) 96%, transparent); border: 1px solid var(--line); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
 .chat-prompt-head { display: flex; align-items: center; gap: var(--space-1); }
 .chat-prompt-label { margin-right: auto; font-size: 12px; font-weight: 500; color: var(--dusk); }
 .chat-prompt-text { white-space: pre-wrap; max-height: 180px; overflow-y: auto; font-size: 13px; line-height: 20px; color: var(--ink-muted); }
