@@ -104,11 +104,14 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [~] **Your feedback on 1.0** · Core — fixes from real use
 
 ## Later
-- [ ] **The road to 2.0** · Core — deciding together what comes next; the ideas below are where it starts
+- [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story
+- [ ] **Retrieval research** · Writing — for 2.0, first: look beyond graph RAG at what else exists, and weigh a fully custom system built on RAG or newer experimental methods against the known ones
+- [ ] **Context scout** · Writing — for 2.0: a small, fast model reads each message first and gathers what the main model needs: passages, earlier scenes, facts about the characters in play
+- [ ] **Story bible** · Writing — for 2.0: characters, places, relationships and facts pulled from the manuscript and chats into pages you can read and edit
+- [ ] **Continuity watcher** · Writing — for 2.0: flags where a reply or a draft contradicts the story bible
+- [ ] **Better retrieval underneath** · Writing — for 2.0: passages indexed with context about where they sit, and a reranking pass
 
 ## Ideas
-- **Smarter retrieval** · Writing — for 2.0: a small, fast model that searches out the context a prompt needs, passages indexed with context about where they sit, reranking, and graph-based search across a manuscript
-- **Story bible** · Writing — characters, places and facts pulled from a manuscript, with a continuity watcher
 - **Ghost text** · Writing — autocomplete in the editor from a small local model
 - **Multiverse drafts** · Chat — several continuations at once, kept as branches
 - **Blind arena** · Judge — split compare with hidden names and a personal leaderboard

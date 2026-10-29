@@ -89,10 +89,20 @@ A release goes: update CHANGELOG and ROADMAP (mark the version's date) → `npm 
 
 ## The road to 2.0
 
-To be decided with the owner. The ideas so far (on the roadmap under Ideas):
+**1.0 is the foundation; everything past it is extras, cool features and experiments**, and what stays is decided as they're tried. The owner will review this plan and talk it through on their main account before anything is built.
 
-- **Smarter retrieval:** a small, fast model that searches out the context a prompt needs (the owner's idea), passages indexed with context about where they sit, reranking, graph-based search across a manuscript.
-- **Story bible:** characters, places and facts pulled from a manuscript, with a continuity watcher.
+The proposed theme for 2.0, agreed in outline at the end of the 1.0 session: **Twilight knows your story.** Its parts build on each other, so they belong in one release (on the roadmap under Later):
+
+1. **Retrieval research, first.** Look beyond graph RAG at what else exists, and weigh building a fully custom system (on RAG or newer, experimental methods) against the known approaches, before choosing.
+2. **Context scout** (the owner's idea): a small, fast model reads each message first and gathers what the main model needs — passages, earlier scenes, facts about the characters in play.
+3. **Story bible:** characters, places, relationships and facts from the manuscript and chats, as pages to read and edit.
+4. **Continuity watcher:** flags where a reply or a draft contradicts the bible.
+5. **Better retrieval underneath:** passages indexed with context about where they sit, and a reranking pass.
+
+Open questions for the owner: what bothers them most in daily use right now; how much they lean on local models (the scout and ghost text want a fast local one); whether the bible builds itself or they curate it.
+
+Standalone ideas for 2.x afterwards (on the roadmap under Ideas):
+
 - **Ghost text:** autocomplete in the editor from a small local model.
 - **Multiverse drafts:** several continuations at once, kept as branches.
 - **Blind arena:** split compare with hidden names and a personal leaderboard.
