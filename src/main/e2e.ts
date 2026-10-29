@@ -2118,6 +2118,44 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('the current section on the rail hides and shows the sidebar, and the rail stays', railUi.closed && railUi.railStill && railUi.reopened, railUi)
       await shot('e2e-rail.png')
 
+      // The rail's sections can be dragged into your own order: Writing above Chats, with the
+      // others sliding out of the way and an outline where it will land; then back with Alt+Down.
+      const railRects34 = await js<{ chat: { x: number; y: number }; write: { x: number; y: number }; slot: number; mode: string }>(`(() => {
+        const r = (m) => document.querySelector('.rail-item[data-mode="' + m + '"]').getBoundingClientRect()
+        const c = r('chat'), w = r('write')
+        return { chat: { x: Math.round(c.left + c.width / 2), y: Math.round(c.top + c.height / 2) }, write: { x: Math.round(w.left + w.width / 2), y: Math.round(w.top + w.height / 2) }, slot: Math.round(w.top - c.top), mode: document.querySelector('.rail-item[aria-selected="true"]')?.dataset.mode ?? '' }
+      })()`)
+      const { write: from34, slot: slot34 } = railRects34
+      win.webContents.sendInputEvent({ type: 'mouseDown', x: from34.x, y: from34.y, button: 'left', clickCount: 1 })
+      for (let i = 1; i <= 6; i++) {
+        win.webContents.sendInputEvent({ type: 'mouseMove', x: from34.x, y: Math.round(from34.y - (slot34 * i) / 6), modifiers: ['leftbuttondown'] })
+        await new Promise((r) => setTimeout(r, 30))
+      }
+      const mid34 = await js<{ held: boolean; chatShift: string; outline: boolean }>(`(async () => {
+        await new Promise((r) => setTimeout(r, 250))
+        return {
+          held: document.querySelector('.rail-item[data-mode="write"]').classList.contains('rail-held'),
+          chatShift: document.querySelector('.rail-item[data-mode="chat"]').style.transform,
+          outline: !!document.querySelector('.rail-drop')
+        }
+      })()`)
+      win.webContents.sendInputEvent({ type: 'mouseUp', x: from34.x, y: from34.y - slot34, button: 'left', clickCount: 1 })
+      const after34 = await js<{ order: string[]; saved: string | null; mode: string }>(`(async () => {
+        await new Promise((r) => setTimeout(r, 400))
+        return {
+          order: [...document.querySelectorAll('.rail-items:not(.rail-foot) .rail-item')].map((b) => b.dataset.mode),
+          saved: localStorage.getItem('twilight.railOrder'),
+          mode: document.querySelector('.rail-item[aria-selected="true"]')?.dataset.mode ?? ''
+        }
+      })()`)
+      check('dragging a section lifts it, slides the others aside and shows where it will land', mid34.held && mid34.chatShift === `translateY(${slot34}px)` && mid34.outline, mid34)
+      check('letting go puts it there and remembers the order', after34.order.join() === 'write,chat,judge,insights,code' && after34.saved === JSON.stringify(after34.order), after34)
+      check("a drag doesn't also open the section", after34.mode === railRects34.mode, { before: railRects34.mode, after: after34.mode })
+      await js(`document.querySelector('.rail-item[data-mode="write"]').focus()`)
+      await key('Down', ['alt'])
+      const back34 = await js<string[]>(`(async () => { await new Promise((r) => setTimeout(r, 200)); return [...document.querySelectorAll('.rail-items:not(.rail-foot) .rail-item')].map((b) => b.dataset.mode) })()`)
+      check('Alt+Down moves the focused section down the rail', back34.join() === 'chat,write,judge,insights,code', back34)
+
       // 35. The Judge leaderboard: a running tally by passage label (Elo-style, replayed oldest
       // first), and rounds of more than two passages, every pair judged as its own judgment.
       const judgeBase = {

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { keysFor, openMode, useBindings } from '../commands'
 import { useStore, type Mode } from '../store'
 import { CodeIcon, FeatherIcon, ScaleIcon, SearchIcon, SettingsIcon, SparkIcon, SpeechIcon } from './Icons'
@@ -28,9 +28,48 @@ function Mark() {
   )
 }
 
+// Your order for the sections, kept per install like the theme. Sections added in a later
+// version join at the end.
+const ORDER_KEY = 'twilight.railOrder'
+function savedOrder(): Mode[] {
+  const all = SECTIONS.map((s) => s.mode)
+  try {
+    const saved = (JSON.parse(localStorage.getItem(ORDER_KEY) ?? '[]') as Mode[]).filter((m) => all.includes(m))
+    return [...saved, ...all.filter((m) => !saved.includes(m))]
+  } catch {
+    return all
+  }
+}
+function saveOrder(order: Mode[]): void {
+  try {
+    localStorage.setItem(ORDER_KEY, JSON.stringify(order))
+  } catch {
+    // Storage unavailable: the order holds for this session.
+  }
+}
+const moved = <T,>(list: T[], from: number, to: number): T[] => {
+  const out = [...list]
+  out.splice(to, 0, ...out.splice(from, 1))
+  return out
+}
+
+interface Drag {
+  mode: Mode
+  from: number
+  over: number
+  dy: number
+  /** One slot's height: an item and the gap after it. */
+  slot: number
+  /** The first slot's top and an item's height, for drawing where it will land. */
+  top: number
+  height: number
+}
+
 /**
  * The column of sections down the left edge, each an icon with its name under it. It stays when
- * the sidebar is hidden; clicking the section you're in shows or hides the sidebar.
+ * the sidebar is hidden; clicking the section you're in shows or hides the sidebar. Sections can
+ * be dragged into your own order: the one you hold lifts and follows the pointer while the others
+ * slide aside to open its new place (Alt+Up and Alt+Down move the focused one too).
  */
 export function Rail() {
   useBindings()
@@ -38,23 +77,103 @@ export function Rail() {
   const settingsOpen = useStore((s) => s.settingsOpen)
   const latestUpdate = useStore((s) => s.updates?.latest)
   const tip = (label: string, command: string): string => (keysFor(command) ? `${label} (${keysFor(command)})` : label)
+  const [order, setOrder] = useState(savedOrder)
+  const [drag, setDrag] = useState<Drag | null>(null)
+  // After a drop, the item eases from where it was let go into its slot.
+  const [settle, setSettle] = useState<{ mode: Mode; offset: number } | null>(null)
+  const dragged = useRef(false)
+  const list = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (!settle) return
+    const frame = requestAnimationFrame(() => setSettle(null))
+    return () => cancelAnimationFrame(frame)
+  }, [settle])
+
+  const commit = (next: Mode[]): void => {
+    setOrder(next)
+    saveOrder(next)
+  }
+
+  const start = (e: React.PointerEvent<HTMLButtonElement>, m: Mode, index: number): void => {
+    if (e.button !== 0) return
+    const y0 = e.clientY
+    const item = e.currentTarget
+    const slot = item.offsetHeight + parseFloat(getComputedStyle(list.current!).rowGap || '4')
+    const top = (list.current!.firstElementChild as HTMLElement).offsetTop
+    let live: Drag | null = null
+    dragged.current = false
+    const move = (ev: PointerEvent): void => {
+      const dy = ev.clientY - y0
+      if (!live && Math.abs(dy) < 5) return
+      const over = Math.max(0, Math.min(order.length - 1, index + Math.round(dy / slot)))
+      live = { mode: m, from: index, over, dy, slot, top, height: item.offsetHeight }
+      dragged.current = true
+      setDrag(live)
+    }
+    const end = (): void => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', end)
+      window.removeEventListener('pointercancel', end)
+      setDrag(null)
+      if (!live) return
+      if (live.over !== live.from) commit(moved(order, live.from, live.over))
+      setSettle({ mode: m, offset: live.dy - (live.over - live.from) * live.slot })
+      // The click that ends a drag doesn't also open the section.
+      setTimeout(() => (dragged.current = false), 0)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', end)
+    window.addEventListener('pointercancel', end)
+  }
+
+  const nudge = (e: React.KeyboardEvent, index: number): void => {
+    if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return
+    e.preventDefault()
+    const to = index + (e.key === 'ArrowUp' ? -1 : 1)
+    if (to < 0 || to >= order.length) return
+    const m = order[index]
+    commit(moved(order, index, to))
+    requestAnimationFrame(() => list.current?.querySelector<HTMLButtonElement>(`[data-mode="${m}"]`)?.focus())
+  }
+
+  /** Where an item sits while something is dragged: the held one under the pointer, the rest out of its way. */
+  const offsetOf = (m: Mode, i: number): number => {
+    if (settle?.mode === m) return settle.offset
+    if (!drag) return 0
+    if (m === drag.mode) return drag.dy
+    if (drag.from < drag.over && i > drag.from && i <= drag.over) return -drag.slot
+    if (drag.from > drag.over && i >= drag.over && i < drag.from) return drag.slot
+    return 0
+  }
+
   return (
     <nav className="rail" aria-label="Sections">
       <div className="rail-head drag">
         <Mark />
       </div>
-      <div className="rail-items" role="tablist" aria-orientation="vertical">
-        {SECTIONS.map((s) => {
+      <div className={`rail-items ${drag ? 'rail-dragging' : ''}`} role="tablist" aria-orientation="vertical" ref={list}>
+        {drag && <span className="rail-drop" aria-hidden="true" style={{ top: drag.top + drag.over * drag.slot, height: drag.height }} />}
+        {order.map((m, i) => {
+          const s = SECTIONS.find((x) => x.mode === m)!
           const current = mode === s.mode && !settingsOpen
+          const held = drag?.mode === m
+          const offset = offsetOf(m, i)
           return (
             <button
               key={s.mode}
               role="tab"
               data-mode={s.mode}
-              className="rail-item"
+              className={`rail-item ${held ? 'rail-held' : ''} ${settle?.mode === m ? 'rail-settling' : ''}`}
+              style={offset ? { transform: `translateY(${offset}px)${held ? ' scale(1.06)' : ''}` } : undefined}
               aria-selected={current}
-              title={tip(s.label, s.command)}
-              onClick={() => (current ? useStore.getState().toggleSidebar() : openMode(s.mode))}
+              title={`${tip(s.label, s.command)} · drag to reorder`}
+              onPointerDown={(e) => start(e, m, i)}
+              onKeyDown={(e) => nudge(e, i)}
+              onClick={() => {
+                if (dragged.current) return
+                if (current) useStore.getState().toggleSidebar()
+                else openMode(s.mode)
+              }}
             >
               <span className="rail-icon">{s.icon}</span>
               <span className="rail-label">{s.label}</span>

@@ -1378,3 +1378,14 @@ body.resizing .resize-handle { pointer-events: auto; }
 .rm-area-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
 .rm-area-bar span { display: block; height: 100%; border-radius: 3px; background: var(--area); }
 .rm-area-n { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink-muted); }
+
+/* Dragging the rail into your own order: the held section lifts, the others slide out of its way. */
+.rail-items .rail-item { touch-action: none; }
+.rail-dragging .rail-item { transition: transform 180ms cubic-bezier(.2, .8, .2, 1); }
+.rail-dragging .rail-item.rail-held { transition: none; z-index: 2; cursor: grabbing; background: var(--surface-raised); box-shadow: var(--shadow-lg); }
+.rail-item.rail-settling { transition: none; }
+.rail-item:not(.rail-settling):not(.rail-held) { transition: transform 200ms cubic-bezier(.2, .8, .2, 1), color 160ms ease, background 160ms ease; }
+/* The place it will land: a soft outline where the gap opens. */
+.rail-items { position: relative; }
+.rail-drop { position: absolute; left: 6px; right: 6px; border: 1.5px dashed color-mix(in srgb, var(--iris) 60%, transparent); border-radius: var(--radius-md); background: color-mix(in srgb, var(--iris) 8%, transparent); transition: top 160ms cubic-bezier(.2, .8, .2, 1); pointer-events: none; }
+:root[data-motion='off'] .rail-item { transition: none !important; }
