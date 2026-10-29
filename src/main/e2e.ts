@@ -2730,7 +2730,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key('Return')
       await new Promise((r) => setTimeout(r, 200))
       const diffOff = await js<DiffUi>(readDiff)
-      check('the command menu offers the differences toggle', diffCommand === 'Show differences between panes', diffCommand)
+      check('the command menu offers the differences toggle', diffCommand === 'Show or hide differences between panes', diffCommand)
       check('turning differences off restores the normal reply', diffOff.pressed === 'false' && diffOff.bodies === 0 && diffOff.bar.length === 0 &&diffOff.latestMd && diffOff.strong === 'mock-a', diffOff)
       check('differences never change stored messages or send anything', stored40() === before40 && log.length === requests40, { requests: log.length - requests40 })
 

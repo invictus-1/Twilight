@@ -333,7 +333,8 @@ export const useStore = create<State>((set, get) => {
     },
 
     cloneIntoSplit: (nodeId) => withCurrent((id) => api.cloneIntoSplit(id, nodeId)),
-    closeSplit: (keep) => withCurrent((id) => api.closeSplit(id, keep)),
+    // Closing the split also ends the differences view, so the next split starts plain.
+    closeSplit: (keep) => (set({ splitDiff: false }), withCurrent((id) => api.closeSplit(id, keep))),
     async branchToNewChat(nodeId, pane = 'a') {
       const current = get().current
       if (!current) return

@@ -60,7 +60,7 @@ export const COMMANDS: Command[] = [
   { id: 'target-both', title: 'Send to both panes', group: 'Chat', keys: 'Alt+3', when: split, run: () => s().setTarget('both') },
   {
     id: 'split-diff',
-    title: 'Show differences between panes',
+    title: 'Show or hide differences between panes',
     group: 'Chat',
     hint: 'hide compare diff words changed',
     when: split,
