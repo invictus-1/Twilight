@@ -4,7 +4,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
-### 0.7.0 · In progress
+### 0.7.0 · October 2026
 - [x] **Custom backgrounds** · Core — your own picture or a gradient behind the app, darkened and blurred to taste
 - [x] **More themes** · Core — Midnight, Synthwave, Aurora, Campfire, High contrast, and a theme builder
 - [x] **Motion** · Core — page transitions, messages easing in, an evening glow at startup, and a small evening in empty chats
