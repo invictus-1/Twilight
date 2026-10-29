@@ -40,7 +40,25 @@ export function tooBig(kind: AttachmentKind, bytes: number, name: string): strin
  * and mid-chat instruction updates. After a tool call they follow the tool result.
  */
 export const INSTRUCTION_OPEN = '<instruction_update>'
-export const isContextText = (text: string): boolean => text.startsWith('<document name=') || text.startsWith(INSTRUCTION_OPEN)
+export const CLOCK_OPEN = '<current_time>'
+export const isContextText = (text: string): boolean =>
+  text.startsWith('<document name=') || text.startsWith(INSTRUCTION_OPEN) || text.startsWith(CLOCK_OPEN)
+
+const pad = (n: number): string => String(n).padStart(2, '0')
+
+/**
+ * The date, time and time zone when a message is sent. It goes into that message, never the
+ * system prompt, so every earlier message (and the cache over them) stays exactly as it was.
+ */
+export function clockBlock(now: Date): string {
+  const date = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  const offset = -now.getTimezoneOffset()
+  const utc = `UTC${offset < 0 ? '-' : '+'}${pad(Math.floor(Math.abs(offset) / 60))}:${pad(Math.abs(offset) % 60)}`
+  const zone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  return `${CLOCK_OPEN}\nSent ${date}, ${pad(now.getHours())}:${pad(now.getMinutes())} local time (${zone ? `${zone}, ` : ''}${utc}).\n</current_time>`
+}
+/** The line inside a stored date and time block, for showing it. */
+export const clockOf = (block: string): string => block.slice(CLOCK_OPEN.length + 1).replace(/\n<\/current_time>$/, '')
 export const instructionBlock = (text: string): string => `${INSTRUCTION_OPEN}\nFrom this message on, also follow these instructions; where they conflict with earlier ones, these win.\n\n${text.trim()}\n</instruction_update>`
 /** The instruction text inside a stored block, for showing it. */
 export const instructionOf = (block: string): string =>

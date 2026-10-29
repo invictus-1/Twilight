@@ -11,6 +11,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 - **Motion:** pages fade in as you switch, new messages ease in, and the window opens on a moment of evening glow. An empty chat now has a small evening of its own behind the greeting. Settings → General → Motion has Full, Gentle (fades only) and Off, and Windows' "reduce motion" setting counts as Gentle.
 
 **Chat**
+- **Web search and web fetch:** switch them on per chat in Tools. Claude uses Anthropic's own search and page reading (billed per search) and OpenRouter uses its web plugin. Replies show what was searched and read, with numbered sources that open in your browser.
+- **Date and time:** each message you send can carry your local date, time and time zone. It goes into that message, not the system prompt, so earlier messages and the cache stay as they were.
+- **Split differences:** a Differences button in split view marks the words that differ between the two panes' latest replies, each in its pane's colour, with a count and a similarity. Very long replies are compared paragraph by paragraph.
 - **Personas:** a persona is a saved system prompt with a name and a one-line description, and optionally a model and choice cards. Start a chat from one with "New chat from a persona…" in the command menu or from Settings → Library. In a chat that's already going, apply one from Model settings, either as the system prompt (the cache restarts) or as a change from the next message (the cache holds).
 - **Prompts:** save the messages you send often and put one in the message box from the new Prompts button in the composer. A prompt with `{{input}}` asks for that part first. Settings → Library keeps personas and prompts, and exports or imports them as one file.
 

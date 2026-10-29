@@ -8,6 +8,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Custom backgrounds** · Core — your own picture or a gradient behind the app, darkened and blurred to taste
 - [x] **More themes** · Core — Midnight, Synthwave, Aurora, Campfire, High contrast, and a theme builder
 - [x] **Motion** · Core — page transitions, messages easing in, an evening glow at startup, and a small evening in empty chats
+- [x] **Web tools** · Chat — web search and web fetch (Claude's own, or OpenRouter's web plugin) and the date and time, per chat
+- [x] **Split differences** · Chat — the words that differ between the two panes, in each pane's colour
 - [x] **Usage stats** · Core — tokens and spend over time, by model and by chat
 - [x] **Personas and prompts** · Chat — a library of personas and prompts
 
@@ -86,10 +88,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Later
 - [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion
-- [ ] **Tools and MCP** · Chat — web search, web fetch, date and time, image generation, switched on per chat
+- [ ] **More tools and MCP** · Chat — image generation and MCP servers, switched on per chat
 - [ ] **Agents and code** · Chat — an agent loop for any model with tool calling, with approvals and diffs
 - [ ] **A light theme** · Core — Moonlit Paper: a soft, paper-light theme (Twilight is dark throughout today)
-- [ ] **Split differences** · Chat — see what changed between the two panes
 - [ ] **Document library** · Writing — retrieval over very large collections with local embeddings
 - [ ] **Offline spellcheck** · Writing — bundled dictionaries
 - [ ] **Your data, your place** · Core — choose where app data lives, scheduled backups

@@ -7,7 +7,8 @@ import { CloseIcon, TrashIcon } from './Icons'
 
 /** Settings a preset carries (everything about how the model is asked, not which chat). */
 const PRESET_KEYS: (keyof ChatSettings)[] = [
-  'effort', 'thinkingDisplay', 'caching', 'cacheTtl', 'temperature', 'maxTokens', 'messageLimit', 'extraParams', 'systemPrompt', 'choiceCards', 'choiceTool', 'choiceFenced', 'choicePlain', 'choiceInstructions'
+  'effort', 'thinkingDisplay', 'caching', 'cacheTtl', 'temperature', 'maxTokens', 'messageLimit', 'extraParams', 'systemPrompt', 'choiceCards', 'choiceTool', 'choiceFenced', 'choicePlain', 'choiceInstructions',
+  'webSearch', 'webFetch', 'dateTime'
 ]
 
 /** A switchable number with a slider, like "Max output tokens". Off means "not sent". */

@@ -445,6 +445,63 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
       await shot('story')
       await js(`[...document.querySelectorAll('.insights-nav-item')].find((b) => b.textContent.startsWith('Characters'))?.click(); await wait(500)`)
       await shot('characters')
+
+      // Split differences on the storm chat.
+      await js(`document.querySelector('[data-mode="chat"]').click(); await wait(300);
+        [...document.querySelectorAll('.tw-conv')].find((r) => r.textContent.includes('Two takes on the storm'))?.click(); await wait(600);
+        [...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.trim() === 'Differences')?.click(); await wait(400)`)
+      await shot('diff')
+      await js(`[...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.trim() === 'Differences')?.click()`)
+
+      // The command menu, mid-search.
+      await js(`[...document.querySelectorAll('.tw-conv')].find((r) => r.textContent.includes('The lighthouse at Gull Point'))?.click(); await wait(500)`)
+      win.webContents.focus()
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'K', modifiers: ['control'] })
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'K', modifiers: ['control'] })
+      await wait(300)
+      await win.webContents.insertText('th')
+      await shot('command')
+      await js(`document.querySelector('.overlay-backdrop')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))`)
+
+      // Usage, from the demo chats' replies.
+      await js(`document.querySelector('.rail [data-rail="settings"]').click(); await wait(300);
+        [...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Usage'))?.click(); await wait(700)`)
+      await shot('usage')
+
+      // The themes: the lighthouse chat in six of them, set side by side as one picture.
+      await js(`document.querySelector('[data-mode="chat"]').click(); await wait(300);
+        [...document.querySelectorAll('.tw-conv')].find((r) => r.textContent.includes('The lighthouse at Gull Point'))?.click(); await wait(500)`)
+      const tiles: { name: string; src: string }[] = []
+      for (const [theme, name] of [['twilight', 'Twilight'], ['ultraviolet', 'Ultraviolet'], ['synthwave', 'Synthwave'], ['aurora', 'Aurora'], ['campfire', 'Campfire'], ['phosphor', 'Phosphor']]) {
+        await js(`${theme === 'twilight' ? 'delete document.documentElement.dataset.theme' : `document.documentElement.dataset.theme = '${theme}'`}; await wait(350)`)
+        tiles.push({ name, src: (await win.webContents.capturePage()).resize({ width: 960 }).toDataURL() })
+      }
+      await js(`delete document.documentElement.dataset.theme`)
+      // A gallery: each window whole, at its own shape, named, under a heading.
+      await js(`const page = document.createElement('div'); page.id = 'showcase-grid';
+        page.style.cssText = 'position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;justify-content:center;gap:28px;padding:0 44px;background:radial-gradient(120% 80% at 50% 120%, #3a2245, #05060f 70%)';
+        const head = document.createElement('div');
+        head.textContent = 'Ten themes, or your own';
+        head.style.cssText = 'text-align:center;font-family:var(--font-serif);font-size:40px;font-weight:600;color:#eceefe;letter-spacing:-.02em';
+        page.appendChild(head);
+        const grid = document.createElement('div');
+        grid.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:22px 20px';
+        for (const t of ${JSON.stringify(tiles)}) {
+          const cell = document.createElement('figure'); cell.style.cssText = 'margin:0;display:flex;flex-direction:column;gap:8px;align-items:center';
+          const img = document.createElement('img'); img.src = t.src; img.style.cssText = 'width:100%;aspect-ratio:16/10;object-fit:cover;object-position:top;border-radius:12px;box-shadow:0 18px 40px -12px #000c, 0 0 0 1px #ffffff14';
+          const cap = document.createElement('figcaption'); cap.textContent = t.name; cap.style.cssText = 'font-size:15px;font-weight:500;color:#a6abd8';
+          cell.append(img, cap); grid.appendChild(cell)
+        }
+        page.appendChild(grid);
+        document.body.appendChild(page); await wait(500)`)
+      await shot('themes')
+      await js(`document.getElementById('showcase-grid')?.remove()`)
+
+      // Last, the hero: the welcome's evening, once the sun has set.
+      await js(`document.querySelector('.rail [data-rail="settings"]').click(); await wait(300);
+        [...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('About'))?.click(); await wait(300);
+        [...document.querySelectorAll('button')].find((b) => b.textContent === 'Replay the welcome')?.click(); await wait(3600)`)
+      await shot('hero')
       writeFileSync(join(outDir, 'showcase.json'), JSON.stringify({ ok: true }))
     } catch (err) {
       writeFileSync(join(outDir, 'showcase.json'), JSON.stringify({ ok: false, error: String(err) }))

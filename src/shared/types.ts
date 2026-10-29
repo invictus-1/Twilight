@@ -109,6 +109,12 @@ export interface ChatSettings {
   choicePlain: boolean
   /** Add Twilight's short how-to to the system prompt: for the tool if it's on, else for choices blocks. */
   choiceInstructions: boolean
+  /** Let the model search the web (Claude's server tool, or OpenRouter's web plugin). */
+  webSearch: boolean
+  /** Let the model read a web page in full (Claude only). */
+  webFetch: boolean
+  /** Put the local date, time and time zone at the front of each new message. */
+  dateTime: boolean
   /**
    * Instructions to add from the next message on. They go into that message (not the system
    * prompt), so the cached conversation before it stays valid.
@@ -146,6 +152,8 @@ export interface Usage {
   ttftMs?: number
   /** What the provider itself says the reply cost (OpenRouter), used before any price list. */
   costUsd?: number
+  /** Web searches Claude ran for the reply, billed per search on top of tokens. */
+  webSearches?: number
 }
 
 /** Settings → Usage: how far back the numbers go. */
@@ -223,6 +231,32 @@ export interface NodeView {
   toolChoices?: ChoiceSet
   /** Instructions added mid-chat with this message. */
   instructionUpdate?: string
+  /** The date and time sent along with this message, as the model read it. */
+  dateTime?: string
+  /** What the reply searched for and read on the web, and the sources it cited. */
+  web?: WebActivity
+}
+
+/** A page the model found or read. */
+export interface WebSource {
+  url: string
+  title: string
+}
+
+/** One search or page read during a reply. */
+export interface WebStep {
+  kind: 'search' | 'fetch'
+  /** The search terms, or the page's address. Empty for a search the provider ran by itself. */
+  query: string
+  sources: WebSource[]
+  /** Set when the search or read failed (the API's error code). */
+  error?: string
+}
+
+export interface WebActivity {
+  steps: WebStep[]
+  /** Cited sources, numbered in order of first citation. */
+  cited: WebSource[]
 }
 
 export interface ConversationSummary {
@@ -320,6 +354,8 @@ export type InsightsEvent =
 export type StreamEvent =
   | { kind: 'text'; conversationId: string; nodeId: string; delta: string }
   | { kind: 'thinking'; conversationId: string; nodeId: string; delta: string }
+  /** A search or page read started while the reply streams ("Searching: …"). */
+  | { kind: 'activity'; conversationId: string; nodeId: string; label: string }
   | { kind: 'done'; conversationId: string; nodeId: string; node: NodeView }
 
 /** A markdown file in the writing folder. `path` is relative to the folder, with forward slashes. */

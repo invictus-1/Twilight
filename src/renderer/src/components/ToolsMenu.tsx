@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChatSettings } from '@shared/types'
+import { webSupport, type WebSupport } from '@shared/webTools'
 import { useStore } from '../store'
 import { ToolIcon } from './Icons'
 
@@ -32,9 +33,9 @@ export function Hint({ title, text, children }: { title: string; text: string; c
   )
 }
 
-function Row(props: { label: string; note: string; checked: boolean; disabled?: boolean; onChange: (on: boolean) => void; sub?: boolean }) {
+function Row(props: { label: string; note: string; checked: boolean; disabled?: boolean; onChange: (on: boolean) => void; sub?: boolean; tool?: string }) {
   return (
-    <label className={`tools-row ${props.sub ? 'sub' : ''} ${props.disabled ? 'disabled' : ''}`}>
+    <label className={`tools-row ${props.sub ? 'sub' : ''} ${props.disabled ? 'disabled' : ''}`} data-tool={props.tool}>
       <input type="checkbox" checked={props.checked} disabled={props.disabled} onChange={(e) => props.onChange(e.target.checked)} />
       <span>
         <span className="tools-label">{props.label}</span>
@@ -50,6 +51,8 @@ export function ToolsMenu() {
   const box = useRef<HTMLDivElement>(null)
   const settings = useStore((s) => s.current?.settings)
   const split = useStore((s) => !!s.current?.split)
+  const providerB = useStore((s) => s.current?.split?.settings.providerId)
+  const providers = useStore((s) => s.providers)
   useEffect(() => {
     if (!open) return
     const close = (e: MouseEvent): void => {
@@ -71,10 +74,18 @@ export function ToolsMenu() {
     void s.updateSettings(patch, 'a')
     if (split) void s.updateSettings(patch, 'b')
   }
-  const active = settings.choiceCards ? 1 + (settings.choiceTool ? 1 : 0) : 0
+  // A web tool is offered when either pane's provider has it; a pane whose provider doesn't
+  // simply leaves it out of its requests.
+  const panes = [settings.providerId, ...(split && providerB ? [providerB] : [])].map((id) => webSupport(providers.find((p) => p.id === id)))
+  const usable = (key: 'search' | 'fetch'): WebSupport => panes.find((p) => p[key] === null) ?? panes[0]
+  const searchHas = usable('search')
+  const fetchHas = usable('fetch')
+  const searchOn = settings.webSearch && searchHas.search === null
+  const fetchOn = settings.webFetch && fetchHas.fetch === null
+  const active = (settings.choiceCards ? 1 + (settings.choiceTool ? 1 : 0) : 0) + (searchOn ? 1 : 0) + (fetchOn ? 1 : 0) + (settings.dateTime ? 1 : 0)
   return (
     <div className="tools-menu" ref={box}>
-      <Hint title="Tools" text="Switch on what the model can use in this chat: the choice menu tool, and how choices are read. Web tools come later.">
+      <Hint title="Tools" text="Switch on what the model can use in this chat: choice cards, web search and fetch, and the date and time.">
         <button className="tw-btn tw-btn-ghost tw-btn-sm" aria-expanded={open} aria-haspopup="true" onClick={() => setOpen((o) => !o)}>
           <ToolIcon size={15} />
           Tools
@@ -122,8 +133,35 @@ export function ToolsMenu() {
             disabled={!settings.choiceCards}
             onChange={(on) => update({ choiceInstructions: on })}
           />
-          <div className="tools-head">More tools</div>
-          <p className="tools-later">Web search, web fetch, and the date and time are on the roadmap.</p>
+          <div className="tools-head">Web and time{split ? ' · both panes' : ''}</div>
+          <Row
+            tool="webSearch"
+            label="Web search"
+            note={
+              searchHas.search ??
+              (searchHas.via === 'claude'
+                ? "Claude searches when it needs to and cites what it finds. Anthropic bills each search ($10 per 1,000)."
+                : "OpenRouter's web plugin searches once for each message and adds the results. OpenRouter bills the search.")
+            }
+            checked={searchOn}
+            disabled={searchHas.search !== null}
+            onChange={(on) => update({ webSearch: on })}
+          />
+          <Row
+            tool="webFetch"
+            label="Web fetch"
+            note={fetchHas.fetch ?? 'Claude can read a page in full: one you link, or one it found. The page counts as input tokens.'}
+            checked={fetchOn}
+            disabled={fetchHas.fetch !== null}
+            onChange={(on) => update({ webFetch: on })}
+          />
+          <Row
+            tool="dateTime"
+            label="Date and time"
+            note="Puts your local date, time and time zone at the start of each message you send. Earlier messages stay as they were, so the cache holds."
+            checked={settings.dateTime}
+            onChange={(on) => update({ dateTime: on })}
+          />
         </div>
       )}
     </div>

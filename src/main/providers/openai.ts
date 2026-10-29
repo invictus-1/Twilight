@@ -1,6 +1,7 @@
 import { CHOICES_TOOL } from '@shared/choices'
 import { isContextText } from '@shared/attachments'
-import type { ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
+import { isLocalUrl, isOpenRouter } from '@shared/webTools'
+import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig, WebSource } from '@shared/types'
 import type { NodeRow } from '../db'
 import { mergeExtraParams, textBlocks, wantsChoiceTool, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
@@ -31,8 +32,25 @@ function base(config: ProviderConfig): string {
   return (config.baseUrl ?? '').replace(/\/+$/, '')
 }
 
-export function isLocal(url: string): boolean {
-  return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\]|0\.0\.0\.0)(:|\/|$)/.test(url)
+export const isLocal = isLocalUrl
+
+/**
+ * Web search through OpenRouter's web plugin ({ id: "web" } in `plugins`, documented at
+ * openrouter.ai/docs/features/web-search). It searches once per request with the message itself
+ * and adds the results to the prompt on OpenRouter's side, so the messages sent stay the same.
+ * Other servers have no such field; web fetch has no OpenRouter counterpart here.
+ */
+export function openRouterPlugins(baseUrl: string | undefined, settings: Pick<ChatSettings, 'webSearch'>): Record<string, unknown>[] | null {
+  return settings.webSearch && isOpenRouter(baseUrl) ? [{ id: 'web', max_results: 5 }] : null
+}
+
+/** Pulls url_citation annotations (OpenAI's format, which OpenRouter's results use) into sources. */
+function addCitations(into: WebSource[], annotations: unknown): void {
+  if (!Array.isArray(annotations)) return
+  for (const a of annotations as { type?: string; url_citation?: { url?: string; title?: string } }[]) {
+    const url = a.type === 'url_citation' ? a.url_citation?.url : undefined
+    if (url && !into.some((s) => s.url === url)) into.push({ url, title: a.url_citation?.title ?? '' })
+  }
 }
 
 interface ListedModel {
@@ -156,13 +174,16 @@ export const openaiProvider: Provider = {
       body.tools = [{ type: 'function', function: { name: CHOICES_TOOL.name, description: CHOICES_TOOL.description, parameters: CHOICES_TOOL.input_schema } }]
     }
     // OpenRouter reports what each request cost when asked; that beats any price list.
-    if (/openrouter\.ai/i.test(base(req.config))) body.usage = { include: true }
+    if (isOpenRouter(base(req.config))) body.usage = { include: true }
+    const plugins = openRouterPlugins(base(req.config), settings)
+    if (plugins) body.plugins = plugins
     mergeExtraParams(body, settings.extraParams ?? '')
 
     let text = ''
     let thinking = ''
     // Tool calls arrive in pieces, keyed by index: the id and name first, the arguments in fragments.
     const calls: StoredCall[] = []
+    const sources: WebSource[] = []
     const usage: { input: number; output: number; cacheRead: number; cacheWrite: number; ms: number; costUsd?: number } = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: 0 }
     try {
       const res = await fetch(`${base(req.config)}/chat/completions`, {
@@ -196,11 +217,15 @@ export const openaiProvider: Provider = {
                 reasoning_content?: string
                 reasoning?: string
                 tool_calls?: { index?: number; id?: string; function?: { name?: string; arguments?: string } }[]
+                annotations?: unknown
               }
+              message?: { annotations?: unknown }
             }[]
             usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number }
           }
           const delta = chunk.choices?.[0]?.delta
+          addCitations(sources, delta?.annotations)
+          addCitations(sources, chunk.choices?.[0]?.message?.annotations)
           const reasoning = delta?.reasoning_content ?? delta?.reasoning
           if (reasoning) {
             thinking += reasoning
@@ -230,10 +255,11 @@ export const openaiProvider: Provider = {
     }
     usage.ms = Date.now() - started
     const made = calls.filter(Boolean).map((c, i) => ({ ...c, id: c.id || `call_${i}` }))
+    // Sources are kept for showing under the reply; only text and tool calls are replayed.
     return {
       text,
       thinking: thinking || undefined,
-      content: made.length ? [{ type: 'text', text }, { type: 'tool_calls', calls: made }] : [{ type: 'text', text }],
+      content: [{ type: 'text', text }, ...(made.length ? [{ type: 'tool_calls', calls: made }] : []), ...(sources.length ? [{ type: 'web_sources', sources }] : [])],
       usage,
       modelId: settings.modelId
     }

@@ -14,6 +14,8 @@ export interface GenerateRequest {
   signal: AbortSignal
   onText(delta: string): void
   onThinking(delta: string): void
+  /** A web search or page read has started ("Searching: …"). */
+  onActivity?(label: string): void
 }
 
 export interface GenerateResult {
@@ -60,6 +62,9 @@ export function mergeExtraParams(body: Record<string, unknown>, extra: string): 
 export function textBlocks(node: NodeRow): { type: 'text'; text: string }[] {
   if (node.content) {
     const parsed = JSON.parse(node.content) as { type: string; text?: string }[]
+    // A Claude reply that used the web splits its text around searches and citations; the stored
+    // text is that put back together.
+    if (parsed.some((b) => b.type === 'server_tool_use')) return [{ type: 'text', text: node.text }]
     const texts = parsed.filter((b) => b.type === 'text' && typeof b.text === 'string')
     if (texts.length) return texts as { type: 'text'; text: string }[]
   }

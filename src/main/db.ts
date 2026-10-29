@@ -1,8 +1,9 @@
-import { INSTRUCTION_OPEN, instructionOf } from '@shared/attachments'
+import { CLOCK_OPEN, INSTRUCTION_OPEN, clockOf, instructionOf } from '@shared/attachments'
+import { webActivityOf } from '@shared/webTools'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { CHOICES_TOOL_NAME, choicesFromTool, type ChoiceSet } from '@shared/choices'
-import type { ChatSettings, NodeStatus, NodeView, Usage } from '@shared/types'
+import type { ChatSettings, NodeStatus, NodeView, Usage, WebActivity } from '@shared/types'
 
 // Conversations are trees. Every conversation has one hidden root node whose text is the
 // frozen system prompt; each node remembers which child is active, so the visible thread
@@ -400,8 +401,22 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
     siblingCount: siblings.length,
     attachments: node.attachments ? JSON.parse(node.attachments) : undefined,
     toolChoices: node.role === 'assistant' ? (toolChoicesOf(node.content) ?? undefined) : undefined,
-    instructionUpdate: node.role === 'user' ? instructionUpdateOf(node.content) : undefined
+    instructionUpdate: node.role === 'user' ? instructionUpdateOf(node.content) : undefined,
+    dateTime: node.role === 'user' ? dateTimeOf(node.content) : undefined,
+    web: node.role === 'assistant' ? webOf(node.content) : undefined
   }
+}
+
+function dateTimeOf(content: string | null): string | undefined {
+  if (!content || !content.includes(CLOCK_OPEN)) return undefined
+  const block = (JSON.parse(content) as { type: string; text?: string }[]).find((b) => b.type === 'text' && b.text?.startsWith(CLOCK_OPEN))
+  return block?.text ? clockOf(block.text) : undefined
+}
+
+/** Searches and page reads in a stored reply; most replies have none, so they skip the parse. */
+function webOf(content: string | null): WebActivity | undefined {
+  if (!content || !(content.includes('"server_tool_use"') || content.includes('"web_sources"'))) return undefined
+  return webActivityOf(JSON.parse(content)) ?? undefined
 }
 
 function instructionUpdateOf(content: string | null): string | undefined {

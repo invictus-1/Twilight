@@ -15,7 +15,10 @@ import { computeVerdict } from '@shared/judge'
 import * as judge from './judge'
 import * as library from './library'
 import { parseLibrary } from '@shared/library'
-import { anthropicOptions, keyShape, toMessages } from './providers/anthropic'
+import { anthropicOptions, anthropicRequest, anthropicTools, keyShape, replyText, toMessages } from './providers/anthropic'
+import { openRouterPlugins } from './providers/openai'
+import { clockBlock } from '@shared/attachments'
+import { webActivityOf, webSupport } from '@shared/webTools'
 import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
 import { searchAll } from './search'
@@ -180,6 +183,11 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         await new Promise((r) => setTimeout(r, 8))
         entry.firstTokenAt ??= Date.now()
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: w } }] })}\n\n`)
+      }
+      // A server that searched cites its sources as url_citation annotations.
+      if (lastUser.includes('WEBCITE') && !toolResult) {
+        const annotations = [{ type: 'url_citation', url_citation: { url: 'https://example.com/lamps', title: 'Lamps at dusk', start_index: 0, end_index: 5 } }]
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { annotations } }] })}\n\n`)
       }
       const prompt = parsed.messages.reduce((n, m) => n + (m.content?.length ?? 0), 0)
       res.write(`data: ${JSON.stringify({ choices: [], usage: { prompt_tokens: Math.ceil(prompt / 4), completion_tokens: words.length } })}\n\n`)
@@ -1517,7 +1525,12 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const key = async (keyCode: string, modifiers: ('control' | 'shift' | 'alt')[] = []): Promise<void> => {
         // Key events only reach a page with keyboard focus, and another window (someone using
         // the PC) can take it; give it back first, as a real key press would find it.
-        if (!win.webContents.isFocused()) win.webContents.focus()
+        if (!win.webContents.isFocused()) {
+          // Giving the page focus back can drop it from the field that had it; put it back there.
+          await win.webContents.executeJavaScript(`window.__e2eFocus = document.activeElement`)
+          win.webContents.focus()
+          await win.webContents.executeJavaScript(`(() => { const el = window.__e2eFocus; if (el && el !== document.body && document.activeElement !== el) el.focus() })()`)
+        }
         win.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
         win.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
         await new Promise((r) => setTimeout(r, 250))
@@ -2733,6 +2746,269 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('the command menu offers the differences toggle', diffCommand === 'Show or hide differences between panes', diffCommand)
       check('turning differences off restores the normal reply', diffOff.pressed === 'false' && diffOff.bodies === 0 && diffOff.bar.length === 0 &&diffOff.latestMd && diffOff.strong === 'mock-a', diffOff)
       check('differences never change stored messages or send anything', stored40() === before40 && log.length === requests40, { requests: log.length - requests40 })
+
+      // 41. Tools: web search and fetch (Claude's server tools, OpenRouter's web plugin) and the
+      // date and time. The mock is a local server, so it gets the date and time but no web tools;
+      // Claude's request shape is checked on the pure builders, with no calls to Anthropic.
+      const c41 = chat.create().id
+      chat.updateSettings(c41, { providerId: 'mock', modelId: 'mock-a', dateTime: true, webSearch: true, webFetch: true, choiceCards: false })
+      const before41 = log.length
+      chat.send(contents, c41, 'What day is it?')
+      await idle(c41)
+      chat.send(contents, c41, 'And now?')
+      await idle(c41)
+      const [first41, second41] = [log[before41], log[before41 + 1]]
+      const firstUser41 = first41?.messages.at(-1)?.content ?? ''
+      const secondUser41 = second41?.messages.at(-1)?.content ?? ''
+      check(
+        'the date and time open each new message',
+        /^<current_time>\nSent .+, \d\d:\d\d local time \(.*UTC[+-]\d\d:\d\d\)\.\n<\/current_time>\n\nWhat day is it\?$/.test(firstUser41) && /^<current_time>\n[\s\S]*\n\nAnd now\?$/.test(secondUser41),
+        [firstUser41, secondUser41]
+      )
+      check(
+        'the date and time never go into the system prompt',
+        [first41, second41].every((r) => r?.messages.filter((m) => m.role === 'system').every((m) => !String(m.content).includes('current_time'))),
+        first41?.messages[0]
+      )
+      check(
+        'earlier messages, the date and time included, go byte for byte the same in the next request',
+        !!first41 && JSON.stringify(second41?.messages.slice(0, first41.messages.length)) === JSON.stringify(first41.messages) && second41.messages.length === first41.messages.length + 2
+      )
+      check('a local server gets no web tools or plugin', !!first41 && !('tools' in first41.body) && !('plugins' in first41.body), Object.keys(first41?.body ?? {}))
+      const v41 = chat.view(c41)
+      check('the message keeps what was typed and shows the time it was sent with', v41.path[0].text === 'What day is it?' && /^Sent .+ local time/.test(v41.path[0].dateTime ?? ''), v41.path[0])
+
+      // After a present_choices call the date and time follow the tool result, like documents.
+      const c40c = chat.create().id
+      chat.updateSettings(c40c, { providerId: 'mock', modelId: 'mock-a', choiceCards: true, choiceTool: true, dateTime: true })
+      chat.send(contents, c40c, 'TOOLCHOICE start')
+      await idle(c40c)
+      const before40c = log.length
+      chat.send(contents, c40c, 'Cross')
+      await idle(c40c)
+      const choiceMsgs41 = log[before40c]?.messages ?? []
+      const tool41 = choiceMsgs41.findIndex((m) => m.role === 'tool')
+      check(
+        'after a tool call the answer is the tool result and the time follows it',
+        tool41 > 0 && choiceMsgs41[tool41].content === 'Cross' && choiceMsgs41[tool41 + 1]?.role === 'user' && String(choiceMsgs41[tool41 + 1]?.content).startsWith('<current_time>'),
+        choiceMsgs41.slice(tool41).map((m) => [m.role, String(m.content).slice(0, 30)])
+      )
+      const clock41 = clockBlock(new Date(2026, 9, 28, 9, 5))
+      const claudeChoice41 = toMessages([
+        row('user', [{ type: 'text', text: 'Begin' }]),
+        row('assistant', [{ type: 'text', text: 'Story.' }, { type: 'tool_use', id: 'toolu_9', name: 'present_choices', input: { groups: [] } }]),
+        row('user', [{ type: 'text', text: clock41 }, { type: 'text', text: 'Cross' }], 'Cross')
+      ])[2]?.content as { type: string; content?: string; text?: string }[]
+      check(
+        'Claude gets the pick as the tool_result with the time after it',
+        claudeChoice41?.length === 2 && claudeChoice41[0].type === 'tool_result' && claudeChoice41[0].content === 'Cross' && claudeChoice41[1].text === clock41,
+        claudeChoice41
+      )
+
+      // Claude's server tools: a reply that searched (with a citation) and read a page.
+      const webReply41 = [
+        { type: 'text', text: "I'll look that up.", citations: null },
+        { type: 'server_tool_use', id: 'srvtoolu_1', name: 'web_search', input: { query: 'lighthouse keepers' }, caller: { type: 'direct' } },
+        {
+          type: 'web_search_tool_result',
+          tool_use_id: 'srvtoolu_1',
+          caller: { type: 'direct' },
+          content: [
+            { type: 'web_search_result', url: 'https://example.com/keepers', title: 'Keepers of the light', encrypted_content: 'enc-1', page_age: null },
+            { type: 'web_search_result', url: 'https://lamps.example.net/wicks', title: 'Trimming wicks', encrypted_content: 'enc-2', page_age: '2 years ago' }
+          ]
+        },
+        {
+          type: 'text',
+          text: 'Keepers trimmed the wicks at dusk',
+          citations: [{ type: 'web_search_result_location', url: 'https://example.com/keepers', title: 'Keepers of the light', encrypted_index: 'idx-1', cited_text: 'trimmed the wicks' }]
+        },
+        { type: 'text', text: '.', citations: null },
+        { type: 'server_tool_use', id: 'srvtoolu_2', name: 'web_fetch', input: { url: 'https://www.example.org/log' }, caller: { type: 'direct' } },
+        {
+          type: 'web_fetch_tool_result',
+          tool_use_id: 'srvtoolu_2',
+          caller: { type: 'direct' },
+          content: { type: 'web_fetch_result', url: 'https://www.example.org/log', retrieved_at: null, content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'Lamps lit at six.' }, title: 'The keeper log', citations: null } }
+        },
+        { type: 'text', text: 'The log agrees.', citations: null }
+      ]
+      check('the reply text joins citation pieces and breaks after a tool call', replyText(webReply41) === "I'll look that up.\n\nKeepers trimmed the wicks at dusk.\n\nThe log agrees.", replyText(webReply41))
+      const claude41 = { ...chat.getDefaults(), providerId: 'anthropic', modelId: 'claude-opus-5-5', systemPrompt: '', extraParams: '', choiceCards: false, webSearch: true, webFetch: true, caching: true, cacheTtl: '1h' as const }
+      const hist41 = [
+        row('user', [{ type: 'text', text: clock41 }, { type: 'text', text: 'Who lit the lamps?' }], 'Who lit the lamps?'),
+        row('assistant', webReply41, replyText(webReply41)),
+        row('user', [{ type: 'text', text: clockBlock(new Date(2026, 9, 28, 9, 7)) }, { type: 'text', text: 'Thanks' }], 'Thanks')
+      ]
+      const req41 = anthropicRequest({ system: 'Stay brief.', history: hist41, settings: claude41 })
+      const msgs41 = req41.body.messages as { role: string; content: { type: string; text?: string }[] }[]
+      check(
+        'Claude gets web search and web fetch as server tools with caps',
+        JSON.stringify(req41.body.tools) ===
+          JSON.stringify([
+            { type: 'web_search_20260209', name: 'web_search', max_uses: 5 },
+            { type: 'web_fetch_20260209', name: 'web_fetch', max_uses: 5, max_content_tokens: 20000 }
+          ]),
+        req41.body.tools
+      )
+      check('the web tools need no beta header', !req41.betas.some((b) => /web/.test(b)), req41.betas)
+      check(
+        'models without dynamic filtering get the basic web tool versions',
+        anthropicTools({ ...claude41, modelId: 'claude-haiku-4-5' }).map((t) => t.type).join() === 'web_search_20250305,web_fetch_20250910'
+      )
+      check(
+        'the choice tool comes first, then the web tools',
+        anthropicTools({ ...claude41, choiceCards: true, choiceTool: true }).map((t) => t.name).join() === 'present_choices,web_search,web_fetch'
+      )
+      check('server tool blocks and citations are replayed exactly as stored', JSON.stringify(msgs41[1]?.content) === JSON.stringify(webReply41), msgs41[1]?.content.map((b) => b.type))
+      check(
+        'the date and time ride in the user turn for Claude, not the system prompt',
+        msgs41[0]?.content[0]?.text === clock41 && !JSON.stringify(req41.body.system).includes('current_time'),
+        req41.body.system
+      )
+      const later41 = anthropicRequest({
+        system: 'Stay brief.',
+        history: [...hist41, row('assistant', [{ type: 'text', text: 'You are welcome.', citations: null }], 'You are welcome.'), row('user', [{ type: 'text', text: 'More' }], 'More')],
+        settings: claude41
+      })
+      check(
+        'a later Claude request starts with the earlier one byte for byte',
+        JSON.stringify(later41.body.messages).startsWith(JSON.stringify(req41.body.messages).slice(0, -1)) &&
+          JSON.stringify(later41.body.tools) === JSON.stringify(req41.body.tools) &&
+          JSON.stringify(later41.body.system) === JSON.stringify(req41.body.system)
+      )
+      const off41 = anthropicRequest({ system: '', history: hist41, settings: { ...claude41, webSearch: false, webFetch: false } })
+      const offReply41 = (off41.body.messages as { content: Record<string, unknown>[] }[])[1]?.content ?? []
+      check(
+        'with the web tools off, their calls and citations are left out',
+        !('tools' in off41.body) && offReply41.map((b) => b.type).join() === 'text,text,text,text' && offReply41.every((b) => !('citations' in b) || b.citations === null),
+        offReply41
+      )
+      const searchOnly41 = anthropicRequest({ system: '', history: hist41, settings: { ...claude41, webFetch: false } })
+      check(
+        'with only search on, the page read is left out and the search kept',
+        (searchOnly41.body.messages as { content: { type: string }[] }[])[1]?.content.map((b) => b.type).join() === 'text,server_tool_use,web_search_tool_result,text,text,text'
+      )
+      const paused41 = toMessages(
+        [row('user', [{ type: 'text', text: 'Go' }]), row('assistant', [{ type: 'text', text: 'Looking.' }, { type: 'server_tool_use', id: 'srvtoolu_3', name: 'web_search', input: { query: 'tides' } }])],
+        new Set(['web_search'])
+      )
+      check('a search left without its result is not replayed', paused41[1]?.content.map((b) => b.type).join() === 'text', paused41[1]?.content)
+      const activity41 = webActivityOf(webReply41)
+      check(
+        'the reply lists its search, its page read and its cited source',
+        activity41?.steps.map((s) => `${s.kind}:${s.query}:${s.sources.length}`).join() === 'search:lighthouse keepers:2,fetch:https://www.example.org/log:1' &&
+          activity41.steps[1].sources[0].title === 'The keeper log' &&
+          activity41.cited.map((c) => c.url).join() === 'https://example.com/keepers',
+        activity41
+      )
+      const usage41: Usage = { input: 1000, output: 100, cacheRead: 0, cacheWrite: 0, ms: 1 }
+      check(
+        'each Claude web search adds a cent to the price',
+        Math.abs((costOf('claude-opus-5-5', { ...usage41, webSearches: 3 }, false) ?? 0) - ((costOf('claude-opus-5-5', usage41, false) ?? 0) + 0.03)) < 1e-9
+      )
+
+      // OpenRouter: search through its web plugin; fetch isn't offered. Other servers get neither.
+      const openRouter41 = { id: 'or', kind: 'openai' as const, name: 'OpenRouter', baseUrl: 'https://openrouter.ai/api/v1', enabled: true }
+      check('OpenRouter gets its web plugin when search is on', JSON.stringify(openRouterPlugins(openRouter41.baseUrl, { webSearch: true })) === JSON.stringify([{ id: 'web', max_results: 5 }]))
+      check('no plugin when search is off or on a local server', openRouterPlugins(openRouter41.baseUrl, { webSearch: false }) === null && openRouterPlugins('http://127.0.0.1:1234/v1', { webSearch: true }) === null)
+      const support41 = [webSupport({ id: 'anthropic', kind: 'anthropic', name: 'Anthropic', enabled: true }), webSupport(openRouter41), webSupport({ id: 'l', kind: 'openai', name: 'Local', baseUrl: 'http://localhost:11434/v1', enabled: true })]
+      check(
+        'web tools are offered with Claude, search only through OpenRouter, neither on local servers',
+        support41[0].search === null && support41[0].fetch === null && support41[1].search === null && !!support41[1].fetch && /local servers/.test(support41[2].search ?? '') && !!support41[2].fetch,
+        support41
+      )
+      // Sources an OpenAI-compatible server cites (url_citation annotations) show, and aren't replayed.
+      const c40o = chat.create().id
+      chat.updateSettings(c40o, { providerId: 'mock', modelId: 'mock-a', choiceCards: false })
+      chat.send(contents, c40o, 'WEBCITE lamps')
+      await idle(c40o)
+      const cited41 = chat.view(c40o).path[1]
+      chat.send(contents, c40o, 'Go on')
+      await idle(c40o)
+      const replayed41 = log.at(-1)?.messages.filter((m) => m.role === 'assistant').at(-1)
+      check('cited sources from annotations are listed with the reply', cited41?.web?.cited.map((s) => s.url).join() === 'https://example.com/lamps' && cited41.web.steps.length === 1, cited41?.web)
+      check('the sources are not sent back to the model', replayed41?.content === cited41?.text, replayed41)
+
+      // The interface: the time on the message, the Tools rows on a local server, and a reply
+      // that searched and read, with its sources as links.
+      const c40w = chat.create().id
+      const root41 = db.getConversation(c40w).root_id
+      const user41 = db.insertNode({ id: randomUUID(), conversation_id: c40w, parent_id: root41, role: 'user', text: 'Who lit the lamps?', content: hist41[0].content, thinking: null, model: null, provider_id: null, usage: null, status: 'done', error: null })
+      db.insertNode({ id: randomUUID(), conversation_id: c40w, parent_id: user41.id, role: 'assistant', text: replyText(webReply41), content: JSON.stringify(webReply41), thinking: null, model: 'claude-opus-5-5', provider_id: 'anthropic', usage: JSON.stringify({ ...usage41, webSearches: 1 }), status: 'done', error: null })
+      db.updateConversation(c40w, { started: 1, title: 'Keepers on the web' })
+      await reloadUi()
+      const toolsUi41 = await js<{
+        chip: string | null
+        chipTitle: string | null
+        rows: { tool: string; disabled: boolean; inputDisabled: boolean; checked: boolean; note: string }[]
+        badge: string | null
+        steps: string[]
+        links: string[]
+        sources: string[]
+        body: string
+      }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="chat"]')?.click()
+        await wait(200)
+        const open = async (title, text) => {
+          ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === title)?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.tw-msg-user')?.textContent.includes(text); ) await wait(50)
+          await wait(200)
+        }
+        await open('What day is it?', 'What day is it?')
+        const chip = document.querySelector('.msg-user-row .instruction-chip')
+        const out = { chip: chip?.textContent ?? null, chipTitle: chip?.getAttribute('title') ?? null }
+        const toolsBtn = () => [...document.querySelectorAll('.tools-menu button')].find((b) => b.textContent.includes('Tools'))
+        toolsBtn()?.click()
+        await wait(250)
+        const row = (t) => document.querySelector('.tools-row[data-tool="' + t + '"]')
+        out.rows = ['webSearch', 'webFetch', 'dateTime'].map((tool) => ({
+          tool,
+          disabled: !!row(tool)?.classList.contains('disabled'),
+          inputDisabled: !!row(tool)?.querySelector('input')?.disabled,
+          checked: !!row(tool)?.querySelector('input')?.checked,
+          note: row(tool)?.querySelector('.tools-note')?.textContent ?? ''
+        }))
+        out.badge = document.querySelector('.tools-count')?.textContent ?? null
+        toolsBtn()?.click()
+        await wait(150)
+        await open('Keepers on the web', 'Who lit the lamps?')
+        const reply = [...document.querySelectorAll('.tw-msg-ai')].at(-1)
+        reply?.querySelector('.web-step summary')?.click()
+        await wait(150)
+        out.steps = [...(reply?.querySelectorAll('.web-step .web-what') ?? [])].map((e) => e.textContent)
+        out.links = [...(reply?.querySelectorAll('.web-links a, .web-step > .web-what a') ?? [])].map((a) => a.getAttribute('href'))
+        out.sources = [...(reply?.querySelectorAll('.web-sources li a') ?? [])].map((a) => a.getAttribute('href'))
+        out.body = reply?.querySelector('.tw-msg-body')?.textContent ?? ''
+        return out
+      })()`)
+      check('the message shows it carried the date and time', toolsUi41.chip === 'Date and time' && /^Sent /.test(toolsUi41.chipTitle ?? ''), toolsUi41)
+      const rows41 = Object.fromEntries(toolsUi41.rows.map((r) => [r.tool, r]))
+      check(
+        'on a local server the web tools show switched off with the reason',
+        rows41.webSearch?.disabled && rows41.webSearch.inputDisabled && !rows41.webSearch.checked && /Not on local servers/.test(rows41.webSearch.note) && rows41.webFetch?.inputDisabled && !rows41.webFetch.checked,
+        toolsUi41.rows
+      )
+      check('the date and time switch is on and usable there', !!rows41.dateTime && rows41.dateTime.checked && !rows41.dateTime.inputDisabled, rows41.dateTime)
+      check('the Tools badge counts only the tools that are on and usable', toolsUi41.badge === '1', toolsUi41.badge)
+      check('the reply shows what it searched and read', toolsUi41.steps.join('|') === 'Searched: lighthouse keepers|Read: example.org', toolsUi41.steps)
+      check(
+        'search results and the page read are links',
+        toolsUi41.links.join() === 'https://example.com/keepers,https://lamps.example.net/wicks,https://www.example.org/log',
+        toolsUi41.links
+      )
+      check('cited sources are numbered under the reply', toolsUi41.sources.join() === 'https://example.com/keepers' && toolsUi41.body.includes('Keepers trimmed the wicks at dusk.'), toolsUi41)
+      await shot('e2e-web-tools.png')
+      const toolsBtn41 = `;[...document.querySelectorAll('.tools-menu button')].find((b) => b.textContent.includes('Tools'))?.click()`
+      await js(`(async () => {
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'What day is it?')?.click()
+        await new Promise((r) => setTimeout(r, 500))
+        ${toolsBtn41}
+        await new Promise((r) => setTimeout(r, 250))
+      })()`)
+      await shot('e2e-web-tools-menu.png')
+      await js(toolsBtn41)
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
