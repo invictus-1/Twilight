@@ -3418,6 +3418,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const opened42 = await untilUi(`document.querySelector('.code-view .code-folder')?.textContent === 'code-project'`)
       const listed42 = await js<string[]>(`[...document.querySelectorAll('.code-session-item .tw-conv-title')].map((e) => e.textContent)`)
       check('the Code tab opens the session in its folder', opened42 && listed42.includes('code-project'), listed42)
+      const meta42 = await js<string>(`document.querySelector('.code-session-item .tw-conv-meta')?.textContent ?? ''`)
+      check('the session list shows the folder by name, not its whole path', meta42.startsWith('code-project ·'), meta42)
       const before42 = log.length
       win.webContents.focus()
       await js(`document.querySelector('.code-view textarea')?.focus()`)

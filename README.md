@@ -14,7 +14,7 @@ Claude and any OpenAI-compatible model (OpenRouter, LM Studio, Ollama, llama.cpp
 
 ![A chat in Twilight: a scene, a logbook block, and a choice card with two decisions](docs/screenshots/chat.png)
 
-Chats that run to hundreds of thousands of tokens without slowing down or losing the prompt cache. Two models side by side. A manuscript editor with AI tools that show their edits as a diff. A judge that scores passages blind. Your writing habits as numbers. All of it on your own computer, with your own keys.
+Chats that run to hundreds of thousands of tokens without slowing down or losing the prompt cache. Two models side by side. A manuscript editor with AI tools that show their edits as a diff, and a library that finds the right passage in everything you've written. A coding agent that asks before it changes anything. A judge that scores passages blind. Your writing habits as numbers. All of it on your own computer, with your own keys, and the window is up in under 300 ms.
 
 ## Before you download: this is a personal project
 
@@ -66,6 +66,25 @@ Clone a chat into two panes and send to A, B or both, each with its own model an
 - **Personas:** saved system prompts with a model and choice setting. Start a chat from one, or apply one mid-chat.
 - **Prompts:** the messages you send often, one click away, with a fill-in for the part that changes.
 - **Tools, per chat:** web search and web fetch (Claude's own, or OpenRouter's web plugin), with the sources listed under the reply; and the date and time, sent with each message without touching the cache.
+- **MCP servers:** add any MCP server, a program on your computer or one at an address, and switch it on per chat. Each tool call waits in the reply for **Allow once**, **Always allow** or **Decline**, unless you trust that server, and the reply lists every tool it used with what went in and what came back.
+- **Pictures:** let the model make an image when you ask, from an image model you choose (OpenAI's, or one on OpenRouter); chatting with an image model like Nano Banana shows its pictures right in the reply.
+
+### Your own library
+
+![The document library: a search over a manuscript finds the passages about who lights the lamps, each with its file and line](docs/screenshots/library.png)
+
+Point Twilight at the folders you write in, and with **Document library** on, each message brings the passages from them that bear on it, with a chip saying where they came from. It searches a full-text index on your computer, fast even on very large collections, and an embedding model (on Ollama, say) adds search by meaning. Models that can use tools search it themselves mid-reply when the first passages aren't enough.
+
+### Code: an agent that asks first
+
+![The Code tab: a fix to a demo project, with the edit shown as a diff, the test run, and the agent's task list](docs/screenshots/code.png)
+
+Open a project folder and give the agent a task: it lists, reads and searches files, edits them, runs commands, and asks you when it's unsure. It's built so nothing gets lost:
+
+- **Every edit is shown as a diff and waits for you,** unless you let edits through for a session. Commands always ask, and ones that could delete or overwrite things are flagged and can never be allowed for good.
+- **Plan mode** has it look around and write a plan first; nothing changes until you press **Run this plan**.
+- **Every change is snapshotted.** Undo puts back the last one, Undo all every one, and **Rewind to here** goes back to before any of your messages. Deleted files go to the Recycle Bin, and the agent can't reach outside its folder or touch `.git`.
+- It keeps a task list you can follow, reads your project's `AGENTS.md`, `CLAUDE.md` or `TWILIGHT.md`, and can search the web with Claude.
 
 ### The Judge
 
@@ -77,7 +96,7 @@ Passages are scored blind by a judge model you choose, against a rubric, criteri
 
 ![The writing editor: a Tighten suggestion shown as an in-place diff, with Accept and Reject](docs/screenshots/writing.png)
 
-Markdown documents in any folder you choose (an Obsidian vault works as is). A 100k-word manuscript opens in a blink. Select a passage and **Ask**, **Rewrite**, **Tighten**, **Expand** or change its **Tone**; the suggestion appears as an in-place diff to accept or reject, and every accepted edit can be reverted. Rename, move and organise documents and folders from the sidebar.
+Markdown documents in any folder you choose (an Obsidian vault works as is). A 100k-word manuscript opens in a blink. Select a passage and **Ask**, **Rewrite**, **Tighten**, **Expand** or change its **Tone**; the suggestion appears as an in-place diff to accept or reject, and every accepted edit can be reverted. Rename, move and organise documents and folders from the sidebar. Spelling is checked as you type, offline, with Windows' own dictionaries.
 
 ### Writer insights
 
@@ -87,9 +106,9 @@ Your writing folder, seen as numbers: words written today, this week and this ye
 
 ### Make it yours
 
-![Six of Twilight's themes side by side: Twilight, Ultraviolet, Synthwave, Aurora, Campfire and Phosphor](docs/screenshots/themes.png)
+![Six of Twilight's themes side by side: Twilight, Ultraviolet, Synthwave, Aurora, Campfire and the light Moonlit Paper](docs/screenshots/themes.png)
 
-Ten themes, from the default dusk to Synthwave, Aurora, Campfire, Phosphor and a high-contrast one, or **build your own** from a ground colour and three accents (every colour is kept readable). Put a picture of your own or a gradient behind the whole window. Pages fade in, messages ease in, and the window opens on a moment of evening glow, or turn the motion down or off.
+Eleven themes, from the default dusk to Synthwave, Aurora, Campfire, a high-contrast one and **Moonlit Paper**, a light theme of warm paper and dark ink, or **build your own** from a ground colour and three accents (every colour is kept readable). Put a picture of your own or a gradient behind the whole window, framed how you like. Drag the sections on the left into your own order. Pages fade in, messages ease in, and the window opens on a moment of evening glow, or turn the motion down or off. And for fun, **Extras** has particles that follow your scrolling: stardust, sparks, fireflies, snow, constellations or bats.
 
 ### Your models, your keys, your spend
 
@@ -100,7 +119,18 @@ Ten themes, from the default dusk to Synthwave, Aurora, Campfire, Phosphor and a
 - **Usage:** tokens and spend by day, by model and by chat, priced with your own price list where you want one, and OpenRouter's own figure where it reports it.
 - Keys are encrypted with Windows' own credential protection and only ever sent to their provider.
 
+### Your data, kept safe
+
+- **Backups:** everything (chats, settings, keys, pictures, your theme) backed up as a plain folder, whenever you like and automatically each day or week. Restore any of them in a click; what's there is backed up first.
+- **Keep it where you want:** move Twilight's data to another drive or a synced folder. It's copied and checked before it's used, and the old copy stays until you remove it.
+
+### Fast, and measured
+
+The window is up in about 270 ms and a 115k-word manuscript opens in about 35 ms; scrolling holds the display's own rate on a 350k-token chat. Every speed claim here comes from `scripts/bench.cjs`, which times the real app on a lived-in profile; the numbers from 0.9 to 1.0 are in [bench/README.md](bench/README.md).
+
 ### Updates you control
+
+![The Roadmap: where Twilight is headed, with every release on the way to 1.0 beside it](docs/screenshots/roadmap.png)
 
 Twilight checks this repository's releases once a day (you can turn that off) and updates in one click, quietly. Any of the last three versions is a click away if an update doesn't suit you, and your database is backed up before every switch. Settings → Roadmap shows what has shipped and what's next.
 
@@ -108,7 +138,8 @@ Twilight checks this repository's releases once a day (you can turn that off) an
 
 - The interface never touches the network. Fonts are bundled, and web requests from the window are blocked.
 - Your chats, documents, settings and background picture stay on your computer.
-- Model requests go only to the providers you set up. Web search, when you switch it on, runs on your provider's side.
+- Model requests go only to the providers you set up. Web search, when you switch it on, runs on your provider's side. MCP servers, image models and embedding models are reached only once you add them.
+- The document library's index and the Code tab's snapshots stay in Twilight's data folder.
 - The once-a-day update check (which you can turn off) is the only request Twilight makes on its own.
 
 ## Download
@@ -138,7 +169,7 @@ npm run typecheck
 
 ### How it's built
 
-- `src/main` — the Electron main process. Owns the SQLite database (`db.ts`), API keys (`secrets.ts`, encrypted with Windows DPAPI via `safeStorage`), providers (`providers/`) and the chat engine (`chat.ts`). All network traffic to models happens here.
+- `src/main` — the Electron main process. Owns the SQLite database (`db.ts`), API keys (`secrets.ts`, encrypted with Windows DPAPI via `safeStorage`), providers (`providers/`), the chat engine (`chat.ts`), the Code tab's agent (`code/`), the MCP client (`mcp/`), the document library (`docLibrary.ts`, SQLite FTS5 plus optional embeddings) and backups (`backups.ts`, `location.ts`). All network traffic to models happens here.
 - `src/preload` — the typed bridge (`window.twilight`) between the interface and the main process.
 - `src/renderer` — the React interface. It never touches the network: every web request from it is blocked.
 - `src/shared` — types and logic shared by both sides.
@@ -154,12 +185,14 @@ Caching is a prefix match, so requests are built to be the previous request plus
 
 - The system prompt carries its own cache breakpoint; Claude's replies (thinking and web-search blocks included) are stored exactly as the API returned them and replayed unchanged.
 - A top-level `cache_control` moves the second breakpoint to the end of the conversation. Cache lifetime defaults to 1 hour.
-- Anything that changes over time (an instruction change, the date and time, an attached file) goes into the newest message, never into the prefix.
+- Anything that changes over time (an instruction change, the date and time, an attached file, library passages) goes into the newest message, never into the prefix.
+- Tools Twilight runs itself (MCP, pictures, the library search) are rounds stored inside the one reply and replayed exactly, so a reply that used tools reads from the cache like any other.
 
 #### Tests
 
 After `npm run build`, each runs the real app in a throwaway profile and never touches your data:
 
-- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server and drives the app through every feature, writing `e2e.json` (390+ checks) and screenshots.
+- `TWILIGHT_E2E=<folder> npx electron .` starts a fake OpenAI-compatible model server (plus fake MCP and embedding servers) and drives the app through every feature, writing `e2e.json` (550 checks) and screenshots.
+- `node scripts/bench.cjs <label>` times startup, opening screens, memory and scrolling on the packaged app.
 - `TWILIGHT_SELFTEST=<folder> npx electron .` scrolls a ~350k-token chat one step per frame and writes frame timings.
 - `TWILIGHT_SHOWCASE=<folder> npx electron .` fills a profile with an invented story and captures the screenshots in `docs/screenshots/`.

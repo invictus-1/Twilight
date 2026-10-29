@@ -1456,3 +1456,5 @@ input[type='checkbox']:not(.switch input):focus-visible { outline: none; box-sha
 input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: default; }
 /* Buttons beside a field are as tall as it. */
 .field-inline > .tw-btn-sm, .choice-own .tw-btn, .library-try .tw-btn, .code-answer .tw-btn, .mcp-form-actions .tw-btn { height: var(--control-md); }
+/* The models count and "N in the picker" stay on one line. */
+.models-head .provider-section-title, .models-head .provider-section-title .field-note { white-space: nowrap; }

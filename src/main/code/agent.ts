@@ -333,6 +333,15 @@ export async function rewind(id: string, entryIndex: number): Promise<{ view: Co
   return { view: view(s), text: entry.text }
 }
 
+/** Fills a session's transcript and task list (the README screenshots' demo work, never a real session). */
+export function showcaseSession(id: string, patch: { title: string; entries: CodeEntry[]; tasks: CodeTask[] }): CodeSessionView {
+  const s = load(id)
+  Object.assign(s, patch)
+  push(s)
+  emit({ kind: 'list' })
+  return view(s)
+}
+
 /** Your message; starts the agent if it isn't already working. */
 export function send(id: string, text: string): CodeSessionView {
   const s = load(id)

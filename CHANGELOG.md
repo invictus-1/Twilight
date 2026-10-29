@@ -14,7 +14,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 - **Checkboxes and dropdowns look like Twilight's own:** an outlined box when off and a filled tick when on, instead of a flat grey tile; dropdowns draw the app's chevron. Each MCP server has the same on/off switch as a provider.
 - **Split view:** the footer under a reply wraps in a half-width pane instead of running off the edge.
 - **The Code header:** the folder, the instructions file and the Web switch are matching chips, the model picker is a pill, and on a narrower window the least needed pieces give way first.
-- **Smaller things:** a prompt inserted after your words keeps a space between them; hints no longer cover an open Tools or Prompts menu; the empty chat's evening fades into the message box instead of ending in a hard edge; theme cards fill the width; buttons beside a field match its height; diffs have even padding.
+- **Smaller things:** the Code session list shows each project folder by name instead of its whole path; a prompt inserted after your words keeps a space between them; hints no longer cover an open Tools or Prompts menu; the empty chat's evening fades into the message box instead of ending in a hard edge; theme cards fill the width; buttons beside a field match its height; diffs have even padding.
 
 
 ## 0.9.0

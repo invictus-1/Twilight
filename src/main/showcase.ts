@@ -12,6 +12,9 @@ import * as judge from './judge'
 import * as providers from './providers'
 import * as updates from './updates'
 import * as workspaces from './workspaces'
+import * as code from './code/agent'
+import { reindex as reindexLibrary, setLibrarySettings } from './docLibrary'
+import { lineDiff } from '@shared/code'
 
 // Screenshots for the releases page, run with TWILIGHT_SHOWCASE=<output folder> (a throwaway
 // profile, like the self-test). Everything shown is made up here: a short original story, a
@@ -432,8 +435,12 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
         [...document.querySelectorAll('.provider-item')].find((r) => r.textContent.includes('demo'))?.click()`)
       await shot('providers')
 
+      const size = win.getSize()
+      win.setSize(1800, size[1])
       await js(`[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Roadmap'))?.click(); await wait(1600)`)
       await shot('roadmap')
+      win.setSize(size[0], size[1])
+      await wait(300)
 
       await js(`[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Updates'))?.click()`)
       await shot('updates')
@@ -468,11 +475,64 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
         [...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Usage'))?.click(); await wait(700)`)
       await shot('usage')
 
+      // The document library over the demo manuscript, with a search tried.
+      setLibrarySettings({ folders: [join(app.getPath('userData'), 'vault')] })
+      await reindexLibrary()
+      await js(`[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Writing'))?.click(); await wait(500);
+        const input = document.querySelector('.library-try input');
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'who lights the lamps on the bridge');
+        input.dispatchEvent(new Event('input', { bubbles: true })); await wait(100);
+        document.querySelector('.library-try button').click(); await wait(500);
+        // The demo folder sits in the throwaway profile; the picture shows a tidy place for it.
+        document.querySelectorAll('.library-folder .folder-path').forEach((e) => (e.textContent = 'Documents\\\\Writing'));
+        document.querySelector('.library-card')?.scrollIntoView({ block: 'start' })`)
+      await shot('library')
+
+      // The Code tab: a small fix in a demo project, as the agent left it.
+      const project = join(app.getPath('userData'), 'lighthouse-log')
+      mkdirSync(project, { recursive: true })
+      const before = "import { lamps } from './lamps'\n\nexport function logEntry(night: string): string {\n  return `${night}: lit eight lamps on the bridge`\n}\n"
+      const after = "import { lamps } from './lamps'\n\nexport function logEntry(night: string): string {\n  return `${night}: lit ${lamps.length} lamps on the bridge`\n}\n"
+      writeFileSync(join(project, 'log.ts'), after)
+      writeFileSync(join(project, 'lamps.ts'), "export const lamps = ['quay', 'quay', 'quay', 'bridge', 'bridge', 'bridge', 'hill', 'hill', 'hill']\n")
+      writeFileSync(join(project, 'AGENTS.md'), 'Keep changes small. Run npm test after each one.\n')
+      const session = (await code.newSession(null, project))!
+      code.showcaseSession(session.id, {
+        title: 'The log says eight lamps; there are nine',
+        tasks: [
+          { title: 'Find where the log gets its count', status: 'done' },
+          { title: 'Read the count from lamps.ts', status: 'done' },
+          { title: 'Run the tests', status: 'done' }
+        ],
+        entries: [
+          { kind: 'user', text: 'The bridge has nine lamps but the nightly log says eight. Fix it so the log always matches the lamp list.' },
+          { kind: 'assistant', text: "I'll find where the log writes its count first." },
+          { kind: 'tool', id: 't1', tool: 'search_files', title: 'Searched for "eight"', status: 'done', output: 'log.ts:4:  return `${night}: lit eight lamps on the bridge`' },
+          { kind: 'tool', id: 't2', tool: 'read_file', title: 'Read lamps.ts', status: 'done' },
+          { kind: 'tool', id: 't3', tool: 'edit_file', title: 'Edited log.ts', status: 'done', diff: lineDiff(before, after), snapshot: 1 },
+          { kind: 'tool', id: 't4', tool: 'run_command', title: 'Ran npm test', status: 'done', output: ' ✓ logEntry counts every lamp (3 ms)\n\n Tests  1 passed' },
+          {
+            kind: 'assistant',
+            text: 'Done. The log hard-coded **eight**; it now counts `lamps` from `lamps.ts`, so adding a lamp updates the log too. The test passes. Undo puts `log.ts` back if you\'d rather keep it as it was.'
+          }
+        ]
+      })
+      await js(`document.querySelector('.rail-item[data-mode="code"]').click(); await wait(600);
+        document.querySelector('.code-tool[data-tool="edit_file"] .code-tool-head')?.click(); await wait(300)`)
+      await shot('code')
+
+      // The light theme, Moonlit Paper, on the lighthouse chat.
+      await js(`document.querySelector('[data-mode="chat"]').click(); await wait(300);
+        [...document.querySelectorAll('.tw-conv')].find((r) => r.textContent.includes('The lighthouse at Gull Point'))?.click(); await wait(500);
+        document.documentElement.dataset.theme = 'moonlit'; await wait(400)`)
+      await shot('moonlit')
+      await js(`delete document.documentElement.dataset.theme; await wait(200)`)
+
       // The themes: the lighthouse chat in six of them, set side by side as one picture.
       await js(`document.querySelector('[data-mode="chat"]').click(); await wait(300);
         [...document.querySelectorAll('.tw-conv')].find((r) => r.textContent.includes('The lighthouse at Gull Point'))?.click(); await wait(500)`)
       const tiles: { name: string; src: string }[] = []
-      for (const [theme, name] of [['twilight', 'Twilight'], ['ultraviolet', 'Ultraviolet'], ['synthwave', 'Synthwave'], ['aurora', 'Aurora'], ['campfire', 'Campfire'], ['phosphor', 'Phosphor']]) {
+      for (const [theme, name] of [['twilight', 'Twilight'], ['ultraviolet', 'Ultraviolet'], ['synthwave', 'Synthwave'], ['aurora', 'Aurora'], ['campfire', 'Campfire'], ['moonlit', 'Moonlit Paper']]) {
         await js(`${theme === 'twilight' ? 'delete document.documentElement.dataset.theme' : `document.documentElement.dataset.theme = '${theme}'`}; await wait(350)`)
         tiles.push({ name, src: (await win.webContents.capturePage()).resize({ width: 960 }).toDataURL() })
       }
@@ -481,7 +541,7 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
       await js(`const page = document.createElement('div'); page.id = 'showcase-grid';
         page.style.cssText = 'position:fixed;inset:0;z-index:999;display:flex;flex-direction:column;justify-content:center;gap:28px;padding:0 44px;background:radial-gradient(120% 80% at 50% 120%, #3a2245, #05060f 70%)';
         const head = document.createElement('div');
-        head.textContent = 'Ten themes, or your own';
+        head.textContent = 'Eleven themes, light and dark, or your own';
         head.style.cssText = 'text-align:center;font-family:var(--font-serif);font-size:40px;font-weight:600;color:#eceefe;letter-spacing:-.02em';
         page.appendChild(head);
         const grid = document.createElement('div');

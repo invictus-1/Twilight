@@ -632,7 +632,7 @@ function CodeList() {
         >
           <span className="tw-conv-title">{c.title}</span>
           <span className="tw-conv-meta">
-            {c.waiting ? 'Waiting for you' : c.running ? 'Working…' : c.folder.split(/[\/]/).pop()} · {relativeTime(c.updatedAt)}
+            {c.waiting ? 'Waiting for you' : c.running ? 'Working…' : c.folder.split(/[\\/]/).pop()} · {relativeTime(c.updatedAt)}
           </span>
           <CodeSessionActions id={c.id} title={c.title} />
         </div>
