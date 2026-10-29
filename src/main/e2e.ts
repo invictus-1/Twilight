@@ -47,6 +47,7 @@ import { usageStats } from './usage'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { placement } from './windowState'
+import { modelKey, pickModelDefaults } from '@shared/modelDefaults'
 
 // Dev-only end-to-end check, run with TWILIGHT_E2E=<output folder> (and a throwaway profile, see
 // selftest.ts). Starts a fake OpenAI-compatible model server in-process, then drives a chat,
@@ -847,6 +848,40 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         wsChat.settings.systemPrompt
       )
       check('workspace model applied', wsChat.settings.modelId === 'mock-b')
+      // An untouched chat reused for a new chat in a workspace takes the workspace's system prompt
+      // (it once was only moved there, and kept an empty one).
+      await reloadUi()
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'N', modifiers: ['control'] })
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'N', modifiers: ['control'] })
+      await new Promise((r) => setTimeout(r, 400))
+      const wsReuse = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[aria-label="New chat in RPG Maker"]')?.click()
+        await wait(400)
+        ;[...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings'))?.click()
+        await wait(250)
+        const prompt = document.querySelector('.settings-panel .field textarea')?.value ?? null
+        document.querySelector('.settings-panel .panel-head [aria-label="Close"]')?.click()
+        await wait(100)
+        return prompt
+      })()`)
+      check('a new chat in a workspace has its system prompt, even when an empty chat is reused', wsReuse === wsChat.settings.systemPrompt, wsReuse)
+
+      // A model's own defaults: picked mid-chat or starting a chat, it brings them, but never a system prompt.
+      db.kvSet('modelDefaults', { [modelKey('mock', 'mock-b')]: pickModelDefaults({ temperature: 0.7, maxTokens: 2048, systemPrompt: 'Not this.' }) })
+      const md = chat.create(null)
+      const mdPrompt = md.settings.systemPrompt
+      const switched = chat.updateSettings(md.id, { modelId: 'mock-b' }).settings
+      const explicit = chat.updateSettings(md.id, { modelId: 'mock-a' }).settings
+      const mdAgain = chat.updateSettings(md.id, { modelId: 'mock-b', temperature: 0.3 }).settings
+      const started = chat.create(rpg.id).settings
+      db.kvSet('modelDefaults', {})
+      check(
+        "picking a model brings its own defaults, and keeps the chat's system prompt",
+        switched.temperature === 0.7 && switched.maxTokens === 2048 && switched.systemPrompt === mdPrompt && explicit.modelId === 'mock-a',
+        { switched: [switched.temperature, switched.maxTokens, switched.systemPrompt] }
+      )
+      check("settings chosen with the model win over its defaults, and new chats start with them", mdAgain.temperature === 0.3 && started.modelId === 'mock-b' && started.temperature === 0.7, { again: mdAgain.temperature, started: [started.modelId, started.temperature] })
 
       // 17. Request options land in the provider's own format.
       chat.updateSettings(c2, { effort: 'high', temperature: 0.4, maxTokens: 1000, extraParams: '{"top_k": 40, "min_p": 0.05}' })

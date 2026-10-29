@@ -1,6 +1,7 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
 import type { Attachment, ChatSettings, ConversationView, DeletionView, Pane, SendTarget, StreamEvent } from '@shared/types'
+import { modelKey, pickModelDefaults, type ModelDefaults } from '@shared/modelDefaults'
 import * as db from './db'
 import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { appendLog } from './logs'
@@ -137,6 +138,11 @@ export function view(id: string): ConversationView {
   }
 }
 
+/** The settings a model starts with whenever it's picked (Model settings → Save as this model's defaults). */
+function modelDefaultsFor(providerId: string, modelId: string): Partial<ChatSettings> {
+  return pickModelDefaults(db.kvGet<ModelDefaults>('modelDefaults')?.[modelKey(providerId, modelId)] ?? {})
+}
+
 /**
  * A new chat takes the defaults, overlaid with its workspace's system prompt and model, then with
  * the persona's when one is given. A persona's prompt stands in for the workspace's own, under
@@ -164,6 +170,7 @@ export function create(folderId: string | null = null, personaId: string | null 
     }
     if (persona.choiceCards) settings.choiceCards = true
   }
+  Object.assign(settings, modelDefaultsFor(settings.providerId, settings.modelId))
   // An untouched chat is set up afresh rather than leaving an empty one behind.
   const reuse = reuseId ? db.listConversations().find((c) => c.id === reuseId) : undefined
   if (reuse && !reuse.started && !reuse.split && db.loadNodes(reuse.id).size <= 1) {
@@ -183,6 +190,11 @@ export function updateSettings(id: string, patch: Partial<ChatSettings>, pane: P
   const split = splitOf(conv)
   // Once the chat has started, a replaced system prompt is kept (the last 20), with when it changed.
   const before = pane === 'b' && split ? split.settings : settingsFor(conv, 'a')
+  // Picking another model brings that model's own defaults; anything set in the same change wins.
+  // A different model starts its own prompt cache anyway, so these never cost a cached one.
+  const providerId = patch.providerId ?? before.providerId
+  const modelId = patch.modelId ?? before.modelId
+  if (providerId !== before.providerId || modelId !== before.modelId) patch = { ...modelDefaultsFor(providerId, modelId), ...patch }
   if (conv.started && patch.systemPrompt !== undefined && patch.systemPrompt !== before.systemPrompt && before.systemPrompt.trim()) {
     patch = { ...patch, promptHistory: [...(before.promptHistory ?? []), { text: before.systemPrompt, until: Date.now() }].slice(-20) }
   }

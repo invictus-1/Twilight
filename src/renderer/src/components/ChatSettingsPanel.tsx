@@ -3,6 +3,7 @@ import type { CacheTtl, ChatSettings, Pane, SettingsPreset } from '@shared/types
 import type { Persona } from '@shared/library'
 import { useLibrary } from '../libraryStore'
 import { modelName, optionsFor, paneOf, useStore } from '../store'
+import { modelKey, pickModelDefaults, type ModelDefaults } from '@shared/modelDefaults'
 import { CloseIcon, PinIcon, TrashIcon } from './Icons'
 
 /** Settings a preset carries (everything about how the model is asked, not which chat). */
@@ -175,9 +176,12 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
     }
   })()
 
+  const [modelDefaults, setModelDefaults] = useState<ModelDefaults>({})
   useEffect(() => {
     void window.twilight.listPresets().then(setPresets)
+    void window.twilight.listModelDefaults().then(setModelDefaults)
   }, [])
+  const hasModelDefaults = !!modelDefaults[modelKey(settings.providerId, settings.modelId)]
   useEffect(() => setExtra(settings.extraParams), [settings.extraParams, shown])
 
   // A click anywhere outside closes the panel, unless it's pinned open (remembered). The header's
@@ -278,6 +282,26 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
             <TrashIcon size={14} />
           </button>
         )}
+      </div>
+
+      <div className="model-defaults-row">
+        <button
+          className="tw-btn tw-btn-sm"
+          title="Effort, thinking, temperature, max output tokens and extra request JSON. The system prompt stays with the chat."
+          onClick={async () => setModelDefaults(await window.twilight.setModelDefaults(settings.providerId, settings.modelId, pickModelDefaults(settings)))}
+        >
+          {hasModelDefaults ? "Update this model's defaults" : "Save as this model's defaults"}
+        </button>
+        {hasModelDefaults && (
+          <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={async () => setModelDefaults(await window.twilight.setModelDefaults(settings.providerId, settings.modelId, null))}>
+            Clear
+          </button>
+        )}
+        <span className="field-note">
+          {hasModelDefaults
+            ? `${modelName(models, settings.modelId)} starts with its saved settings whenever it's picked.`
+            : `Whenever ${modelName(models, settings.modelId)} is picked, it starts with these settings. The system prompt stays with the chat.`}
+        </span>
       </div>
 
       <PersonaRow settings={settings} started={current.started} split={!!current.split} apply={applyPersona} />

@@ -505,6 +505,10 @@ export interface TwilightApi {
   listPresets(): Promise<SettingsPreset[]>
   savePreset(preset: SettingsPreset): Promise<SettingsPreset[]>
   deletePreset(name: string): Promise<SettingsPreset[]>
+  /** Each model's own defaults (see shared/modelDefaults.ts). */
+  listModelDefaults(): Promise<Record<string, Partial<ChatSettings>>>
+  /** Saves a model's defaults, or clears them with null. */
+  setModelDefaults(providerId: string, modelId: string, settings: Partial<ChatSettings> | null): Promise<Record<string, Partial<ChatSettings>>>
   regenerate(id: string, assistantNodeId: string, pane?: Pane): Promise<ConversationView>
   /** Deletes a message ("single": its replies move up to take its place) or it and everything below. */
   deleteMessage(id: string, nodeId: string, kind: 'single' | 'below', pane?: Pane): Promise<ConversationView>

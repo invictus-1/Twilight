@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Each model's own defaults:** in Model settings, Save as this model's defaults keeps its effort, thinking, temperature, max output tokens and extra request JSON. Whenever you pick that model, or a chat starts with it, those settings come with it. The system prompt stays with the chat. Picking a model starts its own prompt cache anyway, so this never costs a cached one.
+- **Fixed: a new chat in a workspace could miss the workspace's system prompt.** When New chat reused an empty chat, it only moved it into the workspace, so the chat kept an empty prompt. It's now set up afresh with the workspace's prompt and model.
 - **A chat begins under the evening sky:** above the first message is half a screen of the sky from the empty chat, so scrolling to the top of a chat brings it back into view. At its foot is the chat's system prompt.
 - **The system prompt, where you can see it:** read, copy or edit it at the top of the chat. Saving a change sends the chat again under the new prompt (the prompt cache restarts), or choose From the next message on to keep the cache.
 - **No lost system prompts:** every prompt a chat replaces is kept under Earlier system prompts, with when it was replaced, to read and copy. Replies written under an earlier prompt say so quietly, and open to show the prompt they were written under.

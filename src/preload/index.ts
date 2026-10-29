@@ -39,6 +39,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'listPresets',
   'savePreset',
   'deletePreset',
+  'listModelDefaults',
+  'setModelDefaults',
   'setFolderCollapsed',
   'deleteFolder',
   'moveConversation',

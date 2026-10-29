@@ -1,5 +1,6 @@
 import { app, clipboard, BrowserWindow, dialog, ipcMain, Menu, screen, session, shell } from 'electron'
 import { placement, trackWindow, type WindowState } from './windowState'
+import { modelKey, pickModelDefaults, type ModelDefaults } from '@shared/modelDefaults'
 import { join } from 'node:path'
 import { appendFileSync } from 'node:fs'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
@@ -11,6 +12,7 @@ import type {
   DocContext,
   Pane,
   SendTarget,
+  ChatSettings,
   SettingsPreset,
   TwilightApi,
   UsageRange,
@@ -283,6 +285,14 @@ function registerIpc(): void {
       return true
     },
     listPresets: () => db.kvGet<SettingsPreset[]>('presets') ?? [],
+    listModelDefaults: () => db.kvGet<ModelDefaults>('modelDefaults') ?? {},
+    setModelDefaults: (_e, providerId: string, modelId: string, settings: Partial<ChatSettings> | null) => {
+      const all = { ...(db.kvGet<ModelDefaults>('modelDefaults') ?? {}) }
+      if (settings) all[modelKey(providerId, modelId)] = pickModelDefaults(settings)
+      else delete all[modelKey(providerId, modelId)]
+      db.kvSet('modelDefaults', all)
+      return all
+    },
     savePreset: (_e, preset: SettingsPreset) => {
       const list = (db.kvGet<SettingsPreset[]>('presets') ?? []).filter((p) => p.name !== preset.name)
       list.push(preset)

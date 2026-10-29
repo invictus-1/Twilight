@@ -107,6 +107,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
 - [x] **Remembers its window** · Core — opens at the size and place you left it, maximized if it was
+- [x] **Each model's own defaults** · Chat — settings a model brings whenever it's picked, apart from presets; the system prompt stays with the chat
 - [x] **The system prompt on show** · Chat — at the top of every chat under the evening sky, editable in place, with every earlier prompt kept and flagged on the replies it wrote
 - [x] **Thoughts** · Chat — every reply's thinking in a folded section, with how long it thought
 - [x] **Chat text size** · Chat — small, medium or large, with medium a step bigger than before

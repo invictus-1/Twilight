@@ -1514,3 +1514,7 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .chat-prompt-old-head { display: flex; align-items: center; justify-content: space-between; font-size: 12px; color: var(--ink-faint); }
 .earlier-prompt { margin-top: -4px; }
 .earlier-prompt[open] { padding: var(--space-2) var(--space-3); border-left: 2px solid var(--line-strong); display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+
+/* Model settings: saving the open settings as the model's own defaults. */
+.model-defaults-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+.model-defaults-row .field-note { flex-basis: 100%; }

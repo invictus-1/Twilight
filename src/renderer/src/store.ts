@@ -214,13 +214,10 @@ export const useStore = create<State>((set, get) => {
 
     async newChat(folderId = null) {
       const current = get().current
-      // Reuse an untouched chat instead of piling up empty ones (moving it if needed).
-      if (current && current.path.length === 0 && !current.split) {
-        await api.moveConversation(current.id, folderId)
-        await get().refreshList()
-        return
-      }
-      const view = await guard(set, () => api.createConversation(folderId))
+      // Reuse an untouched chat instead of piling up empty ones. It's set up afresh for where it
+      // now goes: only moving it once left a workspace's chat without the workspace's system prompt.
+      const untouched = current && current.path.length === 0 && !current.split ? current.id : null
+      const view = await guard(set, () => api.createConversation(folderId, null, untouched))
       if (!view) return
       set({ current: view, deletions: [], undo: appUndo() })
       await get().refreshList()
