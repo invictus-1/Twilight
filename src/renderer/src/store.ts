@@ -40,6 +40,9 @@ interface State {
   defaults: ChatSettings | null
   /** Where the composer sends while split compare is open. */
   target: SendTarget
+  /** Split compare shows the panes' latest replies as a word diff of each other (view only). */
+  splitDiff: boolean
+  setSplitDiff(on: boolean): void
   mode: Mode
   sidebarOpen: boolean
   settingsOpen: boolean
@@ -144,6 +147,7 @@ export const useStore = create<State>((set, get) => {
     providers: [],
     defaults: null,
     target: 'both',
+    splitDiff: false,
     mode: 'chat',
     sidebarOpen: true,
     settingsOpen: false,
@@ -339,6 +343,7 @@ export const useStore = create<State>((set, get) => {
       await get().refreshList()
     },
     setTarget: (target) => set({ target }),
+    setSplitDiff: (splitDiff) => set({ splitDiff }),
     // Switching tabs leaves Settings, so the tab you picked is what you see.
     setMode: (mode) => set({ mode, settingsOpen: false }),
     async setDefaultModel(providerId, modelId) {

@@ -1,6 +1,6 @@
 import { Prec, StateEffect, StateField, type EditorState, type Extension } from '@codemirror/state'
 import { Decoration, type DecorationSet, EditorView, WidgetType, keymap } from '@codemirror/view'
-import { wordDiff } from './diff'
+import { wordDiff } from '@shared/diff'
 
 // A suggestion is a proposed rewrite of one range of the manuscript. While the model streams,
 // the original is dimmed and the new text grows after it; once done it becomes a word diff

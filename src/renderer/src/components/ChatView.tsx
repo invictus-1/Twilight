@@ -7,6 +7,7 @@ import { ChatSettingsPanel } from './ChatSettingsPanel'
 import { Composer } from './Composer'
 import { DeletedPanel } from './DeletedPanel'
 import { SidebarIcon, SlidersIcon, SplitIcon, TrashIcon } from './Icons'
+import { DiffSummary, DiffToggle } from './SplitDiff'
 import { SplitView } from './SplitView'
 import { Thread } from './Thread'
 
@@ -99,6 +100,7 @@ export function ChatView() {
           <SplitIcon />
           {split ? 'Close split' : 'Split'}
         </button>
+        {split && <DiffToggle />}
         {split && <JudgeSplitButton />}
         {deleted > 0 && (
           <button
@@ -125,6 +127,7 @@ export function ChatView() {
           two siblings sharing a key leave stale panels behind when one closes. */}
       {panel === 'settings' && current && <ChatSettingsPanel key={`settings:${current.id}`} onClose={() => setPanel(null)} />}
       {panel === 'deleted' && current && <DeletedPanel key={`deleted:${current.id}`} onClose={() => setPanel(null)} />}
+      {split && <DiffSummary key={`diff:${current.id}`} />}
       {split ? (
         <SplitView key={current.id} />
       ) : empty ? (

@@ -228,6 +228,23 @@ h1, h2, h3 { margin: 0; }
 .tw-pane .thread { max-width: none; padding: var(--space-4); }
 .tw-pane-foot { flex: none; padding: var(--space-2) var(--space-4); border-top: 1px solid var(--line); font-size: 12px; line-height: 16px; color: var(--ink-faint); display: flex; gap: var(--space-3); font-variant-numeric: tabular-nums; }
 .pane-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 13px; }
+/* Split differences: what's only in a pane is marked in that pane's colour, underlined as well so it never rests on colour alone. */
+.diff-toggle[aria-pressed='true'] { background: var(--iris-soft); color: var(--ink); }
+.split-diff-bar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); padding: var(--space-2) var(--space-4); background: var(--night); font-size: 12px; line-height: 16px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+.split-diff-bar .diff-count { color: var(--ink); font-weight: 500; }
+.diff-key { display: inline-flex; align-items: center; gap: 6px; }
+.diff-key::before { content: ''; width: 10px; height: 10px; border-radius: var(--radius-xs); }
+.diff-key-a::before { background: var(--pane-a); }
+.diff-key-b::before { background: var(--pane-b); }
+.diff-mode { color: var(--ink-faint); }
+.diff-body .diff-para { margin: 0 0 var(--space-3); white-space: pre-wrap; }
+.diff-body .diff-para:last-child { margin-bottom: 0; }
+.diff-only { border-radius: 2px; text-decoration: underline; text-underline-offset: 4px; text-decoration-thickness: 1.5px; }
+.tw-pane-a .diff-only { background: color-mix(in srgb, var(--pane-a) 24%, transparent); text-decoration-color: var(--pane-a); }
+.tw-pane-b .diff-only { background: color-mix(in srgb, var(--pane-b) 24%, transparent); text-decoration-color: var(--pane-b); }
+.diff-para-only { padding-left: var(--space-3); border-radius: 2px; }
+.tw-pane-a .diff-para-only { box-shadow: inset 3px 0 0 var(--pane-a); background: color-mix(in srgb, var(--pane-a) 10%, transparent); }
+.tw-pane-b .diff-para-only { box-shadow: inset 3px 0 0 var(--pane-b); background: color-mix(in srgb, var(--pane-b) 10%, transparent); }
 .composer-split { padding-top: var(--space-3); background: var(--night); }
 .composer-split .tw-composer { max-width: none; }
 .composer-split .tw-composer textarea { min-height: 22px; }
