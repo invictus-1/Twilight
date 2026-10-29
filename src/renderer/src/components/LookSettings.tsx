@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { contrast, customTokens, DEFAULT_CUSTOM, loadCustom, saveCustom, type CustomTheme } from '../customTheme'
 import { setTheme } from '../theme'
-import { GRADIENTS, backdropImage, framing, setBackdrop, setBoldColor, setChatText, setMotion, setScrollFx, useBackdrop, useBoldColor, useChatText, useMotion, useScrollFx, type Backdrop, type ChatText, type Motion, type ScrollFxStyle } from '../look'
+import { GRADIENTS, backdropImage, framing, setBackdrop, setBoldColor, setBoldTint, setChatText, setMotion, setScrollFx, useBackdrop, useBoldColor, useBoldTint, useChatText, useMotion, useScrollFx, type Backdrop, type ChatText, type Motion, type ScrollFxStyle } from '../look'
 import { useStore } from '../store'
 
 /** None, a built-in gradient, or your own picture; then how dark and soft it sits behind the text. */
@@ -154,10 +154,24 @@ const CHAT_TEXTS: { id: ChatText; label: string }[] = [
   { id: 'large', label: 'Large' }
 ]
 
+/** The theme's bold colour as #rrggbb, so the colour picker starts from what you see. */
+function themeTint(): string {
+  const probe = document.createElement('strong')
+  probe.style.cssText = 'position:absolute;visibility:hidden;color:color-mix(in srgb, var(--horizon) 72%, var(--ink))'
+  document.body.appendChild(probe)
+  // A mixed colour reads back as color(srgb 0.8 0.6 0.4); a plain one as rgb(204, 153, 102).
+  const color = getComputedStyle(probe).color
+  const scale = color.startsWith('color(') ? 255 : 1
+  const rgb = color.match(/\d*\.?\d+/g)?.slice(0, 3).map((n) => Math.min(255, Math.round(Number(n) * scale))) ?? [200, 160, 120]
+  probe.remove()
+  return `#${rgb.map((n) => n.toString(16).padStart(2, '0')).join('')}`
+}
+
 /** How big the words in a chat are: replies, your messages and the message box. */
 export function ChatTextPicker() {
   const size = useChatText()
   const bold = useBoldColor()
+  const tint = useBoldTint()
   return (
     <div className="look-block">
       <span className="field-label">Chat text size</span>
@@ -169,10 +183,31 @@ export function ChatTextPicker() {
         ))}
       </div>
       <p className="field-note">The words in chats, your messages and the message box. Menus and labels stay as they are.</p>
-      <label className="check">
-        <input type="checkbox" checked={bold} onChange={(e) => setBoldColor(e.target.checked)} />
-        Colour bold text in chats with the theme
-      </label>
+      <div className="bold-color-row">
+        <label className="check">
+          <input type="checkbox" checked={bold} onChange={(e) => setBoldColor(e.target.checked)} />
+          Colour bold text in chats
+        </label>
+        {bold && (
+          <>
+            <input
+              type="color"
+              className="bold-tint"
+              aria-label="Colour for bold text"
+              title="Pick any colour for bold text"
+              value={tint ?? themeTint()}
+              onChange={(e) => setBoldTint(e.target.value)}
+            />
+            {tint ? (
+              <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => setBoldTint(null)}>
+                Use the theme's
+              </button>
+            ) : (
+              <span className="field-note">The theme's own</span>
+            )}
+          </>
+        )}
+      </div>
     </div>
   )
 }

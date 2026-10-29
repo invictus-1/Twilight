@@ -1295,6 +1295,13 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         midReply.choices?.groups[0].title === 'CHOICES' && midReply.choices.groups[0].options.map((o) => o.label).join() === 'Walk Wren down to the boats,Light the lamps early' && midReply.body.includes('Rowan mends a net') && !midReply.body.includes('Light the lamps early'),
         midReply
       )
+      const lettered = extractChoices(['The tide is in.', '', 'What does Rowan do?', '', '* A. Row out to Gull Point', '* B. Wait for Wren', '* C. Something else'].join('\n'), true)
+      check(
+        'lettered options (* A. / * B.) become a card like numbered ones',
+        lettered.choices?.groups[0].title === 'What does Rowan do?' && lettered.choices.groups[0].options.map((o) => o.label).join() === 'Row out to Gull Point,Wait for Wren' && !lettered.body.includes('Gull Point'),
+        lettered
+      )
+      check('a lettered list that is no decision stays a list', extractChoices(['Notes.', '', 'A. ropes', 'B. oars'].join('\n'), true).choices === null)
       check('lists not numbered from 1 are not choices', extractChoices('Text\n\n2. a\n3. b', true).choices === null)
       const c4 = chat.create(null).id
       chat.updateSettings(c4, { choiceCards: true })
@@ -3160,22 +3167,37 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('the empty chat is a retro evening: a field of stars, a horizon and a grid', retroUi.field > 100 && retroUi.grid && retroUi.horizon, retroUi)
       check('the empty chat names the model that is ready', /is ready/.test(retroUi.sub), retroUi)
       await key(',', ['control'])
-      const sizeUi = await js<{ before: string; large: string; medium: string; box: string }>(`(async () => {
+      const sizeUi = await js<{ before: string; large: string; medium: string; box: string; opensOnGeneral: boolean; tint: string; tintBack: string }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-nav'); ) await wait(25)
+        await wait(150)
+        // Settings opens on General.
+        const opensOnGeneral = !!document.querySelector('[aria-label="Chat text size"]')
         ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
         await wait(250)
+        // Bold text in a colour of your own, and back to the theme's.
+        const swatch = document.querySelector('input.bold-tint')
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(swatch, '#ff00aa')
+        swatch.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(50)
+        const tint = document.documentElement.style.getPropertyValue('--bold-tint')
+        ;[...document.querySelectorAll('.bold-color-row button')].find((b) => /theme/.test(b.textContent))?.click()
+        await wait(50)
+        const tintBack = document.documentElement.style.getPropertyValue('--bold-tint')
         const pick = (label) => [...document.querySelectorAll('[aria-label="Chat text size"] button')].find((b) => b.textContent === label)?.click()
         const size = () => getComputedStyle(document.documentElement).getPropertyValue('--chat-size').trim()
         const before = document.documentElement.dataset.chatText
         pick('Large'); await wait(50)
         const large = size()
         pick('Medium'); await wait(50)
-        return { before, large, medium: size(), box: '' }
+        return { before, large, medium: size(), box: '', opensOnGeneral, tint, tintBack }
       })()`)
       await key('Escape')
       await new Promise((r) => setTimeout(r, 300))
       sizeUi.box = await js<string>(`getComputedStyle(document.querySelector('.tw-composer textarea')).fontSize`)
       check('chat text is medium by default, a step up from the interface, and can be set larger', sizeUi.before === 'medium' && sizeUi.medium === '15px' && sizeUi.large === '17px' && sizeUi.box === '15px', sizeUi)
+      check('Settings opens on General', sizeUi.opensOnGeneral, sizeUi.opensOnGeneral)
+      check('bold text can take any colour, and go back to the theme', sizeUi.tint === '#ff00aa' && sizeUi.tintBack === '', { tint: sizeUi.tint, back: sizeUi.tintBack })
       await shot('e2e-emptysky.png')
       const enterUi = await js<{ fresh: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -3970,8 +3992,9 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const fxSwitch43 = await js<{ offered: boolean; styles: string[]; note: string }>(`(async () => {
         ${openFx}
         ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click()
-        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('label.check'); ) await wait(50)
-        const box = [...document.querySelectorAll('label.check')].find((l) => l.textContent.includes('Particles when scrolling chats'))?.querySelector('input')
+        const fxBox = () => [...document.querySelectorAll('label.check')].find((l) => l.textContent.includes('Particles when scrolling chats'))?.querySelector('input')
+        for (let end = Date.now() + 3000; Date.now() < end && !fxBox(); ) await wait(50)
+        const box = fxBox()
         const offered = !!box && !box.checked
         box?.click()
         await wait(100)

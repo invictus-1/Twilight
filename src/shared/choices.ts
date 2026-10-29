@@ -99,7 +99,18 @@ const OPEN = /```choices[ \t]*\n/g
 const OPTION = /^\s*(?:\d{1,2}[.)]|[-*•])\s+(.+?)\s*$/
 
 // "1. Go left", "2) Go right", "**3.** Wait", "**4. Run**", "1 · EXPOSED:", "2 - Hide"
-const NUMBERED = /^\s*(?:\*\*)?(\d{1,2})(?:\*\*)?\s*(?:[.)]|\s[·•–—-]|:)(?:\*\*)?\s+(.+?)\s*$/
+// (a bullet in front is fine: "* 1. Go left")
+const NUMBERED = /^\s*(?:[*\-+•]\s+)?(?:\*\*)?(\d{1,2})(?:\*\*)?\s*(?:[.)]|\s[·•–—-]|:)(?:\*\*)?\s+(.+?)\s*$/
+// "A. Go left", "* B. Go right", "**c)** Wait": options lettered instead of numbered
+const LETTERED = /^\s*(?:[*\-+•]\s+)?(?:\*\*)?([A-Za-z])(?:\*\*)?[.)](?:\*\*)?\s+(.+?)\s*$/
+
+/** An option line, numbered or lettered, as its place in the list (A and 1 are both first). */
+function optionLine(line: string): { num: number; label: string } | null {
+  const n = NUMBERED.exec(line)
+  if (n) return { num: Number(n[1]), label: n[2] }
+  const l = LETTERED.exec(line)
+  return l ? { num: l[1].toUpperCase().charCodeAt(0) - 64, label: l[2] } : null
+}
 // Lines that belong to the option above them: bullets, indented text, blank lines.
 const CONTINUES = /^(\s*[*\-+•]\s+|\s{2,}\S|\s*$)/
 const DIVIDER = /^\s*([-*_])(\s*\1){2,}\s*$/
@@ -114,7 +125,7 @@ const cleanLabel = (s: string): string => unbold(s).replace(/[\s:]+$/, '')
 /** A short line standing on its own above the options reads as their title ("What do you do?", "OUTFIT · Day 3"). */
 function isTitle(line: string): boolean {
   const t = line.trim()
-  return t.length > 0 && t.length <= 100 && !NUMBERED.test(t) && !CONTINUES.test(line) && (/[?:]\**$/.test(t) || !/[.!…"”']\**$/.test(t))
+  return t.length > 0 && t.length <= 100 && !optionLine(t) && !CONTINUES.test(line) && (/[?:]\**$/.test(t) || !/[.!…"”']\**$/.test(t))
 }
 
 /**
@@ -126,11 +137,11 @@ function groupAbove(lines: string[], end: number): { group: ChoiceGroup; start: 
   let pending: string[] = []
   let i = end
   for (; i >= 0; i--) {
-    const m = NUMBERED.exec(lines[i])
+    const m = optionLine(lines[i])
     if (m) {
-      found.unshift({ num: Number(m[1]), label: m[2], details: pending })
+      found.unshift({ num: m.num, label: m.label, details: pending })
       pending = []
-      if (m[1] === '1') break
+      if (m.num === 1) break
     } else if (CONTINUES.test(lines[i])) pending.unshift(lines[i])
     else return null
   }
@@ -220,7 +231,7 @@ function midReplyChoices(lines: string[]): { body: string; choices: ChoiceSet } 
     else if (open && lines[i].trim().startsWith(open)) open = null
   }
   for (let i = lines.length - 1; i >= 0; i--) {
-    if (fenced.has(i) || !NUMBERED.test(lines[i])) continue
+    if (fenced.has(i) || !optionLine(lines[i])) continue
     // Take in the detail lines under the last option (a blank line ends it).
     let end = i
     while (end + 1 < lines.length && lines[end + 1].trim() !== '' && CONTINUES.test(lines[end + 1])) end++
@@ -230,7 +241,7 @@ function midReplyChoices(lines: string[]): { body: string; choices: ChoiceSet } 
       return { body, choices: { groups: [found.group] } }
     }
     // Not a decision: skip the rest of this list.
-    while (i > 0 && lines[i - 1].trim() !== '' && (NUMBERED.test(lines[i - 1]) || CONTINUES.test(lines[i - 1]))) i--
+    while (i > 0 && lines[i - 1].trim() !== '' && (optionLine(lines[i - 1]) || CONTINUES.test(lines[i - 1]))) i--
   }
   return null
 }

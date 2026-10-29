@@ -177,10 +177,36 @@ let boldColor = (() => {
   }
 })()
 
+/** A colour of your own for bold words (#rrggbb), or null for the theme's. */
+let boldTint: string | null = (() => {
+  try {
+    const v = localStorage.getItem('twilight.boldTint')
+    return v && /^#[0-9a-f]{6}$/i.test(v) ? v : null
+  } catch {
+    return null
+  }
+})()
+
 export function applyBoldColor(on: boolean = boldColor): void {
   if (on) delete document.documentElement.dataset.boldColor
   else document.documentElement.dataset.boldColor = 'off'
+  if (boldTint) document.documentElement.style.setProperty('--bold-tint', boldTint)
+  else document.documentElement.style.removeProperty('--bold-tint')
 }
+
+export function setBoldTint(tint: string | null): void {
+  boldTint = tint
+  try {
+    if (tint) localStorage.setItem('twilight.boldTint', tint)
+    else localStorage.removeItem('twilight.boldTint')
+  } catch {
+    // Storage unavailable: the colour holds for this session.
+  }
+  applyBoldColor()
+  changed()
+}
+
+export const useBoldTint = (): string | null => useSyncExternalStore(subscribe, () => boldTint)
 
 export function setBoldColor(on: boolean): void {
   boldColor = on

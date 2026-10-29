@@ -1546,8 +1546,14 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 
 /* Bold words in chats take the theme's writing colour, softened toward the ink so long replies stay
    easy on the eyes (Settings → General; off restores plain bold). */
-:root:not([data-bold-color='off']) .thread .md :is(strong, b) { color: color-mix(in srgb, var(--horizon) 72%, var(--ink)); }
+:root:not([data-bold-color='off']) .thread .md :is(strong, b) { color: var(--bold-tint, color-mix(in srgb, var(--horizon) 72%, var(--ink))); }
 
 /* The delete menu under your message opens from the right edge, and its tools stay shown while it's open. */
 .user-foot .delete-menu { left: auto; right: 0; }
 .user-actions:has(.delete-menu) { opacity: 1; }
+
+/* Bold text's own colour: the switch, then a swatch to pick any colour, and the way back to the theme's. */
+.bold-color-row { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.bold-tint { width: 32px; height: 24px; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: none; cursor: pointer; }
+.bold-tint::-webkit-color-swatch-wrapper { padding: 2px; }
+.bold-tint::-webkit-color-swatch { border: none; border-radius: 3px; }

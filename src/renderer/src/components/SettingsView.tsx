@@ -581,7 +581,7 @@ function UpdateDot() {
 }
 
 export function SettingsView() {
-  const [section, setSection] = useState<Section>(() => (useStore.getState().settingsSection as Section | null) ?? 'providers')
+  const [section, setSection] = useState<Section>(() => (useStore.getState().settingsSection as Section | null) ?? 'general')
   const current = SECTIONS.find((s) => s.id === section)!
   const groups = [...new Set(SECTIONS.map((s) => s.group))]
   return (
