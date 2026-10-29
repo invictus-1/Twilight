@@ -191,7 +191,14 @@ Installed findInstalled() {
     if (RegGetValueW(key, nullptr, L"DisplayName", RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS && wcsncmp(value, L"Twilight", 8) == 0 &&
         (value[8] == 0 || value[8] == L' ')) {
       size = sizeof value;
-      if (RegGetValueW(key, nullptr, L"InstallLocation", RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS) result.location = value;
+      if (RegGetValueW(key, nullptr, L"InstallLocation", RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS && value[0]) result.location = value;
+      // electron-builder leaves InstallLocation empty; the icon path ("…\Twilight.exe,0") says where.
+      size = sizeof value;
+      if (result.location.empty() && RegGetValueW(key, nullptr, L"DisplayIcon", RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS) {
+        std::wstring icon = value;
+        const size_t slash = icon.find_last_of(L'\\');
+        if (slash != std::wstring::npos) result.location = icon.substr(icon[0] == L'"' ? 1 : 0, slash - (icon[0] == L'"' ? 1 : 0));
+      }
       size = sizeof value;
       if (RegGetValueW(key, nullptr, L"DisplayVersion", RRF_RT_REG_SZ, nullptr, value, &size) == ERROR_SUCCESS) result.version = value;
     }
