@@ -47,6 +47,8 @@ function Card({ item, index }: { item: RoadmapItem; index: number }) {
  */
 function Journey({ roadmap, version, progress }: { roadmap: Roadmap; version?: string; progress: number }) {
   const building = roadmap.shipped.find((r) => /in progress/i.test(r.date))
+  // Once 1.0 is out, the panel shows the road so far rather than a goal still ahead.
+  const reached = roadmap.shipped.some((r) => r.version.startsWith('1.0') && r !== building)
   const released = roadmap.shipped.filter((r) => r !== building)
   const left = roadmap.next.filter((i) => i.status !== 'doing').length
   const jump = (v: string): void => document.querySelector(`[data-release="${v}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -65,12 +67,12 @@ function Journey({ roadmap, version, progress }: { roadmap: Roadmap; version?: s
           </svg>
           <div>
             <div className="rm-ring-n">{progress}%</div>
-            <div className="rm-ring-label">of the way to 1.0</div>
+            <div className="rm-ring-label">{reached ? "of what's planned has shipped" : 'of the way to 1.0'}</div>
           </div>
         </div>
         <ol className="rm-steps">
           {/* The goal, unless 1.0 is the release being built (then it's that step). */}
-          {!building?.version.startsWith('1.0') && (
+          {!reached && !building?.version.startsWith('1.0') && (
             <li className="rm-step rm-step-goal">
               <span className="rm-step-dot" />
               <span className="rm-step-v">1.0</span>

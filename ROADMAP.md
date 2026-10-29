@@ -4,7 +4,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
-### 1.0.0 · In progress
+### 1.0.0 · October 2026
+- [x] **The polish pass** · Core — a UI pass over every screen: app-styled checkboxes and dropdowns, a tidier Code header, a split-view footer that wraps, and many small fixes
 - [x] **Speed pass, measured** · Core — the window appears in half the time, a third of the startup script, and a startup check that no longer grows with your history; numbers in bench/README.md
 
 ### 0.9.0 · October 2026
@@ -100,10 +101,10 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Installer** · Core — Windows installer and portable zip, with Twilight artwork
 
 ## Next
-- [~] **Your feedback on 0.8** · Core — fixes from real use of the Code tab, MCP, backups, Extras and backgrounds
+- [~] **Your feedback on 1.0** · Core — fixes from real use
 
 ## Later
-- [~] **1.0: the polish pass** · Core — the final pass, then a talk about the road to 2.0: an optimization run and a UI/UX pass over every screen, with more gradients and motion. Startup, chat-open and scroll times are measured before and after, so the gains are real numbers
+- [ ] **The road to 2.0** · Core — deciding together what comes next; the ideas below are where it starts
 
 ## Ideas
 - **Smarter retrieval** · Writing — for 2.0: a small, fast model that searches out the context a prompt needs, passages indexed with context about where they sit, reranking, and graph-based search across a manuscript
