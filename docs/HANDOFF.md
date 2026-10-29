@@ -15,7 +15,7 @@ The two things that matter most, always:
 
 ## Where it stands
 
-**1.0.0 was released on 2026-10-29**, after 0.8.0 and 0.9.0 the same day. The roadmap's Next is "Your feedback on 1.0" (fixes from real use, as they come), and Later is "The road to 2.0": the owner wants to *talk through* what 2.0 should be before anything is built. Don't start 2.0 features on your own; bring ideas, ask, and plan together. The Ideas list on the roadmap is where that conversation starts.
+**1.0.0 was released on 2026-10-29**, after 0.8.0 and 0.9.0 the same day, and **1.1.0** followed it with fixes from the owner's feedback (a retro evening in empty chats, model settings before the first message, max output tokens taking any number). The roadmap's Next is "Your feedback on 1.0" (fixes from real use, as they come), and Later is "The road to 2.0": the owner wants to *talk through* what 2.0 should be before anything is built. Don't start 2.0 features on your own; bring ideas, ask, and plan together. The Ideas list on the roadmap is where that conversation starts.
 
 Everything in 1.0, in one breath: chats as branching trees with choice cards, personas, prompts, web search and fetch, the date and time, MCP servers and pictures; split compare with differences; the Judge with rubrics and a leaderboard; a Markdown writing editor with Forge-style tools shown as diffs, offline spellcheck and a document library (full-text search, optional embeddings, a search tool for models); Writer insights; a Code tab where an agent edits a folder with approvals, snapshots, plan mode and rewind; usage and prices; backups, restore and moving the data folder; eleven themes (one light), backgrounds, motion settings, a reorderable rail, Extras (scroll particles); a GitHub-releases updater with rollback; an animated installer.
 
@@ -99,7 +99,14 @@ The proposed theme for 2.0, agreed in outline at the end of the 1.0 session: **T
 4. **Continuity watcher:** flags where a reply or a draft contradicts the bible.
 5. **Better retrieval underneath:** passages indexed with context about where they sit, and a reranking pass.
 
-Open questions for the owner: what bothers them most in daily use right now; how much they lean on local models (the scout and ghost text want a fast local one); whether the bible builds itself or they curate it.
+The owner's answers (2026-10-29, after 1.1.0):
+
+- **Daily pain:** nothing pressing; they'll say when something comes up.
+- **Local models:** they rarely use them, but want them supported for freedom. Prefer talking to llama.cpp's server or LM Studio directly over wrappers like Ollama.
+- **The bible:** a middle ground. The user picks which documents feed it (their library has documents such as character profiles and a world state), a model reads those and proposes entries, and retrieval later finds them while writing. It draws on the document library only, so nothing else is touched.
+- **Every 2.0 part can be switched off.** Not everyone wants it.
+- **Retrieval must be exceptional,** using the newest methods, not the same RAG everyone ships. The research is the first job of the next session.
+- **Motion:** explore new animations across the app, unique to Twilight, for the owner and for everyone.
 
 Standalone ideas for 2.x afterwards (on the roadmap under Ideas):
 

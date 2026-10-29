@@ -4,6 +4,10 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.1.0 · October 2026
+- [x] **A retro evening** · Chat — the empty chat as a starry sky with a striped sun and a glowing grid, in every theme
+- [x] **Settings before the first message** · Chat — model settings open with no chat yet, and max output tokens takes any number
+
 ### 1.0.0 · October 2026
 - [x] **The polish pass** · Core — a UI pass over every screen: app-styled checkboxes and dropdowns, a tidier Code header, a split-view footer that wraps, and many small fixes
 - [x] **Speed pass, measured** · Core — the window appears in half the time, a third of the startup script, and a startup check that no longer grows with your history; numbers in bench/README.md
@@ -102,8 +106,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
-- [x] **A retro evening** · Chat — the empty chat as a starry sky with a striped sun and a glowing grid, in every theme
-- [x] **Settings before the first message** · Chat — model settings open with no chat yet, and max output tokens takes any number
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story
@@ -121,3 +123,4 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - **Local-model power tools** · Chat — a confidence heatmap from logprobs, branching from any word, more samplers
 - **Offline voice** · Core — dictation and read-aloud without the cloud
 - **Cache savings meter** · Chat — what prompt caching saved you
+- **Motion of its own** · Core — new animations across the app, made for Twilight rather than borrowed from everyone else
