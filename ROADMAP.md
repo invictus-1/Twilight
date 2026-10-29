@@ -107,6 +107,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
 - [x] **Remembers its window** · Core — opens at the size and place you left it, maximized if it was
+- [x] **Nothing typed is lost** · Chat — the message box keeps what you were writing across sections and restarts; Attach opens the last folder you used
 - [x] **Copy that answers** · Chat — every copy button works and says Copied; your message's tools sit under it
 - [x] **Edit without sending** · Chat — save an edit to your message and send it when you're ready
 - [x] **Each model's own defaults** · Chat — settings a model brings whenever it's picked, apart from presets; the system prompt stays with the chat

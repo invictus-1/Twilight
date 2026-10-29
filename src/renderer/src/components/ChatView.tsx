@@ -9,6 +9,7 @@ import { DeletedPanel } from './DeletedPanel'
 import { SidebarIcon, SlidersIcon, SplitIcon, TrashIcon } from './Icons'
 import { DiffSummary, DiffToggle } from './SplitDiff'
 import { SplitView } from './SplitView'
+import { SystemPromptCard } from './ChatTop'
 import { EmptySky } from './Sky'
 import { Thread } from './Thread'
 
@@ -59,6 +60,8 @@ export function ChatView() {
   const toggleSidebar = useStore((s) => s.toggleSidebar)
   const deleted = useStore((s) => s.deletions.length)
   const [panel, setPanel] = useState<'settings' | 'deleted' | null>(null)
+  // The empty chat's quick check of its system prompt, opened from the small button under the greeting.
+  const [promptOpen, setPromptOpen] = useState(false)
   const split = !!current?.split
   // With no chat open yet, the settings go to the chat the next message would start (an untouched
   // one is reused), so the model and its options can be set before typing.
@@ -129,6 +132,13 @@ export function ChatView() {
           <div className="empty-copy">
             <h2 className="t-display empty-title">{greeting()}</h2>
             <p className="empty-sub">{ready ? `${ready} is ready. Start typing.` : 'Pick a model below and start typing.'}</p>
+            {current && (
+              <button className="empty-prompt-chip" aria-expanded={promptOpen} onClick={() => setPromptOpen((o) => !o)} title="Check or set this chat's system prompt">
+                <SlidersIcon size={13} />
+                {current.settings.systemPrompt.trim() ? 'System prompt' : 'No system prompt'}
+              </button>
+            )}
+            {current && promptOpen && <SystemPromptCard compact />}
           </div>
         </div>
       ) : (

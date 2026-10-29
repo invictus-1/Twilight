@@ -1526,3 +1526,11 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 
 .chat-prompt-added summary { cursor: pointer; font-size: 12px; color: var(--ink-faint); }
 .chat-prompt-added[open] { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }
+
+/* On the empty chat the system prompt is compact: two lines, opened with a click. */
+.chat-prompt.is-compact { max-width: 560px; margin-top: var(--space-3); text-align: left; }
+.chat-prompt-text.is-clamped { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+
+/* The empty chat's small system prompt button: quiet until hovered, iris when there is one to read. */
+.empty-prompt-chip { display: inline-flex; align-items: center; gap: 6px; margin-top: var(--space-1); padding: 2px var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-full); background: color-mix(in srgb, var(--surface-raised) 70%, transparent); color: var(--ink-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.empty-prompt-chip:hover, .empty-prompt-chip[aria-expanded='true'] { color: var(--ink); border-color: var(--line-strong); }

@@ -306,22 +306,7 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
 
       <PersonaRow settings={settings} started={current.started} split={!!current.split} apply={applyPersona} />
 
-      <label className="field">
-        <span className="field-label">System prompt{current.split ? ` (pane ${shown.toUpperCase()})` : ''}</span>
-        <textarea
-          key={`${shown}-sp-${applied}`}
-          rows={5}
-          defaultValue={settings.systemPrompt}
-          placeholder="Instructions the model follows for this chat"
-          onBlur={(e) => e.currentTarget.value !== settings.systemPrompt && void update({ systemPrompt: e.currentTarget.value })}
-        />
-        {current.started && (
-          <span className="field-note">
-            Editable any time. Sent with every message; a change restarts the prompt cache for this chat
-            {current.split ? ' pane' : ''}. To keep the cache, add a change below instead.
-          </span>
-        )}
-      </label>
+      {/* The system prompt itself lives with the chat: on the empty chat, and at the top of a started one. */}
 
       {current.started && (
         <label className="field">

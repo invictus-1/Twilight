@@ -4,6 +4,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **The system prompt lives with the chat:** it's no longer in Model settings. On an empty chat, a small System prompt button under the greeting (No system prompt when there isn't one) opens it to check or set before the first message; once the chat starts, it's at the top.
+- **Attach opens where you last attached from,** instead of the writing folder every time.
+- **What you were typing waits for you:** text and attachments in the message box stay put when you go to another section or Settings and back, and the text is kept across restarts.
 - **Fixed: Copy did nothing.** The copy buttons used the page's clipboard, which Twilight refuses along with every other web permission. They now use Twilight's own, and show a tick and "Copied" for a moment.
 - **Your message's tools sit under it,** at its right edge (edit, copy, regenerate, delete), like a reply's.
 - **Edit without sending:** editing one of your messages offers Save as well as Save and send. A saved edit waits as the newest message, with Send under it for when you're ready.

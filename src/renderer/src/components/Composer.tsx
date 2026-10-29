@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { attachmentKind, formatBytes, tooBig } from '@shared/attachments'
 import { formatTokens } from '@shared/pricing'
 import type { Attachment, SendTarget } from '@shared/types'
@@ -40,9 +40,38 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
 
 const chipSize = (a: Attachment): string => (a.data ? formatBytes(Math.floor((a.data.length * 3) / 4)) : `~${formatTokens(Math.round(a.text.length / 4))}`)
 
+/**
+ * What you'd typed and attached but not sent. It outlives the message box, so going to another
+ * section or Settings and back finds it as you left it; the text is kept across restarts too.
+ */
+const DRAFT_KEY = 'twilight.draft'
+const unsent: { text: string; attachments: Attachment[] } = {
+  text: (() => {
+    try {
+      return localStorage.getItem(DRAFT_KEY) ?? ''
+    } catch {
+      return ''
+    }
+  })(),
+  attachments: []
+}
+const keepDraft = (): void => {
+  try {
+    if (unsent.text) localStorage.setItem(DRAFT_KEY, unsent.text)
+    else localStorage.removeItem(DRAFT_KEY)
+  } catch {
+    // Storage unavailable: the draft still holds while Twilight is open.
+  }
+}
+window.addEventListener('beforeunload', keepDraft)
+
 export function Composer() {
-  const [text, setText] = useState('')
-  const [attachments, setAttachments] = useState<Attachment[]>([])
+  const [text, setText] = useState(() => unsent.text)
+  const [attachments, setAttachments] = useState<Attachment[]>(() => unsent.attachments)
+  // Kept as it changes (cheap), written to storage only when the box is put away or the app closes.
+  unsent.text = text
+  unsent.attachments = attachments
+  useEffect(() => keepDraft, [])
   const [dragging, setDragging] = useState(false)
   const area = useRef<HTMLTextAreaElement>(null)
   const split = useStore((s) => !!s.current?.split)

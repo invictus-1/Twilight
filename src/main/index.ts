@@ -4,7 +4,7 @@ import { modelKey, pickModelDefaults, type ModelDefaults } from '@shared/modelDe
 import { join } from 'node:path'
 import { appendFileSync } from 'node:fs'
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises'
-import { basename } from 'node:path'
+import { basename, dirname } from 'node:path'
 import type {
   Attachment,
   ChatFolder,
@@ -184,7 +184,8 @@ const folders = (): ChatFolder[] => workspaces.listWorkspaces()
 async function pickAttachments(win: BrowserWindow | null): Promise<Attachment[]> {
   const options: Electron.OpenDialogOptions = {
     title: 'Attach files',
-    defaultPath: docs.writingFolder(),
+    // The folder you last attached from, so a set of files is a click away; the writing folder at first.
+    defaultPath: db.kvGet<string>('lastAttachFolder') ?? docs.writingFolder(),
     properties: ['openFile', 'multiSelections'],
     filters: [
       { name: 'Everything Twilight can attach', extensions: ['md', 'txt', 'markdown', 'json', 'csv', 'tsv', 'yaml', 'yml', 'xml', 'html', 'htm', 'log', 'ini', 'toml', 'pdf', ...IMAGE_EXTENSIONS] },
@@ -196,6 +197,7 @@ async function pickAttachments(win: BrowserWindow | null): Promise<Attachment[]>
   }
   const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
   if (result.canceled) return []
+  if (result.filePaths[0]) db.kvSet('lastAttachFolder', dirname(result.filePaths[0]))
   const out: Attachment[] = []
   for (const file of result.filePaths) {
     const name = basename(file)

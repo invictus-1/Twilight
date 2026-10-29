@@ -858,12 +858,15 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         document.querySelector('[aria-label="New chat in RPG Maker"]')?.click()
         await wait(400)
-        ;[...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings'))?.click()
-        await wait(250)
-        const prompt = document.querySelector('.settings-panel .field textarea')?.value ?? null
-        document.querySelector('.settings-panel .panel-head [aria-label="Close"]')?.click()
+        // The empty chat's small System prompt button opens it for a quick check.
+        const chip = document.querySelector('.empty-prompt-chip')
+        const label = chip?.textContent ?? ''
+        chip?.click()
+        await wait(150)
+        const prompt = document.querySelector('.chat-prompt.is-compact .chat-prompt-text')?.textContent ?? null
+        chip?.click()
         await wait(100)
-        return prompt
+        return label === 'System prompt' ? prompt : 'button said: ' + label
       })()`)
       check('a new chat in a workspace has its system prompt, even when an empty chat is reused', wsReuse === wsChat.settings.systemPrompt, wsReuse)
 
@@ -1030,6 +1033,35 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return { closed, stayed, after: open() }
       })()`)
       check('model settings closes on a click outside, and stays open when pinned', outsideUi.closed && outsideUi.stayed && !outsideUi.after, outsideUi)
+      const noPromptInPanel = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings')).click()
+        await wait(200)
+        const found = !!document.querySelector('.settings-panel textarea[placeholder="Instructions the model follows for this chat"]')
+        document.querySelector('.settings-panel .panel-head [aria-label="Close"]').click()
+        await wait(100)
+        return found
+      })()`)
+      check('the system prompt lives with the chat, not in Model settings', noPromptInPanel === false, noPromptInPanel)
+      // A message typed but not sent is still there after a visit to another section.
+      const draftUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const area = () => document.querySelector('.tw-composer textarea')
+        const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+        set.call(area(), 'Half a thought about the lamps'); area().dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(50)
+        document.querySelector('[data-mode="judge"]')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && area(); ) await wait(25)
+        const away = !area()
+        document.querySelector('[data-mode="chat"]')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !area(); ) await wait(25)
+        await wait(50)
+        const back = area()?.value ?? null
+        set.call(area(), ''); area().dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(50)
+        return { away, back }
+      })()`)
+      check('an unsent message is kept while you visit another section', draftUi.away && draftUi.back === 'Half a thought about the lamps', draftUi)
       check('max output tokens takes any number as typed', tokensUi.seen.join() === '1,10,100,1000' && tokensUi.settled === '1000' && tokensUi.step === '1', tokensUi)
 
       // 22. Game Format: paragraphs joined within chunks, dividers kept, code and HTML untouched.
@@ -2646,7 +2678,12 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key('Return')
       const fresh = await js<{ title: string; empty: boolean; choices: string | null }>(`(async () => {
         for (let end = Date.now() + 3000; Date.now() < end && !(document.querySelector('.chat .empty') && !document.querySelector('.persona-chooser')); ) await new Promise((r) => setTimeout(r, 25))
-        document.querySelector('.tw-composer textarea')?.focus()
+        // Unsent text and attachments are kept across chats and sections now; start from an empty box.
+        for (const x of document.querySelectorAll('.tw-composer [aria-label^="Remove "]')) x.click()
+        const box = document.querySelector('.tw-composer textarea')
+        if (box?.value) { Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(box, ''); box.dispatchEvent(new Event('input', { bubbles: true })) }
+        await new Promise((r) => setTimeout(r, 50))
+        box?.focus()
         return { title: document.querySelector('.chat-title')?.textContent ?? '', empty: !!document.querySelector('.chat .empty'), choices: document.querySelector('.tw-composer [aria-label="Choice cards"]')?.getAttribute('aria-pressed') ?? null }
       })()`)
       const before37 = log.length
@@ -2666,7 +2703,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           (firstReq?.messages[0]?.content ?? '').includes('Interactive choices:') &&
           lampView?.settings.systemPrompt === lampPrompt &&
           lampView?.settings.choiceCards === true,
-        { fresh, model: firstReq?.model, system: firstReq?.messages[0]?.content.slice(0, 80) }
+        { fresh, model: firstReq?.model, system: firstReq?.messages[0]?.content.slice(0, 80), sent: log.slice(before37).map((r) => JSON.stringify(r.messages.at(-1)?.content).slice(0, 160)), lamp: lampView?.settings.systemPrompt.slice(0, 60) }
       )
       check("a persona's model is for its chats, not the default for new ones", chat.getDefaults().modelId === defaultsBefore, [defaultsBefore, chat.getDefaults().modelId])
 
@@ -2688,7 +2725,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           const out = {
             note,
             pending: document.querySelector('.settings-panel .pending-instruction')?.value ?? '',
-            system: document.querySelector('.settings-panel textarea[placeholder="Instructions the model follows for this chat"]')?.value ?? '',
+            system: document.querySelector('.thread-top .chat-prompt > .chat-prompt-text')?.textContent ?? '',
             chip: !!document.querySelector('.tw-composer .pending-chip')
           }
           document.querySelector('.settings-panel button[aria-label="Close"]')?.click()
