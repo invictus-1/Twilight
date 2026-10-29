@@ -20,6 +20,7 @@ import { commandFor } from '../commands'
 import { recordingKeys } from './ShortcutsSection'
 import { CommandMenu, ShortcutSheet } from './CommandMenu'
 import { SearchPanel } from './SearchPanel'
+import { PersonaChooser } from './PersonaChooser'
 
 export function App() {
   const sidebarOpen = useStore((s) => s.sidebarOpen)
@@ -132,6 +133,7 @@ export function App() {
       {overlay === 'commands' && <CommandMenu />}
       {overlay === 'shortcuts' && <ShortcutSheet />}
       {overlay === 'search' && <SearchPanel />}
+      {overlay === 'personas' && <PersonaChooser />}
       {unlocked.length > 0 && !undo && !error && (
         <div className="toast toast-info ach-toast" role="status">
           <TrophyIcon size={16} />

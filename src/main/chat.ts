@@ -6,6 +6,7 @@ import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { appendLog } from './logs'
 import { describeAnthropicError } from './providers/anthropic'
 import { toWorkspace, workspaceSystemPrompt } from './workspaces'
+import { getPersona } from './library'
 import { CHOICES_INSTRUCTION, CHOICES_TOOL_INSTRUCTION } from '@shared/choices'
 import { instructionBlock, isContextText } from '@shared/attachments'
 
@@ -122,18 +123,39 @@ export function view(id: string): ConversationView {
   }
 }
 
-/** A new chat takes the defaults, overlaid with its workspace's system prompt and model. */
-export function create(folderId: string | null = null): ConversationView {
+/**
+ * A new chat takes the defaults, overlaid with its workspace's system prompt and model, then with
+ * the persona's when one is given. A persona's prompt stands in for the workspace's own, under
+ * the workspace's name and description when the workspace adds them.
+ */
+export function create(folderId: string | null = null, personaId: string | null = null, reuseId: string | null = null): ConversationView {
   const settings = getDefaults()
   const row = folderId ? db.getFolder(folderId) : undefined
-  if (row) {
-    const ws = toWorkspace(row)
+  const ws = row ? toWorkspace(row) : null
+  if (ws) {
     settings.systemPrompt = workspaceSystemPrompt(ws) || settings.systemPrompt
     if (ws.providerId && ws.modelId) {
       settings.providerId = ws.providerId
       settings.modelId = ws.modelId
     }
     if (ws.choiceCards) settings.choiceCards = true
+  }
+  const persona = personaId ? getPersona(personaId) : undefined
+  if (personaId && !persona) throw new Error('That persona no longer exists.')
+  if (persona) {
+    settings.systemPrompt = ws ? workspaceSystemPrompt({ ...ws, systemPrompt: persona.systemPrompt }) : persona.systemPrompt
+    if (persona.providerId && persona.modelId) {
+      settings.providerId = persona.providerId
+      settings.modelId = persona.modelId
+    }
+    if (persona.choiceCards) settings.choiceCards = true
+  }
+  // An untouched chat is set up afresh rather than leaving an empty one behind.
+  const reuse = reuseId ? db.listConversations().find((c) => c.id === reuseId) : undefined
+  if (reuse && !reuse.started && !reuse.split && db.loadNodes(reuse.id).size <= 1) {
+    db.updateConversation(reuse.id, { settings: JSON.stringify(settings) })
+    db.fileConversation(reuse.id, { folder_id: folderId })
+    return view(reuse.id)
   }
   return view(db.createConversation(settings, folderId).id)
 }

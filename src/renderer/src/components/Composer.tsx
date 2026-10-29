@@ -6,6 +6,7 @@ import { useStore } from '../store'
 import { CloseIcon, DocIcon, PaperclipIcon, SendIcon, SlidersIcon, StopIcon } from './Icons'
 import { DocPicker } from './DocPicker'
 import { ModelPicker } from './ModelPicker'
+import { PromptPicker } from './PromptPicker'
 import { Hint, ToolsMenu } from './ToolsMenu'
 
 const MAX_LINES = 12
@@ -77,6 +78,18 @@ export function Composer() {
     setText('')
     setAttachments([])
     void send(value, attachments)
+  }
+
+  /** Puts a saved prompt where the caret is (over any selection), for you to send or change. */
+  const insert = (snippet: string): void => {
+    const el = area.current
+    const start = el?.selectionStart ?? text.length
+    const end = el?.selectionEnd ?? text.length
+    setText(text.slice(0, start) + snippet + text.slice(end))
+    requestAnimationFrame(() => {
+      el?.focus()
+      el?.setSelectionRange(start + snippet.length, start + snippet.length)
+    })
   }
 
   const addFiles = async (files: File[]): Promise<void> => {
@@ -192,6 +205,7 @@ export function Composer() {
               area.current?.focus()
             }}
           />
+          <PromptPicker onInsert={insert} />
           {currentId && <ToolsMenu />}
           {currentId && (
             <Hint

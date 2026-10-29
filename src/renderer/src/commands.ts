@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react'
 import { useInsights } from './insightsStore'
 import { useJudge } from './judgeStore'
+import { useLibrary } from './libraryStore'
 import { useStore, type Mode } from './store'
 import { THEMES } from '@shared/themes'
 import { setTheme } from './theme'
@@ -41,6 +42,8 @@ export const COMMANDS: Command[] = [
   { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'App', keys: 'Ctrl+/', hint: 'keys help cheat sheet', run: () => s().setOverlay('shortcuts') },
   { id: 'search', title: 'Search everything', group: 'App', keys: 'Ctrl+Shift+F', hint: 'find chats documents', run: () => s().setOverlay('search') },
   { id: 'new-chat', title: 'New chat', group: 'Chat', keys: 'Ctrl+N', run: () => (go('chat'), void s().newChat()) },
+  { id: 'new-persona-chat', title: 'New chat from a persona…', group: 'Chat', hint: 'persona character system prompt library', run: () => s().setOverlay('personas') },
+  { id: 'insert-prompt', title: 'Insert a prompt', group: 'Chat', hint: 'saved prompts library snippet composer', run: () => (go('chat'), useLibrary.getState().setPromptsOpen(true)) },
   { id: 'new-doc', title: 'New document', group: 'Writing', keys: 'Ctrl+Shift+N', run: () => (go('write'), void useWriting.getState().newDoc()) },
   { id: 'sidebar', title: 'Toggle sidebar', group: 'App', keys: 'Ctrl+B', run: () => s().toggleSidebar() },
   {
@@ -77,6 +80,7 @@ export const COMMANDS: Command[] = [
   { id: 'go-insights', title: 'Writer insights', group: 'Go to', keys: 'Ctrl+4', run: () => go('insights') },
   { id: 'settings', title: 'Settings', group: 'Go to', keys: 'Ctrl+,', run: () => settings() },
   { id: 'go-providers', title: 'Model providers', group: 'Go to', hint: 'api key settings', run: () => settings('providers') },
+  { id: 'go-library', title: 'Library', group: 'Go to', hint: 'personas prompts settings', run: () => settings('library') },
   { id: 'go-prices', title: 'Prices', group: 'Go to', hint: 'cost price list settings', run: () => settings('prices') },
   { id: 'go-updates', title: 'Updates', group: 'Go to', hint: 'version settings', run: () => settings('updates') },
   { id: 'go-roadmap', title: 'Roadmap', group: 'Go to', run: () => settings('roadmap') },

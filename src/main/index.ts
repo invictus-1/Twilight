@@ -19,9 +19,11 @@ import * as chat from './chat'
 import * as db from './db'
 import * as docs from './docs'
 import * as judge from './judge'
+import * as library from './library'
 import * as logs from './logs'
 import * as workspaces from './workspaces'
 import type { JudgeInput, Rubric } from '@shared/judge'
+import type { Persona, SavedPrompt } from '@shared/library'
 import type { AiConfig, TrackedCharacter } from '@shared/insights'
 import * as writing from './writing'
 import * as providers from './providers'
@@ -169,7 +171,8 @@ function registerIpc(): void {
       await mkdir(logs.logsFolder(), { recursive: true })
       await shell.openPath(logs.logsFolder())
     },
-    createConversation: (_e, folderId?: string | null) => chat.create(folderId ?? null),
+    createConversation: (_e, folderId?: string | null, personaId?: string | null, reuseId?: string | null) =>
+      chat.create(folderId ?? null, personaId ?? null, reuseId ?? null),
     listFolders: () => folders(),
     createFolder: (_e, name: string) => (db.createFolder(name.trim() || 'New folder'), folders()),
     renameFolder: (_e, id: string, name: string) => (name.trim() && db.updateFolder(id, { name: name.trim() }), folders()),
@@ -187,6 +190,27 @@ function registerIpc(): void {
       const win = BrowserWindow.fromWebContents(e.sender)
       const text = judge.rubricFile(id)
       const options: Electron.SaveDialogOptions = { title: 'Export rubric', defaultPath: `${id}.rubric.json`, filters: [{ name: 'Rubric', extensions: ['json'] }] }
+      const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
+      if (result.canceled || !result.filePath) return false
+      await writeFile(result.filePath, text)
+      return true
+    },
+    getLibrary: () => library.getLibrary(),
+    savePersona: (_e, persona: Persona) => library.savePersona(persona),
+    deletePersona: (_e, id: string) => library.deletePersona(id),
+    savePrompt: (_e, prompt: SavedPrompt) => library.savePrompt(prompt),
+    deletePrompt: (_e, id: string) => library.deletePrompt(id),
+    importLibrary: async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const options: Electron.OpenDialogOptions = { title: 'Import personas and prompts', properties: ['openFile'], filters: [{ name: 'Twilight library', extensions: ['json'] }] }
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      if (result.canceled || !result.filePaths[0]) return null
+      return library.importLibrary(await readFile(result.filePaths[0], 'utf8'))
+    },
+    exportLibrary: async (e, ids?: string[]) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const text = library.libraryFile(ids)
+      const options: Electron.SaveDialogOptions = { title: 'Export personas and prompts', defaultPath: 'twilight-library.json', filters: [{ name: 'Twilight library', extensions: ['json'] }] }
       const result = win ? await dialog.showSaveDialog(win, options) : await dialog.showSaveDialog(options)
       if (result.canceled || !result.filePath) return false
       await writeFile(result.filePath, text)
