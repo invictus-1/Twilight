@@ -1,0 +1,47 @@
+{
+  "label": "release-1.0",
+  "version": "1.0.0",
+  "date": "2026-10-29",
+  "machine": {
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "cores": 32,
+    "memoryGB": 94,
+    "displayHz": 238
+  },
+  "runs": 5,
+  "startup": {
+    "mainLoaded": 93,
+    "appReady": 151,
+    "databaseOpen": 201,
+    "windowCreating": 211,
+    "windowShown": 274,
+    "pageNavigation": 274,
+    "pageLoaded": 339,
+    "firstFrame": 462,
+    "firstPaint": null,
+    "uiReady": 394
+  },
+  "navigation": {
+    "openBigChatMs": 8,
+    "switchChatMs": 37,
+    "openSettingsMs": 12,
+    "openWritingMs": 9,
+    "openManuscriptMs": 35,
+    "openCodeMs": 9
+  },
+  "memory": {
+    "rendererHeapMB": 32,
+    "totalWorkingSetMB": 609,
+    "domNodes": 91
+  },
+  "scroll": {
+    "openToFirstMessageMs": 185.8,
+    "warmupDoneMs": 408,
+    "flingP50": 4.6,
+    "flingP99": 13.6,
+    "flickP50": 4.5,
+    "flickP95": 10.7,
+    "flickP99": 16.6,
+    "heapMB": 33
+  }
+}
