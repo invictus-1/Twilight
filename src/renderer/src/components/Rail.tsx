@@ -1,13 +1,14 @@
 import type { ReactNode } from 'react'
 import { keysFor, openMode, useBindings } from '../commands'
 import { useStore, type Mode } from '../store'
-import { FeatherIcon, ScaleIcon, SearchIcon, SettingsIcon, SparkIcon, SpeechIcon } from './Icons'
+import { CodeIcon, FeatherIcon, ScaleIcon, SearchIcon, SettingsIcon, SparkIcon, SpeechIcon } from './Icons'
 
 const SECTIONS: { mode: Mode; label: string; icon: ReactNode; command: string }[] = [
   { mode: 'chat', label: 'Chats', icon: <SpeechIcon size={19} />, command: 'go-chat' },
   { mode: 'write', label: 'Writing', icon: <FeatherIcon size={19} />, command: 'go-write' },
   { mode: 'judge', label: 'Judge', icon: <ScaleIcon size={19} />, command: 'go-judge' },
-  { mode: 'insights', label: 'Insights', icon: <SparkIcon size={19} />, command: 'go-insights' }
+  { mode: 'insights', label: 'Insights', icon: <SparkIcon size={19} />, command: 'go-insights' },
+  { mode: 'code', label: 'Code', icon: <CodeIcon size={19} />, command: 'go-code' }
 ]
 
 /** Twilight's mark: a sun on the horizon under two bands of sky. */

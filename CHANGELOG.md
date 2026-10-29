@@ -4,6 +4,13 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.8.0
 
+**Code**
+- **A Code tab (Ctrl+5):** open a project folder and work in it with an agent, on any model you've set up. It lists, reads and searches files, edits and creates them, runs PowerShell commands, and asks you when it's unsure, with suggested answers.
+- **You approve what changes:** every edit shows its diff first and waits for you. Commands wait too, and those that could delete, overwrite or throw away git work are flagged with a warning and can never be allowed for good. Decline with a reason and the agent reads it.
+- **Three modes:** Ask first (the default), Accept edits (changes go through, commands and deletions still ask) and Read only.
+- **Nothing is lost:** each change is snapshotted before it's made, so Undo puts back the last one and Undo all every one. Deleted files go to the Recycle Bin. The agent can't reach outside its folder or touch files inside .git, and it's told when you undo something.
+- **Cache-friendly:** like chats, each step resends the one before exactly, so long sessions read mostly from the prompt cache; the session shows how much.
+
 **Look and feel**
 - **Frame your picture:** with your own background picture, drag the preview to choose which part shows and zoom in to crop tighter.
 - **Nebula and Embers now show.** A mistake in how they were written made the window skip them entirely; they're back, much richer: Nebula's clouds have stars through them, and Embers has sparks rising from the glow.

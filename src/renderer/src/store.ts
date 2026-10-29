@@ -18,7 +18,7 @@ import type {
 import { clearStream } from './stream'
 import { setCustomPrices, type CustomPrice } from '@shared/pricing'
 
-export type Mode = 'chat' | 'write' | 'judge' | 'insights'
+export type Mode = 'chat' | 'write' | 'judge' | 'insights' | 'code'
 /** A floating panel over everything: the command menu, the shortcut sheet, search or the persona chooser. */
 export type Overlay = 'commands' | 'shortcuts' | 'search' | 'personas' | null
 

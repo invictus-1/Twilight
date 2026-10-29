@@ -5,6 +5,7 @@ import { clearStream, handleStreamEvent } from '../stream'
 import { useWriting } from '../writingStore'
 import { useInsights } from '../insightsStore'
 import { InsightsView } from './InsightsView'
+import { CodeView } from './CodeView'
 import { Welcome } from './Welcome'
 import { JudgeView } from './JudgeView'
 
@@ -148,6 +149,8 @@ export function App() {
         <JudgeView />
       ) : mode === 'insights' ? (
         <InsightsView />
+      ) : mode === 'code' ? (
+        <CodeView />
       ) : (
         <Suspense fallback={<main className="chat" />}>
           <WritingView />

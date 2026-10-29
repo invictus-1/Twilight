@@ -37,6 +37,8 @@ import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { runShowcase } from './showcase'
 import { searchAll } from './search'
+import * as code from './code/agent'
+import type { CodeMode, CodeResponse } from '@shared/code'
 import { backgroundVersion, chooseBackground, clearBackgroundFile, registerBackgroundScheme, serveBackground } from './background'
 import { themeInfo, type Theme } from '@shared/themes'
 import { setCustomPrices, type CustomPrice } from '@shared/pricing'
@@ -258,6 +260,15 @@ function registerIpc(): void {
     closeSplit: (_e, id: string, keep: Pane) => chat.closeSplit(id, keep),
     branchToNewChat: (_e, id: string, nodeId: string, pane?: Pane) => chat.branchToNewChat(id, nodeId, pane),
     searchAll: (_e, query: string) => searchAll(query),
+    listCodeSessions: () => code.listSessions(),
+    newCodeSession: (e) => code.newSession(BrowserWindow.fromWebContents(e.sender)),
+    openCodeSession: (_e, id: string) => code.openSession(id),
+    sendCode: (_e, id: string, text: string) => code.send(id, text),
+    respondCode: (_e, id: string, pendingId: string, response: CodeResponse) => code.respond(id, pendingId, response),
+    stopCode: (_e, id: string) => code.stop(id),
+    undoCode: (_e, id: string, all: boolean) => code.undo(id, all),
+    setCodeOptions: (_e, id: string, patch: { mode?: CodeMode; providerId?: string; modelId?: string }) => code.setOptions(id, patch),
+    deleteCodeSession: (_e, id: string) => code.deleteSession(id),
     getPrices: () => db.kvGet<CustomPrice[]>('prices') ?? [],
     setPrices: (_e, list: CustomPrice[]) => {
       db.kvSet('prices', list)

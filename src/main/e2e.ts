@@ -2,10 +2,12 @@ import { app, clipboard, type BrowserWindow } from 'electron'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { appendFileSync, writeFileSync } from 'node:fs'
-import { readdir, readFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { logsFolder } from './logs'
 import { join } from 'node:path'
 import * as chat from './chat'
+import * as code from './code/agent'
+import { commandRisk, lineDiff } from '@shared/code'
 import * as db from './db'
 import * as docs from './docs'
 import { extractChoices } from '@shared/choices'
@@ -101,6 +103,64 @@ sha512: ${sha}
   res.end(bytes)
 }
 
+/**
+ * The Code tab's scripted agent. The request names a script; each tool result moves it one call
+ * on, and after the last call it replies with every result it got, so a check can see them.
+ */
+function codeAgentReply(messages: { role: string; content: string | null }[], res: import('node:http').ServerResponse): void {
+  const at = messages.findLastIndex((m) => m.role === 'user')
+  const request = messages[at]?.content ?? ''
+  const results = messages.slice(at + 1).filter((m) => m.role === 'tool').map((m) => String(m.content))
+  const outside = /CODEESCAPE (\S+)/.exec(request)?.[1] ?? ''
+  const scripts: Record<string, { name: string; args: Record<string, unknown> }[]> = {
+    CODEFLOW: [
+      { name: 'read_file', args: { path: 'notes.txt' } },
+      { name: 'edit_file', args: { path: 'notes.txt', old_text: 'lamps: 9', new_text: 'lamps: 12' } },
+      { name: 'run_command', args: { command: 'Get-Content notes.txt' } },
+      { name: 'ask_user', args: { question: 'Which colour should the lamps be?', options: ['Amber', 'Blue'] } }
+    ],
+    CODECREATE: [
+      { name: 'write_file', args: { path: 'src/new.txt', content: 'fresh\n' } },
+      { name: 'edit_file', args: { path: 'notes.txt', old_text: 'keeper: Wren', new_text: 'keeper: Rowan' } }
+    ],
+    CODEESCAPE: [
+      { name: 'read_file', args: { path: '../outside.txt' } },
+      { name: 'read_file', args: { path: outside } },
+      { name: 'write_file', args: { path: '../outside.txt', content: 'gone' } },
+      { name: 'write_file', args: { path: '.git/config', content: 'x' } },
+      { name: 'edit_file', args: { path: 'notes.txt', old_text: 'not in the file', new_text: 'y' } }
+    ],
+    CODEDELETE: [{ name: 'delete_file', args: { path: 'old.txt' } }],
+    CODERISKY: [{ name: 'run_command', args: { command: 'Remove-Item -Recurse -Force build' } }],
+    CODEALLOW: [
+      { name: 'run_command', args: { command: 'Write-Output hi' } },
+      { name: 'run_command', args: { command: 'Write-Output hi' } }
+    ],
+    CODEREAD: [
+      { name: 'write_file', args: { path: 'x.txt', content: 'x' } },
+      { name: 'run_command', args: { command: 'Write-Output hi' } }
+    ],
+    CODEASK: [{ name: 'ask_user', args: { question: 'Shall I go on?' } }]
+  }
+  const script = Object.entries(scripts).find(([k]) => request.includes(k))?.[1] ?? []
+  const call = script[results.length]
+  const send = (o: unknown): void => void res.write(`data: ${JSON.stringify(o)}\n\n`)
+  res.writeHead(200, { 'content-type': 'text/event-stream' })
+  if (call) {
+    if (results.length === 0) send({ choices: [{ delta: { content: 'Looking first.' } }] })
+    const args = JSON.stringify(call.args)
+    send({ choices: [{ delta: { tool_calls: [{ index: 0, id: `code_${results.length}`, type: 'function', function: { name: call.name, arguments: '' } }] } }] })
+    for (const part of [args.slice(0, 12), args.slice(12)]) send({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: part } }] } }] })
+    send({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] })
+  } else {
+    send({ choices: [{ delta: { content: `Done. ${results.join(' | ')}` } }] })
+    send({ choices: [{ delta: {}, finish_reason: 'stop' }] })
+  }
+  const prompt = messages.reduce((n, m) => n + (m.content?.length ?? 0), 0)
+  send({ choices: [], usage: { prompt_tokens: Math.ceil(prompt / 4), completion_tokens: 20, prompt_tokens_details: { cached_tokens: Math.floor(prompt / 8) } } })
+  res.end('data: [DONE]\n\n')
+}
+
 function startMockServer(log: LoggedRequest[]): Promise<Server> {
   const server = createServer((req, res) => {
     if (req.url?.startsWith('/gh/')) return mockGithub(req.url, `http://${req.headers.host}/gh`, res)
@@ -115,7 +175,8 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       const parsed = JSON.parse(body) as { model: string; messages: { role: string; content: string }[] }
       const entry: LoggedRequest = { model: parsed.model, messages: parsed.messages, body: parsed, startedAt: Date.now() }
       log.push(entry)
-      const lastUser = [...parsed.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
+      if (parsed.messages[0]?.content?.startsWith('You are a careful coding agent')) return codeAgentReply(parsed.messages, res)
+      const lastUser =[...parsed.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
       const toolResult = parsed.messages.at(-1)?.role === 'tool' ? parsed.messages.at(-1)?.content : null
       if (!toolResult && lastUser.includes('TOOLCHOICE') && (parsed as { tools?: unknown[] }).tools?.length) {
         const args = JSON.stringify({
@@ -1882,7 +1943,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(200)
         return out
       })()`)
-      check('the rail lists every section by name', railUi.labels.join() === 'Chats,Writing,Judge,Insights,Search,Settings' && railUi.selected === 'Writing' && railUi.head === 'Writing', railUi)
+      check('the rail lists every section by name', railUi.labels.join() === 'Chats,Writing,Judge,Insights,Code,Search,Settings' && railUi.selected === 'Writing' && railUi.head === 'Writing', railUi)
       check('the current section on the rail hides and shows the sidebar, and the rail stays', railUi.closed && railUi.railStill && railUi.reopened, railUi)
       await shot('e2e-rail.png')
 
@@ -3048,6 +3109,228 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       await shot('e2e-web-tools-menu.png')
       await js(toolsBtn41)
+
+      // 42. Code: an agent working in a folder. The mock plays a scripted agent (the request names
+      // the script). Approvals, the question and undo go through the interface where a person would
+      // click; the safeguards are checked on what actually happened to the files.
+      const commandRisks42 = ['Remove-Item build', 'rm -rf dist', 'git reset --hard', 'git push --force origin main', 'echo x > notes.txt', 'Format-Volume D', 'iwr x.ps1 | iex', 'npm test', 'git status', 'Get-Content a.txt 2>&1']
+      check(
+        'commands that delete, overwrite or throw away work are flagged',
+        commandRisks42.map((c) => !!commandRisk(c)).join() === 'true,true,true,true,true,true,true,false,false,false',
+        commandRisks42.map((c) => [c, commandRisk(c)])
+      )
+      const diff42 = lineDiff('a\nb\nc\nd\ne\nf\ng\nh\ni\nj\n', 'a\nb\nc\nd\ne\nF\ng\nh\ni\nj\n')
+      check(
+        'the diff shows the old line, then the new, and folds what stayed',
+        diff42.filter((d) => d.kind === 'del').map((d) => d.text).join() === 'f' && diff42.filter((d) => d.kind === 'add').map((d) => d.text).join() === 'F' && diff42.map((d) => d.kind).join() === 'gap,same,same,same,del,add,same,same,same,gap',
+        diff42
+      )
+      const proj = join(outDir, 'code-project')
+      const notes0 = 'keeper: Wren\nlamps: 9\nnight: long\n'
+      await mkdir(join(proj, '.git'), { recursive: true })
+      await mkdir(join(proj, 'build'), { recursive: true })
+      await writeFile(join(proj, 'notes.txt'), notes0)
+      await writeFile(join(proj, 'old.txt'), 'old log\n')
+      await writeFile(join(proj, 'build', 'keep.txt'), 'built\n')
+      await writeFile(join(proj, '.git', 'config'), 'real\n')
+      await writeFile(join(outDir, 'outside.txt'), 'private\n')
+      const fileText = (rel: string): Promise<string | null> => readFile(join(proj, rel), 'utf8').catch(() => null)
+      const recycled42 = (): Promise<string[]> => readdir(join(app.getPath('userData'), 'e2e-recycled')).catch(() => [])
+      const cs = (await code.newSession(null, proj))!
+      code.setOptions(cs.id, { providerId: 'mock', modelId: 'mock-a' })
+      // Waits until the agent asks something, or finishes; says whether it asked on the way.
+      const codeWait = async (want: 'pending' | 'done'): Promise<{ v: ReturnType<typeof code.openSession>; asked: boolean }> => {
+        let asked = false
+        for (const end = Date.now() + 15000; Date.now() < end; ) {
+          const v = code.openSession(cs.id)
+          if (v.pending) asked = true
+          if (want === 'pending' ? v.pending : !v.running) return { v, asked }
+          await new Promise((r) => setTimeout(r, 30))
+        }
+        const v = code.openSession(cs.id)
+        throw new Error(`Timed out waiting for the code agent (${want}): ${JSON.stringify({ running: v.running, pending: v.pending?.kind, error: v.error, last: v.entries.at(-1) })}`)
+      }
+      const toolEntries = (v: ReturnType<typeof code.openSession>) => v.entries.filter((e) => e.kind === 'tool') as Extract<(typeof v.entries)[number], { kind: 'tool' }>[]
+      const lastText42 = (v: ReturnType<typeof code.openSession>): string => (v.entries.filter((e) => e.kind === 'assistant').at(-1) as { text: string } | undefined)?.text ?? ''
+      const card42 = `(() => {
+        const card = document.querySelector('.code-pending')
+        return card && {
+          head: card.querySelector('.code-pending-head')?.textContent ?? '',
+          adds: [...card.querySelectorAll('.diff-add')].map((e) => e.textContent.trim()),
+          dels: [...card.querySelectorAll('.diff-del')].map((e) => e.textContent.trim()),
+          command: card.querySelector('.code-command')?.textContent ?? null,
+          risk: card.querySelector('.code-risk')?.textContent ?? null,
+          question: card.querySelector('.code-question-text')?.textContent ?? null,
+          buttons: [...card.querySelectorAll('button')].map((b) => b.textContent.trim())
+        }
+      })()`
+      const click42 = (label: string, scope = '.code-pending'): Promise<boolean> =>
+        js(`(() => { const b = [...document.querySelectorAll(${JSON.stringify(scope + ' button')})].find((x) => x.textContent.trim() === ${JSON.stringify(label)}); b?.click(); return !!b })()`)
+      const untilUi = (cond: string): Promise<boolean> =>
+        js(`(async () => { for (let end = Date.now() + 5000; Date.now() < end; ) { if (${cond}) return true; await new Promise((r) => setTimeout(r, 30)) } return false })()`)
+
+      await js(`document.querySelector('.rail-item[data-mode="code"]')?.click()`)
+      const opened42 = await untilUi(`document.querySelector('.code-view .code-folder')?.textContent === 'code-project'`)
+      const listed42 = await js<string[]>(`[...document.querySelectorAll('.code-session-item .tw-conv-title')].map((e) => e.textContent)`)
+      check('the Code tab opens the session in its folder', opened42 && listed42.includes('code-project'), listed42)
+      const before42 = log.length
+      win.webContents.focus()
+      await js(`document.querySelector('.code-view textarea')?.focus()`)
+      win.webContents.insertText('CODEFLOW make it twelve lamps')
+      await untilUi(`!document.querySelector('.code-view .tw-send')?.disabled`)
+      await js(`document.querySelector('.code-view .tw-send')?.click()`)
+      let w42 = await codeWait('pending')
+      await untilUi(`!!document.querySelector('.code-pending .code-diff')`)
+      const editCard = await js<{ head: string; adds: string[]; dels: string[]; buttons: string[] } | null>(card42)
+      check(
+        'an edit waits for approval, with its diff',
+        w42.v.pending?.kind === 'edit' && !!editCard?.head.includes('Make this change?') && editCard.head.includes('notes.txt') && editCard.dels.join() === '− lamps: 9' && editCard.adds.join() === '+ lamps: 12',
+        editCard
+      )
+      check('nothing is written before you approve', (await fileText('notes.txt')) === notes0)
+      check('reading a file needs no approval', toolEntries(w42.v)[0]?.tool === 'read_file' && toolEntries(w42.v)[0]?.status === 'done', toolEntries(w42.v))
+      await shot('e2e-code-approval.png')
+      await click42('Approve')
+      w42 = await codeWait('pending')
+      check('the approved edit is written and can be undone', (await fileText('notes.txt')) === notes0.replace('lamps: 9', 'lamps: 12') && w42.v.undoable.length === 1, w42.v.undoable)
+      await untilUi(`!!document.querySelector('.code-pending .code-command')`)
+      const cmdCard = await js<{ command: string | null; risk: string | null; buttons: string[] } | null>(card42)
+      check(
+        'a command waits for approval, and can be allowed for the session',
+        w42.v.pending?.kind === 'command' && cmdCard?.command === 'Get-Content notes.txt' && cmdCard.risk === null && cmdCard.buttons.includes('Always allow this command'),
+        cmdCard
+      )
+      await click42('Run it')
+      w42 = await codeWait('pending')
+      const ran42 = toolEntries(w42.v).find((e) => e.tool === 'run_command')
+      check('the command runs in the folder and its output is kept', ran42?.status === 'done' && !!ran42.output?.includes('lamps: 12'), ran42)
+      await untilUi(`!!document.querySelector('.code-question')`)
+      const qCard = await js<{ question: string | null; buttons: string[] } | null>(card42)
+      check('the agent can ask, with suggested answers', qCard?.question === 'Which colour should the lamps be?' && qCard.buttons.includes('Amber') && qCard.buttons.includes('Blue'), qCard)
+      await click42('Amber')
+      w42 = await codeWait('done')
+      check('your answer goes back to the agent', lastText42(w42.v).includes('The user answered: Amber'), lastText42(w42.v))
+      const steps42 = log.slice(before42).filter((r) => String(r.messages[0]?.content ?? '').startsWith('You are a careful coding agent'))
+      check(
+        'each step resends the one before unchanged, so the cache holds',
+        steps42.length === 5 && steps42.every((r, i) => i === 0 || JSON.stringify(r.messages.slice(0, steps42[i - 1].messages.length)) === JSON.stringify(steps42[i - 1].messages)),
+        steps42.map((r) => r.messages.length)
+      )
+      const replayed42 = steps42.at(-1)?.messages.find((m) => (m as { tool_calls?: unknown[] }).tool_calls) as { tool_calls: { id: string; function: { arguments: string } }[] } | undefined
+      check('tool calls are replayed with their arguments exactly as they came', replayed42?.tool_calls[0]?.function.arguments === JSON.stringify({ path: 'notes.txt' }), replayed42)
+      const offered42 = ((steps42[0]?.body as { tools?: { function: { name: string } }[] }).tools ?? []).map((t) => t.function.name)
+      check('the agent is offered its tools', offered42.join() === 'list_files,read_file,search_files,edit_file,write_file,delete_file,run_command,ask_user', offered42)
+      const usage42 = await js<string>(`document.querySelector('.code-usage')?.textContent ?? ''`)
+      check('the session shows what it used and how much came from the cache', /^[\d.]+k? in · [\d.]+k? out · \d+% cached$/.test(usage42), usage42)
+      await js(`(() => { const t = [...document.querySelectorAll('.code-tool')].find((e) => e.dataset.tool === 'edit_file'); t?.querySelector('.code-tool-head')?.click() })()`)
+      await shot('e2e-code.png')
+
+      // Undo, and the agent hears about it with your next message.
+      await click42('Undo', '.code-view .chat-head')
+      await untilUi(`[...document.querySelectorAll('.code-tool')].some((e) => e.classList.contains('code-tool-undone'))`)
+      check('Undo puts the file back as it was', (await fileText('notes.txt')) === notes0 && code.openSession(cs.id).entries.some((e) => e.kind === 'note' && e.text === 'Undid: edited notes.txt'))
+      code.send(cs.id, 'CODEPLAIN thanks')
+      await codeWait('done')
+      const noted42 = String(log.at(-1)?.messages.at(-1)?.content ?? '')
+      check('the agent is told what you undid', noted42.startsWith('<note>') && noted42.includes('undid your change "edited notes.txt"') && noted42.endsWith('CODEPLAIN thanks'), noted42)
+
+      // Accept edits: no approvals for changes, and Undo all puts every file back.
+      await click42('Accept edits', '.code-modes')
+      check('the mode can be changed from the header', (await untilUi(`document.querySelector('.code-modes [aria-checked="true"]')?.textContent === 'Accept edits'`)) && code.openSession(cs.id).mode === 'edits')
+      code.send(cs.id, 'CODECREATE')
+      w42 = await codeWait('done')
+      check('with edits accepted, changes go through without asking', !w42.asked && (await fileText('src/new.txt')) === 'fresh\n' && !!(await fileText('notes.txt'))?.includes('keeper: Rowan'), w42.v.entries)
+      await untilUi(`[...document.querySelectorAll('.code-view .chat-head button')].some((b) => b.textContent.trim() === 'Undo all' && !b.disabled)`)
+      await click42('Undo all', '.code-view .chat-head')
+      for (let end = Date.now() + 5000; Date.now() < end && (await fileText('src/new.txt')) !== null; ) await new Promise((r) => setTimeout(r, 30))
+      check(
+        'Undo all restores changed files and sends new ones to the Recycle Bin',
+        (await fileText('notes.txt')) === notes0 && (await fileText('src/new.txt')) === null && (await recycled42()).some((f) => f.endsWith('-new.txt')),
+        await recycled42()
+      )
+
+      // The folder is a fence: nothing outside it, nothing inside .git, no edit that doesn't match.
+      code.send(cs.id, `CODEESCAPE ${join(outDir, 'outside.txt')}`)
+      w42 = await codeWait('done')
+      const escape42 = toolEntries(w42.v).slice(-5)
+      check(
+        'the agent cannot read or write outside its folder',
+        escape42.slice(0, 3).every((e) => e.status === 'error' && /outside the folder/.test(e.output ?? '')) && (await readFile(join(outDir, 'outside.txt'), 'utf8')) === 'private\n',
+        escape42
+      )
+      check("the agent cannot change files inside .git", escape42[3]?.status === 'error' && /inside \.git/.test(escape42[3].output ?? '') && (await fileText('.git/config')) === 'real\n', escape42[3])
+      check("an edit whose text isn't in the file fails and changes nothing", escape42[4]?.status === 'error' && /wasn't found/.test(escape42[4].output ?? '') && (await fileText('notes.txt')) === notes0, escape42[4])
+      check('the agent sees why each one failed', lastText42(w42.v).includes('outside the folder') && lastText42(w42.v).includes('inside .git'), lastText42(w42.v))
+
+      // Deleting always asks, even with edits accepted; the file goes to the Recycle Bin and comes back.
+      code.send(cs.id, 'CODEDELETE')
+      w42 = await codeWait('pending')
+      await untilUi(`!!document.querySelector('.code-pending')`)
+      const delCard = await js<{ head: string } | null>(card42)
+      check('deleting asks even when edits are accepted', w42.v.pending?.kind === 'delete' && w42.v.mode === 'edits' && !!delCard?.head.includes('Move this file to the Recycle Bin?'), delCard)
+      await click42('Approve')
+      w42 = await codeWait('done')
+      check('a deleted file goes to the Recycle Bin', (await fileText('old.txt')) === null && (await recycled42()).some((f) => f.endsWith('-old.txt')))
+      await code.undo(cs.id, false)
+      check('and Undo brings it back', (await fileText('old.txt')) === 'old log\n')
+
+      // A risky command always asks with a warning, can't be allowed for good, and a no is explained.
+      code.send(cs.id, 'CODERISKY')
+      w42 = await codeWait('pending')
+      await untilUi(`!!document.querySelector('.code-pending .code-risk')`)
+      const riskCard = await js<{ risk: string | null; buttons: string[] } | null>(card42)
+      check(
+        'a risky command is flagged and cannot be allowed for the session',
+        w42.v.pending?.risk === 'it deletes files' && !!riskCard?.risk?.includes('it deletes files') && !riskCard.buttons.includes('Always allow this command'),
+        riskCard
+      )
+      win.webContents.focus()
+      await js(`document.querySelector('.code-decline-note')?.focus()`)
+      win.webContents.insertText('Keep the build')
+      await untilUi(`document.querySelector('.code-decline-note')?.value === 'Keep the build'`)
+      await click42('Decline')
+      w42 = await codeWait('done')
+      check('declining tells the agent why, and nothing runs', lastText42(w42.v).includes('The user declined. They said: Keep the build') && (await fileText('build/keep.txt')) === 'built\n', lastText42(w42.v))
+
+      // Allowing a command for the session lets that exact command through next time.
+      code.send(cs.id, 'CODEALLOW')
+      w42 = await codeWait('pending')
+      code.respond(cs.id, w42.v.pending!.id, { approve: true, always: true })
+      w42 = await codeWait('done')
+      const allow42 = toolEntries(w42.v).slice(-2)
+      check(
+        'a command allowed for the session runs again without asking',
+        !w42.asked && w42.v.allowed.includes('Write-Output hi') && allow42.every((e) => e.tool === 'run_command' && e.status === 'done' && e.output?.trim() === 'hi'),
+        allow42
+      )
+
+      // Read only: changes and commands are declined without asking.
+      code.setOptions(cs.id, { mode: 'read' })
+      code.send(cs.id, 'CODEREAD')
+      w42 = await codeWait('done')
+      check('read only declines changes and commands', !w42.asked && (await fileText('x.txt')) === null && toolEntries(w42.v).slice(-2).every((e) => e.status === 'declined'), toolEntries(w42.v).slice(-2))
+
+      // Stopping while the agent waits closes its open call, so the next request is still valid.
+      code.send(cs.id, 'CODEASK')
+      await codeWait('pending')
+      code.stop(cs.id)
+      w42 = await codeWait('done')
+      code.send(cs.id, 'CODEPLAIN after a stop')
+      w42 = await codeWait('done')
+      const afterStop = log.at(-1)?.messages ?? []
+      const callIds = afterStop.flatMap((m) => ((m as { tool_calls?: { id: string }[] }).tool_calls ?? []).map((c) => c.id))
+      const answered42 = new Set(afterStop.filter((m) => m.role === 'tool').map((m) => (m as { tool_call_id?: string }).tool_call_id))
+      check('a stop leaves every call answered', !w42.v.error && callIds.length > 0 && callIds.every((id) => answered42.has(id)), { callIds, answered: [...answered42], error: w42.v.error })
+
+      // Deleting a session drops its snapshots, never the project's files.
+      await code.deleteSession(cs.id)
+      check(
+        "deleting a session removes its history and snapshots, not your files",
+        !code.listSessions().some((x) => x.id === cs.id) && !existsSync(join(app.getPath('userData'), 'code-snapshots', cs.id)) && (await fileText('notes.txt')) === notes0,
+        code.listSessions()
+      )
+      await untilUi(`!document.querySelector('.code-session-item')`)
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

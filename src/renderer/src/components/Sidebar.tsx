@@ -4,6 +4,7 @@ import { modelName, useStore } from '../store'
 import { useInsights, type InsightsPage } from '../insightsStore'
 import { useJudge } from '../judgeStore'
 import { useWriting } from '../writingStore'
+import { useCode } from '../codeStore'
 import {
   BookIcon,
   BulbIcon,
@@ -589,7 +590,59 @@ function JudgeList() {
   )
 }
 
-const SECTION_NAMES = { chat: 'Chats', write: 'Writing', judge: 'Judge', insights: 'Insights' } as const
+/** Deleting a session asks once more; it drops the history and snapshots, never the folder's files. */
+function CodeSessionActions({ id, title }: { id: string; title: string }) {
+  const [confirming, setConfirming] = useState(false)
+  return (
+    <span className="row-actions" onClick={(e) => e.stopPropagation()}>
+      {confirming ? (
+        <button
+          className="tw-btn tw-btn-sm tw-btn-danger remove-confirm"
+          autoFocus
+          title="Files in the folder stay as they are; this session's undo history goes"
+          onBlur={() => setConfirming(false)}
+          onClick={() => {
+            setConfirming(false)
+            void useCode.getState().remove(id)
+          }}
+        >
+          Delete session
+        </button>
+      ) : (
+        <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label={`Delete ${title}`} title="Delete this session (files stay as they are)" onClick={() => setConfirming(true)}>
+          <TrashIcon size={13} />
+        </button>
+      )}
+    </span>
+  )
+}
+
+function CodeList() {
+  const sessions = useCode((s) => s.sessions)
+  const currentId = useCode((s) => s.current?.id)
+  useEffect(() => void useCode.getState().init(), [])
+  return (
+    <div className="sidebar-list">
+      {sessions.map((c) => (
+        <div
+          key={c.id}
+          className="tw-conv code-session-item"
+          aria-current={c.id === currentId ? 'true' : undefined}
+          onClick={() => void useCode.getState().open(c.id)}
+        >
+          <span className="tw-conv-title">{c.title}</span>
+          <span className="tw-conv-meta">
+            {c.waiting ? 'Waiting for you' : c.running ? 'Working…' : c.folder.split(/[\/]/).pop()} · {relativeTime(c.updatedAt)}
+          </span>
+          <CodeSessionActions id={c.id} title={c.title} />
+        </div>
+      ))}
+      {sessions.length === 0 && <p className="sidebar-empty">No sessions yet.</p>}
+    </div>
+  )
+}
+
+const SECTION_NAMES = { chat: 'Chats', write: 'Writing', judge: 'Judge', insights: 'Insights', code: 'Code' } as const
 
 export function Sidebar() {
   const mode = useStore((s) => s.mode)
@@ -607,6 +660,7 @@ export function Sidebar() {
         <span className="head-actions" hidden={mode === 'insights'}>
           <button
             className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
+            hidden={mode === 'code'}
             aria-label={mode === 'chat' ? 'New workspace' : 'New folder'}
             title={mode === 'chat' ? 'New workspace' : 'New folder'}
             onClick={() => setCreating(true)}
@@ -615,10 +669,16 @@ export function Sidebar() {
           </button>
           <button
             className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
-            aria-label={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
-            title={mode === 'chat' ? 'New chat (Ctrl+N)' : 'New document (Ctrl+Shift+N)'}
+            aria-label={mode === 'chat' ? 'New chat (Ctrl+N)' : mode === 'code' ? 'New session' : 'New document (Ctrl+Shift+N)'}
+            title={mode === 'chat' ? 'New chat (Ctrl+N)' : mode === 'code' ? 'New session in a folder' : 'New document (Ctrl+Shift+N)'}
             onClick={() =>
-              void (mode === 'chat' ? newChat() : mode === 'write' ? useWriting.getState().newDoc() : useJudge.getState().newDraft())
+              void (mode === 'chat'
+                ? newChat()
+                : mode === 'write'
+                  ? useWriting.getState().newDoc()
+                  : mode === 'code'
+                    ? useCode.getState().create()
+                    : useJudge.getState().newDraft())
             }
           >
             <PlusIcon />
@@ -631,6 +691,8 @@ export function Sidebar() {
         <DocList creating={creating} onCreated={() => setCreating(false)} />
       ) : mode === 'insights' ? (
         <InsightsNav />
+      ) : mode === 'code' ? (
+        <CodeList />
       ) : (
         <JudgeList />
       )}

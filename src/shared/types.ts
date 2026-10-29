@@ -2,6 +2,7 @@
 
 import type { AttachmentKind } from './attachments'
 import type { Theme } from './themes'
+import type { CodeEvent, CodeMode, CodeResponse, CodeSessionSummary, CodeSessionView } from './code'
 import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
@@ -546,6 +547,20 @@ export interface TwilightApi {
   /** Picks a picture and copies it in as the background; returns its stamp, or null if cancelled. */
   chooseBackground(): Promise<string | null>
   clearBackground(): Promise<void>
+  // ——— Code ———
+  listCodeSessions(): Promise<CodeSessionSummary[]>
+  /** Asks for a project folder and starts a session in it; null if cancelled. */
+  newCodeSession(): Promise<CodeSessionView | null>
+  openCodeSession(id: string): Promise<CodeSessionView>
+  sendCode(id: string, text: string): Promise<CodeSessionView>
+  /** Your answer to the approval or question the agent is waiting on. */
+  respondCode(id: string, pendingId: string, response: CodeResponse): Promise<void>
+  stopCode(id: string): Promise<void>
+  /** Undoes the newest change still in place, or every one. */
+  undoCode(id: string, all: boolean): Promise<CodeSessionView>
+  setCodeOptions(id: string, patch: { mode?: CodeMode; providerId?: string; modelId?: string }): Promise<CodeSessionView>
+  deleteCodeSession(id: string): Promise<void>
+  onCode(listener: (event: CodeEvent) => void): () => void
   /** Puts text on the clipboard from the main process (works whether or not the window has focus). */
   copyText(text: string): Promise<void>
   /** Matches the window frame and title bar to a theme. */
