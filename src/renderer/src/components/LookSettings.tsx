@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { contrast, customTokens, DEFAULT_CUSTOM, loadCustom, saveCustom, type CustomTheme } from '../customTheme'
 import { setTheme } from '../theme'
-import { GRADIENTS, backdropImage, framing, setBackdrop, setMotion, useBackdrop, useMotion, type Backdrop, type Motion } from '../look'
+import { GRADIENTS, backdropImage, framing, setBackdrop, setMotion, setScrollFx, useBackdrop, useMotion, useScrollFx, type Backdrop, type Motion, type ScrollFxStyle } from '../look'
 import { useStore } from '../store'
 
 /** None, a built-in gradient, or your own picture; then how dark and soft it sits behind the text. */
@@ -144,6 +144,44 @@ export function MotionPicker() {
         ))}
       </div>
       <p className="field-note">{MOTIONS.find((m) => m.id === motion)?.note}</p>
+    </div>
+  )
+}
+
+const FX_STYLES: { id: ScrollFxStyle; label: string; note: string }[] = [
+  { id: 'stardust', label: 'Stardust', note: 'Fine twinkling light that drifts against the scroll.' },
+  { id: 'sparks', label: 'Sparks', note: 'Bright streaks thrown in from the edge the text comes from.' },
+  { id: 'fireflies', label: 'Fireflies', note: 'A few soft, warm glows that wander and pulse.' },
+  { id: 'snow', label: 'Snow', note: 'Flakes swept along by the scroll that settle into falling.' },
+  { id: 'constellations', label: 'Constellations', note: 'Blue stars that join up into constellations as they drift.' },
+  { id: 'bats', label: 'Bats', note: 'Dark bats outlined in green that flap up and swoop around.' }
+]
+
+/** Particles while you scroll a chat: a few when you go slowly, a shower when you fling. */
+export function ScrollFxPicker() {
+  const fx = useScrollFx()
+  const motion = useMotion()
+  return (
+    <div className="look-block">
+      <label className="check">
+        <input type="checkbox" checked={fx.on} onChange={(e) => setScrollFx({ on: e.target.checked })} />
+        Particles when scrolling chats
+      </label>
+      {fx.on && (
+        <>
+          <div className="tw-seg fx-seg" role="radiogroup" aria-label="Particle style">
+            {FX_STYLES.map((s) => (
+              <button key={s.id} role="radio" aria-checked={fx.style === s.id} aria-pressed={fx.style === s.id} onClick={() => setScrollFx({ style: s.id })}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <p className="field-note">
+            {FX_STYLES.find((s) => s.id === fx.style)?.note} The faster you scroll, the more there are.
+            {motion !== 'full' && ' They show only with Motion set to Full.'}
+          </p>
+        </>
+      )}
     </div>
   )
 }

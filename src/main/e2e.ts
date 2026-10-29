@@ -3332,6 +3332,141 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await untilUi(`!document.querySelector('.code-session-item')`)
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
 
+      // 43. Scroll particles: off until switched on, then each style makes a few on a slow scroll
+      // and a shower on a fast one, fades out and stops drawing. Scrolls you didn't make (a reply
+      // being followed) make none, and Motion other than Full turns them off.
+      const c43 = chat.create().id
+      let parent43 = db.getConversation(c43).root_id
+      for (let i = 0; i < 30; i++) {
+        const u = db.insertNode({ id: randomUUID(), conversation_id: c43, parent_id: parent43, role: 'user', text: `Light lamp ${i}.`, content: null, thinking: null, model: null, provider_id: null, usage: null, status: 'done', error: null })
+        const text = `Wren climbed to lamp ${i} and trimmed the wick. `.repeat(12)
+        parent43 = db.insertNode({ id: randomUUID(), conversation_id: c43, parent_id: u.id, role: 'assistant', text, content: JSON.stringify([{ type: 'text', text }]), thinking: null, model: 'mock-a', provider_id: 'mock', usage: null, status: 'done', error: null }).id
+      }
+      db.updateConversation(c43, { started: 1, title: 'Particles in the lamplight' })
+      await reloadUi()
+      const openFx = `
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const frame = () => new Promise((r) => requestAnimationFrame(r))
+        const toChat = async () => {
+          document.querySelector('.rail-item[data-mode="chat"]')?.click()
+          await wait(150)
+          ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Particles in the lamplight')?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.thread-scroll .msg'); ) await wait(30)
+          await wait(200)
+        }`
+      const fxOff43 = await js<{ canvas: boolean }>(`(async () => {
+        ${openFx}
+        await toChat()
+        return { canvas: !!document.querySelector('.scroll-fx') }
+      })()`)
+      await key(',', ['control'])
+      const fxSwitch43 = await js<{ offered: boolean; styles: string[]; note: string }>(`(async () => {
+        ${openFx}
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('label.check'); ) await wait(50)
+        const box = [...document.querySelectorAll('label.check')].find((l) => l.textContent.includes('Particles when scrolling chats'))?.querySelector('input')
+        const offered = !!box && !box.checked
+        box?.click()
+        await wait(100)
+        return { offered, styles: [...document.querySelectorAll('.fx-seg button')].map((b) => b.textContent), note: document.querySelector('.fx-seg + .field-note')?.textContent ?? '' }
+      })()`)
+      check('scroll particles are off until you switch them on', !fxOff43.canvas && fxSwitch43.offered, { fxOff43, fxSwitch43 })
+      check('Settings → Extras offers them, with six styles', fxSwitch43.styles.join() === 'Stardust,Sparks,Fireflies,Snow,Constellations,Bats' && fxSwitch43.note.includes('faster you scroll'), fxSwitch43)
+      // A slow scroll (3 px a frame) then a fast one (40 px a frame), each step a wheel turn.
+      const runFx = async (style: string): Promise<{ style: string | null; slow: number; fast: number; peak: number; links: number; alive: number; after: number; quietSpawned: number; avgDrawMs: number; sized: boolean; ignoresMouse: boolean }> => {
+        await key(',', ['control'])
+        await js(`(async () => {
+          ${openFx}
+          ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50)
+          ;[...document.querySelectorAll('.fx-seg button')].find((b) => b.textContent === ${JSON.stringify(style)})?.click()
+          await wait(100)
+          await toChat()
+        })()`)
+        const out = await js<{ style: string | null; slow: number; fast: number; peak: number; links: number; alive: number; sized: boolean; ignoresMouse: boolean }>(`(async () => {
+          ${openFx}
+          const el = document.querySelector('.thread-scroll')
+          const fx = () => document.querySelector('.scroll-fx')
+          const canvas = fx()
+          if (!canvas) return { style: null, slow: 0, fast: 0, peak: 0, links: 0, alive: 0, sized: false, ignoresMouse: false }
+          el.scrollTop = 0
+          await wait(400)
+          const s0 = canvas.fxStats.spawned
+          for (let i = 0; i < 90; i++) { el.dispatchEvent(new WheelEvent('wheel')); el.scrollTop += 3; await frame() }
+          const slow = canvas.fxStats.spawned - s0
+          await wait(2800)
+          const s1 = canvas.fxStats.spawned
+          for (let i = 0; i < 60; i++) { el.dispatchEvent(new WheelEvent('wheel')); el.scrollTop += 40; await frame() }
+          return {
+            style: canvas.dataset.style,
+            slow,
+            fast: canvas.fxStats.spawned - s1,
+            peak: canvas.fxStats.peak,
+            links: canvas.fxStats.links,
+            alive: canvas.fxStats.alive,
+            sized: Math.abs(canvas.getBoundingClientRect().height - el.clientHeight) < 2 && Math.abs(canvas.getBoundingClientRect().width - el.clientWidth) < 2,
+            ignoresMouse: getComputedStyle(canvas).pointerEvents === 'none'
+          }
+        })()`)
+        await shot(`e2e-particles-${style.toLowerCase()}.png`)
+        const rest = await js<{ after: number; quietSpawned: number; avgDrawMs: number }>(`(async () => {
+          ${openFx}
+          const el = document.querySelector('.thread-scroll')
+          const canvas = document.querySelector('.scroll-fx')
+          await wait(3200)
+          const after = canvas.fxStats.alive
+          // Scrolling with no wheel, key or pointer behind it, like following a streaming reply.
+          const s2 = canvas.fxStats.spawned
+          for (let i = 0; i < 30; i++) { el.scrollTop -= 30; await frame() }
+          return { after, quietSpawned: canvas.fxStats.spawned - s2, avgDrawMs: +(canvas.fxStats.drawMs / Math.max(1, canvas.fxStats.frames)).toFixed(3) }
+        })()`)
+        return { ...out, ...rest }
+      }
+      for (const style of ['Stardust', 'Sparks', 'Fireflies', 'Snow', 'Constellations', 'Bats']) {
+        const r = await runFx(style)
+        check(`${style}: the particles draw over the chat without taking the mouse`, r.style === style.toLowerCase() && r.sized && r.ignoresMouse, r)
+        check(`${style}: a slow scroll makes a few, a fast one many more`, r.slow >= 1 && r.slow <= 12 && r.fast >= 30 && r.fast >= r.slow * 6, r)
+        check(`${style}: they fade out and drawing stops`, r.alive > 0 && r.after === 0, r)
+        check(`${style}: scrolls you didn't make leave them alone`, r.quietSpawned === 0, r)
+        check(`${style}: drawing stays cheap`, r.avgDrawMs < 4 && r.peak <= 240, r)
+        if (style === 'Constellations') check('constellations join nearby stars with lines', r.links > 0, r)
+        else check(`${style}: no constellation lines`, r.links === 0, r)
+      }
+      // Motion other than Full turns them off; switching them off removes the canvas.
+      await key(',', ['control'])
+      const fxMotion43 = await js<{ gentle: boolean; note: string }>(`(async () => {
+        ${openFx}
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50)
+        const general = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.motion-seg'); ) await wait(50) }
+        const extras = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50) }
+        await general()
+        ;[...document.querySelectorAll('.motion-seg button')].find((b) => b.textContent === 'Gentle').click()
+        await wait(100)
+        await extras()
+        const note = document.querySelector('.fx-seg + .field-note')?.textContent ?? ''
+        await toChat()
+        return { gentle: !!document.querySelector('.scroll-fx'), note }
+      })()`)
+      await key(',', ['control'])
+      const fxBack43 = await js<{ off: boolean }>(`(async () => {
+        ${openFx}
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50)
+        const general = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.motion-seg'); ) await wait(50) }
+        const extras = async () => { ;[...document.querySelectorAll('.settings-nav button')].find((b) => /Extras/.test(b.textContent))?.click(); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.fx-seg'); ) await wait(50) }
+        await general()
+        ;[...document.querySelectorAll('.motion-seg button')].find((b) => b.textContent === 'Full').click()
+        await wait(100)
+        await extras()
+        ;[...document.querySelectorAll('label.check')].find((l) => l.textContent.includes('Particles when scrolling chats'))?.querySelector('input')?.click()
+        await wait(100)
+        await toChat()
+        return { off: !document.querySelector('.scroll-fx') }
+      })()`)
+      check('with Motion on Gentle there are no particles, and Settings says why', !fxMotion43.gentle && fxMotion43.note.includes('only with Motion set to Full'), fxMotion43)
+      check('switching them off removes them', fxBack43.off)
+
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
       // What the mock server saw last, so a stalled reply shows whether its request ever arrived.

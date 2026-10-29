@@ -6,6 +6,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ### 0.8.0 · In progress
 - [x] **Background framing** · Core — drag and zoom your picture to choose which part shows; brighter Nebula, Embers and Starfield
+- [x] **Extras** · Core — a Settings page for things just for fun, starting with scroll particles in six styles that follow how fast you scroll
 - [x] **Code** · Core — its own tab: an agent that reads, edits and runs things in a folder you choose, asks when it's unsure, shows every change as a diff, waits for approval before edits and commands, snapshots before each change so any of it can be undone, and sends deletions to the Recycle Bin
 
 ### 0.7.0 · October 2026

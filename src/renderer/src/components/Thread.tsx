@@ -3,6 +3,8 @@ import { usePane } from '../pane'
 import { paneOf, useStore } from '../store'
 import { subscribeStream } from '../stream'
 import { Message } from './Message'
+import { useMotion, useScrollFx } from '../look'
+import { attachScrollFx } from '../scrollFx'
 
 // Scrolling is left entirely to the browser's compositor: no scroll listeners, no JS-driven
 // virtual list. Each message uses content-visibility: auto (see app.css), so off-screen
@@ -110,13 +112,30 @@ export function Thread() {
   }
 
   return (
-    <div className="thread-scroll" ref={scroller} onClick={onClick}>
-      <div className="thread" ref={content}>
-        {path.map((node, i) => (
-          <Message key={node.id} node={node} next={path[i + 1]} isLast={i === path.length - 1} />
-        ))}
-        <div ref={sentinel} className="thread-end" />
+    <div className="thread-wrap">
+      <div className="thread-scroll" ref={scroller} onClick={onClick}>
+        <div className="thread" ref={content}>
+          {path.map((node, i) => (
+            <Message key={node.id} node={node} next={path[i + 1]} isLast={i === path.length - 1} />
+          ))}
+          <div ref={sentinel} className="thread-end" />
+        </div>
       </div>
+      <ScrollParticles scroller={scroller} />
     </div>
   )
+}
+
+/** The scroll particles, when they're on and motion is Full (Windows' reduce motion turns them off too). */
+function ScrollParticles({ scroller }: { scroller: React.RefObject<HTMLDivElement | null> }) {
+  const fx = useScrollFx()
+  const motion = useMotion()
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const reduce = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  const on = fx.on && motion === 'full' && !reduce
+  useEffect(() => {
+    if (!on || !scroller.current || !canvas.current) return
+    return attachScrollFx(scroller.current, canvas.current, fx.style)
+  }, [on, fx.style, scroller])
+  return on ? <canvas ref={canvas} className="scroll-fx" data-style={fx.style} aria-hidden="true" /> : null
 }

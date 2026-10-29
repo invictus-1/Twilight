@@ -138,3 +138,24 @@ export function setMotion(m: Motion): void {
 }
 
 export const useMotion = (): Motion => useSyncExternalStore(subscribe, () => motion)
+
+export type ScrollFxStyle = 'stardust' | 'sparks' | 'fireflies' | 'snow' | 'constellations' | 'bats'
+/** Particles while you scroll a chat: off unless you switch them on. */
+export interface ScrollFx {
+  on: boolean
+  style: ScrollFxStyle
+}
+
+let scrollFx: ScrollFx = read('twilight.scrollfx', { on: false, style: 'stardust' as ScrollFxStyle })
+
+export function setScrollFx(patch: Partial<ScrollFx>): void {
+  scrollFx = { ...scrollFx, ...patch }
+  try {
+    localStorage.setItem('twilight.scrollfx', JSON.stringify(scrollFx))
+  } catch {
+    // Storage unavailable: the setting holds for this session.
+  }
+  changed()
+}
+
+export const useScrollFx = (): ScrollFx => useSyncExternalStore(subscribe, () => scrollFx)

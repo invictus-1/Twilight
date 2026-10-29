@@ -1,5 +1,5 @@
 import { ThemePicker } from './ThemePicker'
-import { BackgroundPicker, MotionPicker, ThemeBuilder } from './LookSettings'
+import { BackgroundPicker, MotionPicker, ScrollFxPicker, ThemeBuilder } from './LookSettings'
 import { useEffect, useMemo, useState } from 'react'
 import { ShortcutsSection } from './ShortcutsSection'
 import { PricesSection } from './PricesSection'
@@ -18,7 +18,7 @@ import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIc
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'prices' | 'usage' | 'general' | 'library' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
+type Section = 'providers' | 'prices' | 'usage' | 'general' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
 
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
   { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
@@ -26,6 +26,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'writing', group: 'App', label: 'Writing', description: 'Where your documents live. Point it at an Obsidian vault and both apps edit the same files.' },
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats, settings and request logs on this machine.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
+  { id: 'extras', group: 'App', label: 'Extras', description: "Just for fun: little extras that don't change how anything works. All of them start off." },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
   { id: 'prices', group: 'Models', label: 'Prices', description: 'What replies cost: your own prices per model, and the built-in ones. A cost the provider reports itself comes first.' },
   { id: 'usage', group: 'Models', label: 'Usage', description: 'Tokens and spend over time, by model and by chat, counted from every reply and Judge run.' },
@@ -537,6 +538,16 @@ function DataSection() {
   )
 }
 
+/** Extras: things for fun that have no other home. */
+function ExtrasSection() {
+  return (
+    <div className="settings-card">
+      <h3 className="t-heading">Scroll particles</h3>
+      <ScrollFxPicker />
+    </div>
+  )
+}
+
 function AboutSection() {
   const [info, setInfo] = useState<{ version: string; electron: string } | null>(null)
   useEffect(() => {
@@ -598,6 +609,7 @@ export function SettingsView() {
           {section === 'writing' && <WritingSection />}
           {section === 'data' && <DataSection />}
           {section === 'shortcuts' && <ShortcutsSection />}
+          {section === 'extras' && <ExtrasSection />}
           {section === 'updates' && <UpdatesSection />}
           {section === 'roadmap' && <RoadmapSection />}
           {section === 'about' && <AboutSection />}

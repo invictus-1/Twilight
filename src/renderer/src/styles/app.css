@@ -122,7 +122,11 @@ h1, h2, h3 { margin: 0; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--iris); cursor: pointer; text-decoration: underline; }
 
 /* Thread */
+.thread-wrap { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .thread-scroll { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+/* Scroll particles sit over the thread and never take the mouse. */
+.scroll-fx { position: absolute; pointer-events: none; z-index: 1; }
+.fx-seg { flex-wrap: wrap; }
 .thread { max-width: var(--thread); margin: 0 auto; padding: var(--space-6) var(--space-6) var(--space-4); }
 /* Block layout, not flex: a message changing size must not re-run layout for all its siblings. */
 .thread > .msg { margin-bottom: var(--space-6); }

@@ -4,6 +4,10 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.8.0
 
+**Extras**
+- **A new Extras page** in Settings, for things that are just for fun. Everything there starts off.
+- **Scroll particles:** switch them on and scrolling through a chat throws up particles: a few when you scroll slowly, a shower when you fling. Six styles: Stardust, Sparks, Fireflies, Snow, Constellations (blue stars that join up as they drift) and Bats (dark, outlined in green, flapping up and around). They only follow scrolling you do, not a reply being followed as it streams, show only with Motion on Full, and stop drawing the moment the last one fades.
+
 **Code**
 - **A Code tab (Ctrl+5):** open a project folder and work in it with an agent, on any model you've set up. It lists, reads and searches files, edits and creates them, runs PowerShell commands, and asks you when it's unsure, with suggested answers.
 - **You approve what changes:** every edit shows its diff first and waits for you. Commands wait too, and those that could delete, overwrite or throw away git work are flagged with a warning and can never be allowed for good. Decline with a reason and the agent reads it.

@@ -8,6 +8,7 @@ import { getDefaults } from './chat'
 // Dev-only performance check, run with TWILIGHT_SELFTEST=<output folder>. Seeds a chat of about
 // 350k tokens into a throwaway profile, opens it, scrolls top to bottom one step per frame,
 // and writes frame timings plus a screenshot to the output folder. Never active otherwise.
+// TWILIGHT_SELFTEST_FX=<style> runs it with scroll particles on, each step counted as a wheel turn.
 
 const PARAGRAPH =
   'The lamps came on one street at a time, as if the town were remembering itself. Nobody in Harrow Lane had ever seen who lit them, only the smell of oil afterward, drifting down from the bridge where Wren stood counting. '
@@ -52,6 +53,17 @@ export function seedSelfTest(): string {
 }
 
 export function runSelfTest(win: BrowserWindow, outDir: string): void {
+  const fx = process.env.TWILIGHT_SELFTEST_FX
+  if (!fx) return measure(win, outDir, false)
+  // Particles are a setting kept in the page's storage: set it, then measure after a reload.
+  win.webContents.once('did-finish-load', async () => {
+    await win.webContents.executeJavaScript(`localStorage.setItem('twilight.scrollfx', ${JSON.stringify(JSON.stringify({ on: true, style: fx }))})`)
+    measure(win, outDir, true)
+    win.webContents.reload()
+  })
+}
+
+function measure(win: BrowserWindow, outDir: string, fx: boolean): void {
   win.webContents.once('did-finish-load', async () => {
     try {
       const result = await win.webContents.executeJavaScript(`(async () => {
@@ -88,6 +100,7 @@ export function runSelfTest(win: BrowserWindow, outDir: string): void {
           const t = []
           let prev = performance.now()
           while (el.scrollTop + el.clientHeight < el.scrollHeight - 1 && t.length < 20000) {
+            if (${fx}) el.dispatchEvent(new WheelEvent('wheel'))
             el.scrollTop += stepPx; await frame(); const now = performance.now(); t.push(now - prev); prev = now
           }
           const s = [...t].sort((a, b) => a - b)
@@ -105,7 +118,9 @@ export function runSelfTest(win: BrowserWindow, outDir: string): void {
         const heightDriftPx = el.scrollHeight - startHeight
         const flick = await pass(60)
         const scrolledPx = el.scrollTop + el.clientHeight
+        const fxStats = document.querySelector('.scroll-fx')?.fxStats ?? null
         return {
+          particles: fxStats && { style: document.querySelector('.scroll-fx').dataset.style, spawned: fxStats.spawned, peak: fxStats.peak, avgDrawMs: +(fxStats.drawMs / Math.max(1, fxStats.frames)).toFixed(3) },
           messages: document.querySelectorAll('.msg').length,
           characters: [...document.querySelectorAll('.md')].reduce((n, e) => n + e.textContent.length, 0),
           scrollHeightPx: el.scrollHeight,

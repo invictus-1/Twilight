@@ -97,6 +97,7 @@ export const COMMANDS: Command[] = [
   { id: 'go-usage', title: 'Usage', group: 'Go to', hint: 'tokens spend cost stats settings', run: () => settings('usage') },
   { id: 'go-updates', title: 'Updates', group: 'Go to', hint: 'version settings', run: () => settings('updates') },
   { id: 'go-roadmap', title: 'Roadmap', group: 'Go to', run: () => settings('roadmap') },
+  { id: 'go-extras', title: 'Extras', group: 'Go to', hint: 'fun particles scrolling settings', run: () => settings('extras') },
   { id: 'go-keys', title: 'Rebind keys', group: 'Go to', hint: 'shortcuts settings', run: () => settings('shortcuts') },
   ...THEMES.map((t): Command => ({ id: `theme-${t.id}`, title: t.name, group: 'Theme', hint: `theme colors ${t.note}`, run: () => setTheme(t.id) })),
   { id: 'theme-custom', title: 'Your own', group: 'Theme', hint: 'theme colors custom builder', run: () => (setTheme('custom'), settings('general')) },
