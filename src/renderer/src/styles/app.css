@@ -1518,3 +1518,11 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 /* Model settings: saving the open settings as the model's own defaults. */
 .model-defaults-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
 .model-defaults-row .field-note { flex-basis: 100%; }
+
+/* Your message's tools sit under it, at its right edge, like a reply's sit under the reply. */
+.msg-user-row { flex-direction: column; align-items: flex-end; gap: 2px; }
+.user-foot { display: flex; align-items: center; justify-content: flex-end; gap: var(--space-1); min-height: 28px; }
+.copy-done { color: var(--success); gap: 4px; }
+
+.chat-prompt-added summary { cursor: pointer; font-size: 12px; color: var(--ink-faint); }
+.chat-prompt-added[open] { display: flex; flex-direction: column; gap: var(--space-2); align-items: flex-start; }

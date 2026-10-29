@@ -106,7 +106,7 @@ export function Thread() {
     const copy = target.closest<HTMLElement>('[data-copy]')
     if (copy) {
       const code = copy.closest('.tw-codeblock')?.querySelector('code')?.textContent ?? ''
-      void navigator.clipboard.writeText(code)
+      void window.twilight.copyText(code)
       copy.textContent = 'Copied'
       setTimeout(() => (copy.textContent = 'Copy'), 1200)
     }

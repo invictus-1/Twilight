@@ -97,7 +97,7 @@ interface State {
   deleteMessage(nodeId: string, kind: 'single' | 'below', pane: Pane): Promise<void>
   restoreDeletion(deletionId: string, pane?: Pane): Promise<void>
   refreshDeletions(): Promise<void>
-  editMessage(nodeId: string, text: string, pane: Pane): Promise<void>
+  editMessage(nodeId: string, text: string, pane: Pane, send?: boolean): Promise<void>
   dismissUndo(): void
   stop(target?: SendTarget): Promise<void>
   updateSettings(patch: Partial<ChatSettings>, pane?: Pane): Promise<void>
@@ -310,7 +310,7 @@ export const useStore = create<State>((set, get) => {
       const deletions = await guard(set, () => api.listDeletions(current.id))
       if (deletions && get().current?.id === current.id) set({ deletions })
     },
-    editMessage: (nodeId, text, pane) => withCurrent((id) => api.editMessage(id, nodeId, text, pane)),
+    editMessage: (nodeId, text, pane, send = true) => withCurrent((id) => api.editMessage(id, nodeId, text, pane, send)),
     dismissUndo: () => set({ undo: null }),
     offerUndo: (label, run, scope = 'app') => set({ undo: { label, run, scope } }),
     async runUndo() {

@@ -4,6 +4,10 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Fixed: Copy did nothing.** The copy buttons used the page's clipboard, which Twilight refuses along with every other web permission. They now use Twilight's own, and show a tick and "Copied" for a moment.
+- **Your message's tools sit under it,** at its right edge (edit, copy, regenerate, delete), like a reply's.
+- **Edit without sending:** editing one of your messages offers Save as well as Save and send. A saved edit waits as the newest message, with Send under it for when you're ready.
+- **The choice cards how-to, on show:** when choice cards add their how-to to the system prompt, the top of the chat says so, shows what's added, and lets you stop adding it.
 - **Each model's own defaults:** in Model settings, Save as this model's defaults keeps its effort, thinking, temperature, max output tokens and extra request JSON. Whenever you pick that model, or a chat starts with it, those settings come with it. The system prompt stays with the chat. Picking a model starts its own prompt cache anyway, so this never costs a cached one.
 - **Fixed: a new chat in a workspace could miss the workspace's system prompt.** When New chat reused an empty chat, it only moved it into the workspace, so the chat kept an empty prompt. It's now set up afresh with the workspace's prompt and model.
 - **A chat begins under the evening sky:** above the first message is half a screen of the sky from the empty chat, so scrolling to the top of a chat brings it back into view. At its foot is the chat's system prompt.

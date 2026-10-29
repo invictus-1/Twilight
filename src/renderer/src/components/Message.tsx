@@ -14,7 +14,7 @@ import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
 import { DiffBody, useDiffed } from './SplitDiff'
-import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, ToolIcon, TrashIcon } from './Icons'
+import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, ToolIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -33,9 +33,9 @@ function estimateHeight(text: string, chrome: number): number {
 function EditBox({ node, onDone }: { node: NodeView; onDone: () => void }) {
   const pane = usePane()
   const [text, setText] = useState(node.text)
-  const save = (): void => {
+  const save = (send = true): void => {
     if (!text.trim() || text === node.text) return onDone()
-    void useStore.getState().editMessage(node.id, text, pane)
+    void useStore.getState().editMessage(node.id, text, pane, send)
     onDone()
   }
   return (
@@ -55,7 +55,12 @@ function EditBox({ node, onDone }: { node: NodeView; onDone: () => void }) {
         <button className="tw-btn tw-btn-sm tw-btn-ghost" onClick={onDone}>
           Cancel
         </button>
-        <button className="tw-btn tw-btn-sm tw-btn-primary" onClick={save}>
+        {node.role === 'user' && (
+          <button className="tw-btn tw-btn-sm" onClick={() => save(false)} title="Keep the edit without sending it yet; send it from under the message when you're ready">
+            Save
+          </button>
+        )}
+        <button className="tw-btn tw-btn-sm tw-btn-primary" onClick={() => save()}>
           {node.role === 'user' ? 'Save and send (Ctrl+Enter)' : 'Save (Ctrl+Enter)'}
         </button>
       </div>
@@ -100,10 +105,39 @@ function DeleteButton({ node }: { node: NodeView }) {
   )
 }
 
+/**
+ * Copy as an icon that answers: a tick and "Copied" for a moment. It goes through Twilight's own
+ * clipboard, since the page's is refused along with every other web permission.
+ */
+export function CopyIconButton({ text, label = 'Copy' }: { text: () => string; label?: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      className={`tw-btn tw-btn-ghost ${copied ? 'tw-btn-sm copy-done' : 'tw-btn-icon'}`}
+      aria-label={copied ? 'Copied' : label}
+      title={copied ? 'Copied' : label}
+      onClick={() => {
+        void window.twilight.copyText(text())
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1400)
+      }}
+    >
+      {copied ? (
+        <>
+          <CheckIcon />
+          Copied
+        </>
+      ) : (
+        <CopyIcon />
+      )}
+    </button>
+  )
+}
+
 /** Whether a message is new enough to ease in (one just sent or arriving, not an old one). */
 const useFresh = (node: NodeView): boolean => useState(() => Date.now() - node.createdAt < 4000)[0]
 
-function UserMessage({ node }: { node: NodeView }) {
+function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: boolean }) {
   const pane = usePane()
   const fresh = useFresh(node)
   const [expanded, setExpanded] = useState(false)
@@ -123,24 +157,6 @@ function UserMessage({ node }: { node: NodeView }) {
       data-node={node.id}
       style={{ containIntrinsicSize: `auto ${estimateHeight(long && !expanded ? node.text.slice(0, 1200) : node.text, 28)}px` }}
     >
-      <span className="user-actions">
-        <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Edit" title="Edit (makes a new version)" onClick={() => setEditing(true)}>
-          <PenIcon />
-        </button>
-        <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Copy" title="Copy" onClick={() => void navigator.clipboard.writeText(node.text)}>
-          <CopyIcon />
-        </button>
-        <button
-          className="tw-btn tw-btn-ghost tw-btn-icon"
-          aria-label="Regenerate the reply"
-          title="Regenerate the reply to this message (adds a new version)"
-          onClick={() => void useStore.getState().regenerate(node.id, pane)}
-        >
-          <RefreshIcon />
-        </button>
-        <DeleteButton node={node} />
-      </span>
-      <BranchSwitcher node={node} />
       <div className="tw-msg-user">
         {node.library && node.library.length > 0 && (
           <div className="msg-attachments">
@@ -186,6 +202,30 @@ function UserMessage({ node }: { node: NodeView }) {
             {expanded ? 'Collapse' : `Show all · ${words.toLocaleString()} words`}
           </button>
         )}
+      </div>
+      <div className="user-foot">
+        {/* The newest message with no reply yet (an edit saved without sending): send it from here. */}
+        {waiting && (
+          <button className="tw-btn tw-btn-sm tw-btn-primary user-send" onClick={() => void useStore.getState().regenerate(node.id, pane)}>
+            Send
+          </button>
+        )}
+        <BranchSwitcher node={node} />
+        <span className="user-actions">
+          <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Edit" title="Edit (makes a new version)" onClick={() => setEditing(true)}>
+            <PenIcon />
+          </button>
+          <CopyIconButton text={() => node.text} />
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-icon"
+            aria-label="Regenerate the reply"
+            title="Regenerate the reply to this message (adds a new version)"
+            onClick={() => void useStore.getState().regenerate(node.id, pane)}
+          >
+            <RefreshIcon />
+          </button>
+          <DeleteButton node={node} />
+        </span>
       </div>
     </div>
   )
@@ -427,7 +467,7 @@ function GameFormatButton({ text }: { text: string }) {
       className="tw-btn tw-btn-ghost tw-btn-sm game-format-btn"
       title="Copy for a game: paragraphs joined with single line breaks; code and HTML blocks kept as they are (options in Settings)"
       onClick={() => {
-        void navigator.clipboard.writeText(gameFormat(text, readGameFormat()))
+        void window.twilight.copyText(gameFormat(text, readGameFormat()))
         setCopied(true)
         setTimeout(() => setCopied(false), 1200)
       }}
@@ -528,14 +568,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
         <div className="msg-foot">
           <div className="tw-msg-actions">
             <BranchSwitcher node={node} />
-            <button
-              className="tw-btn tw-btn-ghost tw-btn-icon"
-              aria-label="Copy"
-              title="Copy"
-              onClick={() => void navigator.clipboard.writeText(body)}
-            >
-              <CopyIcon />
-            </button>
+            <CopyIconButton text={() => body} />
             <button
               className="tw-btn tw-btn-ghost tw-btn-icon"
               aria-label="Regenerate"
@@ -591,7 +624,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
 
 export const Message = memo(
   function Message({ node, next, isLast = false }: { node: NodeView; next?: NodeView; isLast?: boolean }) {
-    return node.role === 'user' ? <UserMessage node={node} /> : <AssistantMessage node={node} next={next} isLast={isLast} />
+    return node.role === 'user' ? <UserMessage node={node} waiting={isLast} /> : <AssistantMessage node={node} next={next} isLast={isLast} />
   },
   (a, b) =>
     a.node.id === b.node.id &&

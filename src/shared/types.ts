@@ -517,7 +517,8 @@ export interface TwilightApi {
   viewDeletion(id: string, deletionId: string): Promise<NodeView[]>
   restoreDeletion(id: string, deletionId: string, pane?: Pane): Promise<ConversationView>
   /** Edits a message as a new version: a user message gets a fresh reply; a reply is saved as written. */
-  editMessage(id: string, nodeId: string, text: string, pane?: Pane): Promise<ConversationView>
+  /** Saves an edit as a new version; a message of yours is sent unless send is false. */
+  editMessage(id: string, nodeId: string, text: string, pane?: Pane, send?: boolean): Promise<ConversationView>
   switchBranch(id: string, nodeId: string, direction: -1 | 1, pane?: Pane): Promise<ConversationView>
   stop(id: string, target?: SendTarget): Promise<void>
   /** Opens split compare with pane B as a copy of pane A at `nodeId` (default: A's latest message). */

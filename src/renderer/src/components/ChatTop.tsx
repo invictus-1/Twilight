@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CHOICES_INSTRUCTION, CHOICES_TOOL_INSTRUCTION } from '@shared/choices'
 import { paneOf, useStore } from '../store'
 import { usePane } from '../pane'
 import { CopyIcon, PenIcon } from './Icons'
@@ -11,7 +12,7 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
     <button
       className="tw-btn tw-btn-ghost tw-btn-sm"
       onClick={() => {
-        void navigator.clipboard.writeText(text)
+        void window.twilight.copyText(text)
         setCopied(true)
         setTimeout(() => setCopied(false), 1200)
       }}
@@ -38,6 +39,9 @@ export function ChatTop() {
     setDraft(null)
   }
   const changed = draft !== null && draft !== prompt
+  // What choice cards add after the system prompt (the same rule as the request), shown so nobody
+  // wonders where it came from.
+  const howTo = settings.choiceCards && settings.choiceInstructions ? (settings.choiceTool ? CHOICES_TOOL_INSTRUCTION : settings.choiceFenced ? CHOICES_INSTRUCTION : '') : ''
 
   return (
     <div className="thread-top">
@@ -78,6 +82,19 @@ export function ChatTop() {
             </div>
             <p className="field-note">Saving sends the whole chat again under the new prompt, so the prompt cache restarts. From the next message on keeps it.</p>
           </>
+        )}
+        {howTo && draft === null && (
+          <details className="chat-prompt-added">
+            <summary>Choice cards add their how-to after it</summary>
+            <div className="chat-prompt-text">{howTo}</div>
+            <button
+              className="tw-btn tw-btn-ghost tw-btn-sm"
+              onClick={() => update({ choiceInstructions: false })}
+              title="Your own prompt then says how to offer choices. The system prompt changes, so the prompt cache restarts."
+            >
+              Stop adding it
+            </button>
+          </details>
         )}
         {settings.pendingInstruction.trim() && draft === null && (
           <p className="chat-prompt-pending">From your next message: {settings.pendingInstruction}</p>

@@ -386,7 +386,7 @@ export function restoreDeletion(id: string, deletionId: string, pane: Pane = 'a'
   return view(id)
 }
 
-export function editMessage(contents: WebContents, id: string, nodeId: string, text: string, pane: Pane = 'a'): ConversationView {
+export function editMessage(contents: WebContents, id: string, nodeId: string, text: string, pane: Pane = 'a', send = true): ConversationView {
   if (isRunning(id, pane)) throw new Error('Wait for the reply to finish before editing.')
   const nodes = db.loadNodes(id)
   const node = nodes.get(nodeId)
@@ -422,7 +422,8 @@ export function editMessage(contents: WebContents, id: string, nodeId: string, t
   }
   const split = splitOf(db.getConversation(id))
   if (pane === 'b' && split) setSplit(id, { ...split, leafId: edited.id })
-  if (node.role === 'user') generate(contents, id, edited.id, pane)
+  // Saved without sending, it waits as the newest message for Send (or more edits).
+  if (node.role === 'user' && send) generate(contents, id, edited.id, pane)
   return view(id)
 }
 

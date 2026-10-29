@@ -3467,9 +3467,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // The top of a chat: the sky, then its system prompt; a replaced prompt is kept and flagged on older replies.
       chat.updateSettings(c40w, { systemPrompt: 'Answer as the harbour master.' })
       chat.updateSettings(c40w, { systemPrompt: 'Answer as the lighthouse keeper.' })
+      chat.updateSettings(c40w, { choiceCards: true, choiceFenced: true, choiceTool: false, choiceInstructions: true })
       const history41 = chat.view(c40w).settings.promptHistory ?? []
       await reloadUi()
-      const topUi = await js<{ sky: boolean; prompt: string; history: number; marker: number; tall: number }>(`(async () => {
+      const topUi = await js<{ sky: boolean; prompt: string; history: number; marker: number; tall: number; howTo: string | null; footBelow: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         document.querySelector('[data-mode="chat"]')?.click()
         await wait(200)
@@ -3481,11 +3482,37 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           prompt: top?.querySelector('.chat-prompt > .chat-prompt-text')?.textContent ?? '',
           history: top?.querySelectorAll('.chat-prompt-old').length ?? 0,
           marker: document.querySelectorAll('.tw-msg-ai .earlier-prompt').length,
+          howTo: top?.querySelector('.chat-prompt-added summary')?.textContent ?? null,
+          footBelow: (() => { const row = document.querySelector('.msg-user-row'); const b = row?.querySelector('.tw-msg-user')?.getBoundingClientRect(); const f = row?.querySelector('.user-foot')?.getBoundingClientRect(); return !!b && !!f && f.top >= b.bottom - 1 })(),
           tall: top ? Math.round((top.getBoundingClientRect().height / innerHeight) * 100) : 0
         }
       })()`)
       check('a chat begins under half a screen of sky, with its system prompt at the top', topUi.sky && topUi.prompt === 'Answer as the lighthouse keeper.' && topUi.tall >= 45, topUi)
       check('replaced system prompts are kept, and replies written under one say so', history41.at(-1)?.text === 'Answer as the harbour master.' && topUi.history === history41.length && topUi.marker === 1, { kept: history41.map((h) => h.text), ...topUi })
+      check('the choice cards how-to shows under the system prompt when it is added', topUi.howTo === 'Choice cards add their how-to after it', topUi.howTo)
+      check('the tools for your message sit under it', topUi.footBelow, topUi.footBelow)
+      clipboard.writeText('')
+      const copyUi = await js<{ label: string; again: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const btn = [...document.querySelectorAll('.tw-msg-ai .msg-foot button')].find((b) => b.getAttribute('aria-label') === 'Copy')
+        btn?.click()
+        await wait(100)
+        const label = [...document.querySelectorAll('.tw-msg-ai .msg-foot button')].find((b) => b.classList.contains('copy-done'))?.textContent ?? ''
+        await wait(1500)
+        return { label, again: [...document.querySelectorAll('.tw-msg-ai .msg-foot button')].some((b) => b.classList.contains('copy-done')) ? 'still' : 'back' }
+      })()`)
+      const copied41 = await clipboard.readText()
+      check('copying a reply puts it on the clipboard and says Copied for a moment', copied41.trim().length > 20, { label: copyUi.label, again: copyUi.again, chars: copied41.length })
+      check('the Copied tick shows, then goes back', copyUi.label === 'Copied' && copyUi.again === 'back', copyUi)
+      // An edit saved without sending waits as the newest message, with Send under it.
+      const ed = chat.create(null)
+      chat.send(contents, ed.id, 'Light the lamps')
+      await idle(ed.id)
+      const edSent = log.length
+      const userNode = chat.view(ed.id).path[0]
+      const edView = chat.editMessage(contents, ed.id, userNode.id, 'Light every lamp', 'a', false)
+      await new Promise((r) => setTimeout(r, 300))
+      check('an edit can be saved without sending', edView.path.length === 1 && edView.path[0].text === 'Light every lamp' && log.length === edSent, { path: edView.path.map((n) => n.role), sent: log.length - edSent })
       check('the message shows it carried the date and time', toolsUi41.chip === 'Date and time' && /^Sent /.test(toolsUi41.chipTitle ?? ''), toolsUi41)
       const rows41 = Object.fromEntries(toolsUi41.rows.map((r) => [r.tool, r]))
       check(
