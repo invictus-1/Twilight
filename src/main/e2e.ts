@@ -64,7 +64,8 @@ interface LoggedRequest {
 // and a newer one whose checksum is wrong.
 const bump = (v: string, by: number): string => {
   const [a, b] = v.split('.').map(Number)
-  return `${a}.${b + by}.0`
+  // The version before 1.0.0 is 0.9.0.
+  return b + by < 0 ? `${a - 1}.${10 + b + by}.0` : `${a}.${b + by}.0`
 }
 const installerBytes = (version: string): Buffer => Buffer.from(`MZ fake installer for ${version}`.repeat(4000))
 
@@ -2073,7 +2074,9 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         document.querySelector('.theme-option[data-theme-id="twilight"]')?.click()
       })()`)
       check('the picker lists every theme, and your own', themesUi.options.join() === [...THEMES.map((t) => t.id), 'custom'].join(), themesUi.options)
-      check('every theme applies its own colours', THEMES.filter((t) => t.id !== 'twilight').every((t) => themesUi.nights[t.id] === t.night), themesUi.nights)
+      // Minified CSS may write #000000 as #000; the colour is what counts.
+      const long33 = (c: string): string => (/^#[0-9a-f]{3}$/i.test(c) ? `#${[...c.slice(1)].map((x) => x + x).join('')}` : c).toLowerCase()
+      check('every theme applies its own colours', THEMES.filter((t) => t.id !== 'twilight').every((t) => long33(themesUi.nights[t.id] ?? '') === t.night.toLowerCase()), themesUi.nights)
       check('the window frame follows the theme', frameTheme === THEMES.at(-1)!.id, frameTheme)
       await key(',', ['control'])
       const builderUi = await js<{ builder: boolean; night: string; iris: string; overlay: string; ratio: number; note: string }>(`(async () => {

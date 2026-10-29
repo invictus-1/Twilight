@@ -29,6 +29,7 @@ npx electron-vite build
 TWILIGHT_E2E=<dir> npx electron .         # end-to-end suite → <dir>/e2e.json + screenshots
 TWILIGHT_SELFTEST=<dir> npx electron .    # scroll performance on a 450-turn chat
 TWILIGHT_SHOWCASE=<dir> npx electron .    # README screenshots from demo data
+node scripts/bench.cjs <label>            # startup, navigation, memory and scroll on the packaged app → bench/<label>.json
 ```
 
 Also run the e2e suite against the packaged build after `npm run dist`: `TWILIGHT_E2E=<dir> release/win-unpacked/Twilight.exe`. Every feature gets e2e checks in `src/main/e2e.ts`; the suite must pass fully before a commit.

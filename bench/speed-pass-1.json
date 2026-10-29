@@ -1,0 +1,47 @@
+{
+  "label": "speed-pass-1",
+  "version": "1.0.0",
+  "date": "2026-10-29",
+  "machine": {
+    "cpu": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "cores": 32,
+    "memoryGB": 94,
+    "displayHz": 238
+  },
+  "runs": 5,
+  "startup": {
+    "mainLoaded": 103,
+    "appReady": 160,
+    "databaseOpen": 207,
+    "windowCreating": 221,
+    "windowShown": 293,
+    "pageNavigation": 294,
+    "pageLoaded": 351,
+    "firstFrame": 522,
+    "firstPaint": null,
+    "uiReady": 411
+  },
+  "navigation": {
+    "openBigChatMs": 8,
+    "switchChatMs": 49,
+    "openSettingsMs": 13,
+    "openWritingMs": 10,
+    "openManuscriptMs": 36,
+    "openCodeMs": 9
+  },
+  "memory": {
+    "rendererHeapMB": 30,
+    "totalWorkingSetMB": 605,
+    "domNodes": 91
+  },
+  "scroll": {
+    "openToFirstMessageMs": 202.6,
+    "warmupDoneMs": 442,
+    "flingP50": 5,
+    "flingP99": 11.3,
+    "flickP50": 5.1,
+    "flickP95": 10,
+    "flickP99": 14.5,
+    "heapMB": 32
+  }
+}

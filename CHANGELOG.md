@@ -2,6 +2,14 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## 1.0.0
+
+**Faster**
+- **The window appears in half the time:** it now shows at once in your theme's colour (293 ms after launch instead of 563 ms on the test machine) rather than waiting, hidden, for its first paint.
+- **Less to load at start:** the page reads 0.5 MB of script instead of 1.4 MB. Settings, Judge, Code, Insights and the editor load in the background once the window is up, so they open at once when you get to them.
+- **A check that no longer grows with your history:** at start, Twilight looks for replies a crash left unfinished. It used to read every message to do it; now it reads a small index, so a long history no longer slows starting.
+- **Measured:** `node scripts/bench.cjs <label>` times startup, opening things, memory and scrolling on a lived-in profile; the numbers before and after are in bench/README.md.
+
 ## 0.9.0
 
 **Document library**

@@ -35,6 +35,7 @@ import * as updates from './updates'
 import { usageStats } from './usage'
 import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
+import { mark, runBench, seedBench } from './bench'
 import { runShowcase } from './showcase'
 import { searchAll } from './search'
 import * as code from './code/agent'
@@ -55,11 +56,15 @@ import { setCustomPrices, type CustomPrice } from '@shared/pricing'
 import { attachmentKind, IMAGE_EXTENSIONS, tooBig } from '@shared/attachments'
 
 const devUrl = process.env.ELECTRON_RENDERER_URL
+// Startup timings for the benchmark (cheap notes; nothing is written unless it runs).
+mark('mainLoaded')
 const selfTestDir = process.env.TWILIGHT_SELFTEST
+/** Startup and navigation timings on a lived-in profile (see bench.ts and scripts/bench.cjs). */
+const benchDir = process.env.TWILIGHT_BENCH
 const e2eDir = process.env.TWILIGHT_E2E
 /** Releases-page screenshots from made-up demo data (see showcase.ts). */
 const showcaseDir = process.env.TWILIGHT_SHOWCASE
-const testDir = selfTestDir ?? e2eDir ?? showcaseDir
+const testDir = selfTestDir ?? e2eDir ?? showcaseDir ?? benchDir
 if (testDir) {
   // A test window is often covered by other windows. Chromium treats that as hidden and, after a
   // while, wakes its timers about once a minute; a run would crawl. Test runs opt out of that.
@@ -123,7 +128,9 @@ function createWindow(): BrowserWindow {
     height: 820,
     minWidth: 720,
     minHeight: 480,
-    show: false,
+    // Shown at once in the theme's own colour: waiting for the first paint of a hidden window kept
+    // it from view a few hundred milliseconds longer than the page needed.
+    show: true,
     backgroundColor: frame.night,
     title: 'Twilight',
     titleBarStyle: 'hidden',
@@ -136,8 +143,8 @@ function createWindow(): BrowserWindow {
       spellcheck: true
     }
   })
+  mark('windowShown')
   attachContextMenu(win)
-  win.once('ready-to-show', () => win.show())
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isWebUrl(url)) void shell.openExternal(url)
     return { action: 'deny' }
@@ -154,6 +161,7 @@ function createWindow(): BrowserWindow {
         .then(() => win.webContents.reload())
     })
   }
+  mark('pageNavigation')
   if (devUrl) void win.loadURL(hash ? `${devUrl}#${hash}` : devUrl)
   else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash })
   return win
@@ -500,10 +508,12 @@ function registerIpc(): void {
 registerBackgroundScheme()
 
 app.whenReady().then(() => {
+  mark('appReady')
   // A restore you asked for goes in before the database opens.
   const restored = applyPendingRestore(app.getPath('userData'))
   db.openDatabase(join(app.getPath('userData'), 'twilight.db'))
   if (restored) db.kvSet('data.lastRestore', { kind: 'restored', detail: restored, at: Date.now() })
+  mark('databaseOpen')
   setCustomPrices(db.kvGet<CustomPrice[]>('prices') ?? [])
   serveBackground()
   // Tests keep their documents in the throwaway profile, never in the real Documents folder.
@@ -526,7 +536,10 @@ app.whenReady().then(() => {
     keepFresh()
   }
   if (selfTestDir) seedSelfTest()
+  if (benchDir) seedBench()
+  mark('windowCreating')
   const win = createWindow()
+  if (benchDir) runBench(win, benchDir)
   if (selfTestDir) runSelfTest(win, selfTestDir)
   if (e2eDir) runE2E(win, e2eDir)
   if (showcaseDir) runShowcase(win, showcaseDir)

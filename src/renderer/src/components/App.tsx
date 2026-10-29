@@ -1,19 +1,36 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
 import { useStore } from '../store'
 import { useJudge } from '../judgeStore'
 import { clearStream, handleStreamEvent } from '../stream'
 import { useWriting } from '../writingStore'
 import { useInsights } from '../insightsStore'
-import { InsightsView } from './InsightsView'
-import { CodeView } from './CodeView'
-import { Welcome } from './Welcome'
-import { JudgeView } from './JudgeView'
+/**
+ * A screen whose code loads after start. Once loaded it renders at once, like any other; only
+ * opening it before then shows the empty page for the moment it takes to load.
+ */
+function screen<P extends object>(load: () => Promise<ComponentType<P>>): ComponentType<P> & { preload: () => Promise<unknown> } {
+  let ready: ComponentType<P> | null = null
+  const fetch = (): Promise<ComponentType<P>> => load().then((c) => (ready = c))
+  const Lazy = lazy(() => fetch().then((c) => ({ default: c })))
+  const Screen = (props: P) => {
+    const C = (ready ?? Lazy) as ComponentType<P>
+    return <C {...props} />
+  }
+  return Object.assign(Screen, { preload: fetch })
+}
 
-// The editor (CodeMirror) loads the first time Writing opens, so startup only parses the chat.
-const WritingView = lazy(() => import('./WritingView').then((m) => ({ default: m.WritingView })))
+// Only the chat is needed at start. The other screens load in the background as soon as the
+// window is ready (Settings first), so they're there before anyone opens them but not in the way
+// of starting. The editor (CodeMirror) is the biggest of them.
+const SettingsView = screen(() => import('./SettingsView').then((m) => m.SettingsView))
+const JudgeView = screen(() => import('./JudgeView').then((m) => m.JudgeView))
+const CodeView = screen(() => import('./CodeView').then((m) => m.CodeView))
+const InsightsView = screen(() => import('./InsightsView').then((m) => m.InsightsView))
+const Welcome = screen(() => import('./Welcome').then((m) => m.Welcome))
+const WritingView = screen(() => import('./WritingView').then((m) => m.WritingView))
+const screens = [SettingsView, JudgeView, CodeView, InsightsView, Welcome, WritingView]
 import { ChatView } from './ChatView'
 import { CloseIcon, TrophyIcon } from './Icons'
-import { SettingsView } from './SettingsView'
 import { useDragResize, usePersistentNumber } from '../resize'
 import { Sidebar } from './Sidebar'
 import { Rail } from './Rail'
@@ -90,7 +107,11 @@ export function App() {
   useEffect(() => {
     const store = useStore.getState()
     // Marks the page once the first load is done; the end-to-end tests wait for it.
-    void store.init().finally(() => (document.body.dataset.ready = '1'))
+    void store.init().finally(() => {
+      document.body.dataset.ready = '1'
+      // Once the window is up, the other screens load in the background, one after another.
+      for (const s of screens) void s.preload().catch(() => undefined)
+    })
     void useWriting.getState().init()
     void useJudge.getState().init()
     return window.twilight.onStream((event) => {
@@ -141,22 +162,26 @@ export function App() {
           {...sidebarDrag}
         />
       )}
-      {settingsOpen ? (
-        <SettingsView key={settingsSection ?? ''} />
-      ) : mode === 'chat' ? (
-        <ChatView />
-      ) : mode === 'judge' ? (
-        <JudgeView />
-      ) : mode === 'insights' ? (
-        <InsightsView />
-      ) : mode === 'code' ? (
-        <CodeView />
-      ) : (
-        <Suspense fallback={<main className="chat" />}>
+      <Suspense fallback={<main className="chat" />}>
+        {settingsOpen ? (
+          <SettingsView key={settingsSection ?? ''} />
+        ) : mode === 'chat' ? (
+          <ChatView />
+        ) : mode === 'judge' ? (
+          <JudgeView />
+        ) : mode === 'insights' ? (
+          <InsightsView />
+        ) : mode === 'code' ? (
+          <CodeView />
+        ) : (
           <WritingView />
+        )}
+      </Suspense>
+      {welcomeOpen && (
+        <Suspense fallback={null}>
+          <Welcome />
         </Suspense>
       )}
-      {welcomeOpen && <Welcome />}
       {overlay === 'commands' && <CommandMenu />}
       {overlay === 'shortcuts' && <ShortcutSheet />}
       {overlay === 'search' && <SearchPanel />}

@@ -23,15 +23,19 @@ function scrubLocalPaths(): Plugin {
 }
 
 export default defineConfig({
+  // Minified: less for the app to read and compile at every start.
   main: {
     resolve: { alias: { '@shared': resolve('src/shared') } },
-    plugins: [scrubLocalPaths()]
+    plugins: [scrubLocalPaths()],
+    build: { minify: true }
   },
   preload: {
     resolve: { alias: { '@shared': resolve('src/shared') } },
-    plugins: [scrubLocalPaths()]
+    plugins: [scrubLocalPaths()],
+    build: { minify: true }
   },
   renderer: {
+    build: { minify: true },
     resolve: {
       alias: {
         '@': resolve('src/renderer/src'),

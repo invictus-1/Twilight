@@ -176,7 +176,9 @@ export function openDatabase(file: string): void {
     CREATE INDEX IF NOT EXISTS nodes_usage ON nodes(created_at, conversation_id, model, provider_id, usage)
       WHERE role = 'assistant' AND usage IS NOT NULL;
   `)
-  // A crash mid-stream leaves "streaming" rows behind; they are stopped, not lost.
+  // A crash mid-stream leaves "streaming" rows behind; they are stopped, not lost. The index holds
+  // only those rows, so this check stays instant however long the history grows.
+  db.exec(`CREATE INDEX IF NOT EXISTS nodes_streaming ON nodes(status) WHERE status = 'streaming'`)
   db.prepare(`UPDATE nodes SET status = 'stopped' WHERE status = 'streaming'`).run()
 }
 
