@@ -87,6 +87,7 @@ export const COMMANDS: Command[] = [
   { id: 'go-roadmap', title: 'Roadmap', group: 'Go to', run: () => settings('roadmap') },
   { id: 'go-keys', title: 'Rebind keys', group: 'Go to', hint: 'shortcuts settings', run: () => settings('shortcuts') },
   ...THEMES.map((t): Command => ({ id: `theme-${t.id}`, title: t.name, group: 'Theme', hint: `theme colors ${t.note}`, run: () => setTheme(t.id) })),
+  { id: 'theme-custom', title: 'Your own', group: 'Theme', hint: 'theme colors custom builder', run: () => (setTheme('custom'), settings('general')) },
   { id: 'welcome', title: 'Replay the welcome', group: 'App', hint: 'intro tour', run: () => s().setWelcomeOpen(true) },
   { id: 'data-folder', title: 'Open the data folder', group: 'App', run: () => void window.twilight.openDataFolder() }
 ]

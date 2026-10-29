@@ -80,7 +80,7 @@ function lockDownNetwork(): void {
 const frameFor = (theme: string | undefined): { night: string; symbol: string } => themeInfo(theme ?? 'twilight')
 
 function createWindow(): BrowserWindow {
-  const frame = frameFor(db.kvGet<string>('theme'))
+  const frame = db.kvGet<{ night: string; symbol: string }>('themeFrame') ?? frameFor(db.kvGet<string>('theme'))
   const win = new BrowserWindow({
     width: 1280,
     height: 820,
@@ -340,9 +340,10 @@ function registerIpc(): void {
     openExternal: async (_e, url: string) => {
       if (isWebUrl(url)) await shell.openExternal(url)
     },
-    setWindowTheme: (e, theme: Theme) => {
+    setWindowTheme: (e, theme: Theme | 'custom', custom?: { night: string; symbol: string }) => {
       db.kvSet('theme', theme)
-      const frame = frameFor(theme)
+      db.kvSet('themeFrame', theme === 'custom' && custom ? custom : null)
+      const frame = theme === 'custom' && custom ? custom : frameFor(theme)
       const win = BrowserWindow.fromWebContents(e.sender)
       win?.setBackgroundColor(frame.night)
       win?.setTitleBarOverlay({ color: frame.night, symbolColor: frame.symbol, height: 40 })

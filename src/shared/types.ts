@@ -513,7 +513,7 @@ export interface TwilightApi {
   /** Puts text on the clipboard from the main process (works whether or not the window has focus). */
   copyText(text: string): Promise<void>
   /** Matches the window frame and title bar to a theme. */
-  setWindowTheme(theme: Theme): Promise<void>
+  setWindowTheme(theme: Theme | 'custom', frame?: { night: string; symbol: string }): Promise<void>
   /** Whether the first-run welcome has been seen (or skipped). */
   getWelcomed(): Promise<boolean>
   setWelcomed(): Promise<void>

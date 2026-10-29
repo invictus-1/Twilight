@@ -1,5 +1,5 @@
 import { ThemePicker } from './ThemePicker'
-import { BackgroundPicker, MotionPicker } from './LookSettings'
+import { BackgroundPicker, MotionPicker, ThemeBuilder } from './LookSettings'
 import { useEffect, useMemo, useState } from 'react'
 import { ShortcutsSection } from './ShortcutsSection'
 import { PricesSection } from './PricesSection'
@@ -438,7 +438,8 @@ function GeneralSection() {
     <>
       <div className="settings-card">
         <h3 className="t-heading">Appearance</h3>
-        <ThemePicker value={theme} onPick={pick} />
+        <ThemePicker value={theme} onPick={pick} custom />
+        {theme === 'custom' && <ThemeBuilder />}
         <BackgroundPicker />
         <MotionPicker />
       </div>

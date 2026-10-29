@@ -1,6 +1,8 @@
-import { isTheme, type Theme } from '@shared/themes'
+import { isTheme, type Theme as BuiltIn } from '@shared/themes'
+import { injectCustom } from './customTheme'
 
-export type { Theme }
+/** A built-in theme, or "custom": your own, made in Settings → General. */
+export type Theme = BuiltIn | 'custom'
 
 const KEY = 'twilight.theme'
 
@@ -8,24 +10,27 @@ const KEY = 'twilight.theme'
 export function savedTheme(): Theme {
   try {
     const saved = localStorage.getItem(KEY)
-    return isTheme(saved) ? saved : 'twilight'
+    return saved === 'custom' || isTheme(saved) ? saved : 'twilight'
   } catch {
     return 'twilight'
   }
 }
 
-export function applyTheme(theme: Theme): void {
+/** Applies a theme to the page; returns the custom theme's tokens when that's the one. */
+export function applyTheme(theme: Theme): Record<string, string> | null {
+  const tokens = theme === 'custom' ? injectCustom() : null
   if (theme === 'twilight') delete document.documentElement.dataset.theme
   else document.documentElement.dataset.theme = theme
+  return tokens
 }
 
 /** Switches theme now, remembers it, and has the window's title bar match. */
 export function setTheme(theme: Theme): void {
-  applyTheme(theme)
+  const tokens = applyTheme(theme)
   try {
     localStorage.setItem(KEY, theme)
   } catch {
     // Storage unavailable: the theme holds for this session.
   }
-  void window.twilight.setWindowTheme(theme)
+  void window.twilight.setWindowTheme(theme, tokens ? { night: tokens['--night'], symbol: tokens['--ink-muted'] } : undefined)
 }

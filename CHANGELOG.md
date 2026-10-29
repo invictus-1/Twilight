@@ -6,6 +6,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 **Look and feel**
 - **Backgrounds:** Settings → General → Background puts a picture of your own, or one of six gradients (Dusk, Aurora, Nebula, Embers, Deep sea, Starfield), behind the whole window. Darken and Blur keep text easy to read, and the sidebar turns to frosted glass over it. Your picture is copied into Twilight's data folder and never leaves your PC.
+- **Five more themes:** Midnight (near-black navy and ice blue), Synthwave (hot pink and cyan on deep purple, with a horizon grid), Aurora (green and violet over dark teal), Campfire (warm amber and gold) and High contrast (black, white and yellow, with strong lines and a thick focus ring).
+- **Your own theme:** pick a ground colour and three accents in Settings → General, and Twilight builds the rest. Every colour is checked to keep text readable (4.5:1 or better); one that wouldn't be is lightened, or for the ground darkened, and the page says so.
 - **Motion:** pages fade in as you switch, new messages ease in, and the window opens on a moment of evening glow. An empty chat now has a small evening of its own behind the greeting. Settings → General → Motion has Full, Gentle (fades only) and Off, and Windows' "reduce motion" setting counts as Gentle.
 
 **Chat**

@@ -58,6 +58,51 @@ export const THEMES = [
     dots: ['#ff5a4f', '#ff9a4d', '#ffcf5c'],
     night: '#0a0505',
     symbol: '#e0b8b0'
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    note: 'Near-black navy, ice blue and a soft violet.',
+    swatch: 'radial-gradient(circle at 80% 0%, #16223f, #05070d 70%)',
+    dots: ['#7aa2ff', '#b39dff', '#7fd6e8'],
+    night: '#05070d',
+    symbol: '#a3adc4'
+  },
+  {
+    id: 'synthwave',
+    name: 'Synthwave',
+    note: 'Hot pink, cyan and a yellow sun on deep purple.',
+    swatch: 'linear-gradient(180deg, #0d0221 0%, #3d0a3d 70%, #ff2e97 140%)',
+    dots: ['#ff2e97', '#2de2e6', '#ffd319'],
+    night: '#0d0221',
+    symbol: '#e0b8f2'
+  },
+  {
+    id: 'aurora',
+    name: 'Aurora',
+    note: 'Northern lights: green and violet over dark teal.',
+    swatch: 'radial-gradient(90% 60% at 20% 0%, #1f6f5c, transparent 70%), radial-gradient(70% 50% at 90% 20%, #3a2a7a, transparent 70%), #03100f',
+    dots: ['#4cf2c2', '#9d7bff', '#5ec8ff'],
+    night: '#03100f',
+    symbol: '#a7d9cc'
+  },
+  {
+    id: 'campfire',
+    name: 'Campfire',
+    note: 'Warm amber and gold, embers in the dark.',
+    swatch: 'radial-gradient(90% 70% at 50% 120%, #7a3a12, #110b07 70%)',
+    dots: ['#ff9f43', '#ffcf6e', '#ff6b4a'],
+    night: '#110b07',
+    symbol: '#e3c3a2'
+  },
+  {
+    id: 'contrast',
+    name: 'High contrast',
+    note: 'Black and white with yellow, for the clearest reading.',
+    swatch: 'linear-gradient(180deg, #000, #000)',
+    dots: ['#ffd60a', '#5ce1ff', '#ff8c42'],
+    night: '#000000',
+    symbol: '#ffffff'
   }
 ] as const satisfies readonly ThemeInfo[]
 

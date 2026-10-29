@@ -23,7 +23,7 @@ Plain, short, and on the user's side. Sentence case everywhere, including button
 
 ## Color
 
-Twilight is dark only. Further themes (Ultraviolet, Phosphor, Nightshade, Ember) are `[data-theme]` overrides of the same tokens in `src/renderer/src/styles/themes.css`, listed once in `src/shared/themes.ts` for the pickers, the command menu and the window frame. Every text token names the grounds it is legible on, and every one of those pairs meets 4.5:1; control borders and focus meet 3:1.
+Twilight is dark only. Further themes (Ultraviolet, Phosphor, Nightshade, Ember, Midnight, Synthwave, Aurora, Campfire, High contrast, and your own from the builder in src/renderer/src/customTheme.ts) are `[data-theme]` overrides of the same tokens in `src/renderer/src/styles/themes.css`, listed once in `src/shared/themes.ts` for the pickers, the command menu and the window frame. Every text token names the grounds it is legible on, and every one of those pairs meets 4.5:1; control borders and focus meet 3:1.
 
 - **Grounds:** `night` for the frame (title bar, sidebar, split gutter), `surface` for the canvas, `surface-raised` for things on the canvas (composer, cards, inputs), `surface-overlay` + `shadow-lg` for anything floating. Hover is a `surface-hover` wash over whatever is beneath.
 - **Text:** `ink` for content, `ink-muted` for labels and metadata, `ink-faint` for placeholders and timestamps. Never lighten text further with opacity.

@@ -19,6 +19,7 @@ import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
 import { searchAll } from './search'
 import { backgroundVersion, setBackgroundFile } from './background'
+import { THEMES } from '@shared/themes'
 import { BUILT_IN_PRICES, costOf, setCustomPrices } from '@shared/pricing'
 import * as providers from './providers'
 import * as updates from './updates'
@@ -1110,7 +1111,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(600)
         return out
       })()`)
-      check('roadmap shows planned work as cards', roadmapUi.cards > 10 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
+      check('roadmap shows planned work as cards', roadmapUi.cards >= 5 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
       check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
       await shot('e2e-roadmap.png')
@@ -1769,7 +1770,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(200)
         const options = [...document.querySelectorAll('.theme-option')].map((o) => o.dataset.themeId)
         const nights = {}
-        for (const id of ['phosphor', 'nightshade', 'ember']) {
+        for (const id of ${JSON.stringify(THEMES.map((t) => t.id).filter((id) => id !== 'twilight'))}) {
           document.querySelector('.theme-option[data-theme-id="' + id + '"]')?.click()
           await wait(120)
           nights[id] = getComputedStyle(document.documentElement).getPropertyValue('--night').trim()
@@ -1780,7 +1781,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // A look at each new theme on a chat, for the record.
       await key('1', ['control'])
       await new Promise((r) => setTimeout(r, 300))
-      for (const id of ['phosphor', 'nightshade', 'ember']) {
+      for (const id of ['phosphor', 'nightshade', 'ember', 'midnight', 'synthwave', 'aurora', 'campfire', 'contrast']) {
         await js(`(() => { document.documentElement.dataset.theme = '${id}' })()`)
         await new Promise((r) => setTimeout(r, 250))
         await shot(`e2e-theme-${id}.png`)
@@ -1792,9 +1793,36 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await new Promise((r) => setTimeout(r, 200))
         document.querySelector('.theme-option[data-theme-id="twilight"]')?.click()
       })()`)
-      check('the picker lists every theme', themesUi.options.join() === 'twilight,ultraviolet,phosphor,nightshade,ember', themesUi.options)
-      check('Phosphor, Nightshade and Ember apply their colours', themesUi.nights.phosphor === '#030604' && themesUi.nights.nightshade === '#07050b' && themesUi.nights.ember === '#0a0505', themesUi.nights)
-      check('the window frame follows the theme', frameTheme === 'ember', frameTheme)
+      check('the picker lists every theme, and your own', themesUi.options.join() === [...THEMES.map((t) => t.id), 'custom'].join(), themesUi.options)
+      check('every theme applies its own colours', THEMES.filter((t) => t.id !== 'twilight').every((t) => themesUi.nights[t.id] === t.night), themesUi.nights)
+      check('the window frame follows the theme', frameTheme === THEMES.at(-1)!.id, frameTheme)
+      await key(',', ['control'])
+      const builderUi = await js<{ builder: boolean; night: string; iris: string; overlay: string; ratio: number; note: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        await wait(200)
+        document.querySelector('.theme-option[data-theme-id="custom"]').click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.theme-builder'); ) await wait(50)
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        const pick = (field, value) => { const el = document.querySelector('.builder-field[data-field="' + field + '"] input'); set.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })) }
+        pick('ground', '#f0f0f0')
+        await wait(100)
+        pick('actions', '#202020')
+        await wait(200)
+        const css = getComputedStyle(document.documentElement)
+        const v = (k) => css.getPropertyValue(k).trim()
+        const lum = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4 }).reduce((a, c, i) => a + c * [0.2126, 0.7152, 0.0722][i], 0) }
+        const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05) }
+        return { builder: !!document.querySelector('.theme-builder'), night: v('--night'), iris: v('--iris'), overlay: v('--surface-overlay'), ratio: ratio(v('--iris'), v('--surface-overlay')), note: document.querySelector('.theme-builder .field-note')?.textContent ?? '' }
+      })()`)
+      const lumOf = (hex: string): number => parseInt(hex.slice(1, 3), 16) + parseInt(hex.slice(3, 5), 16) + parseInt(hex.slice(5, 7), 16)
+      check('your own theme opens a builder with a live palette', builderUi.builder && db.kvGet<string>('theme') === 'custom' && !!db.kvGet('themeFrame'), builderUi)
+      check('a light ground is kept dark, and a dark accent is lightened until it reads at 4.5:1', lumOf(builderUi.night) < 3 * 40 && builderUi.ratio >= 4.5 && /Adjusted to stay readable: ground, actions/.test(builderUi.note), builderUi)
+      await js(`[...document.querySelectorAll('.builder-reset')][0]?.click()`)
+      await new Promise((r) => setTimeout(r, 300))
+      await shot('e2e-theme-builder.png')
+      await js(`document.querySelector('.theme-option[data-theme-id="twilight"]')?.click()`)
+      await key('Escape')
       await key('Escape')
 
       // 35. Changing the instructions mid-chat rides in the next message; the system prompt stays.

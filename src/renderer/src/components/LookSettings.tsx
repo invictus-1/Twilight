@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { contrast, customTokens, DEFAULT_CUSTOM, loadCustom, saveCustom, type CustomTheme } from '../customTheme'
+import { setTheme } from '../theme'
 import { GRADIENTS, backdropImage, setBackdrop, setMotion, useBackdrop, useMotion, type Motion } from '../look'
 import { useStore } from '../store'
 
@@ -93,6 +95,62 @@ export function MotionPicker() {
         ))}
       </div>
       <p className="field-note">{MOTIONS.find((m) => m.id === motion)?.note}</p>
+    </div>
+  )
+}
+
+const FIELDS: { key: keyof CustomTheme; label: string; note: string }[] = [
+  { key: 'ground', label: 'Ground', note: 'The darkest colour, behind everything' },
+  { key: 'actions', label: 'Actions', note: 'Buttons, selection, links' },
+  { key: 'tools', label: 'Tools', note: 'AI pages, highlights, code keywords' },
+  { key: 'writing', label: 'Writing', note: 'Warm accents, the sun, pane B' }
+]
+
+/** Your own theme: four colours in, a full readable palette out (see customTheme.ts). */
+export function ThemeBuilder() {
+  const [theme, setThemeState] = useState(loadCustom)
+  const tokens = customTokens(theme)
+  const shown: Record<keyof CustomTheme, string> = { ground: tokens['--night'], actions: tokens['--iris'], tools: tokens['--dusk'], writing: tokens['--horizon'] }
+  const change = (patch: Partial<CustomTheme>): void => {
+    const next = { ...theme, ...patch }
+    saveCustom(next)
+    setThemeState(next)
+    setTheme('custom')
+  }
+  // Only a change you'd notice counts as adjusted, not rounding.
+  const adjusted = FIELDS.filter((f) => contrast(shown[f.key], theme[f.key]) > 1.15)
+  return (
+    <div className="look-block theme-builder">
+      <span className="field-label">Your own theme</span>
+      <div className="builder-grid">
+        {FIELDS.map((f) => (
+          <label key={f.key} className="builder-field" data-field={f.key}>
+            <input type="color" value={theme[f.key]} onChange={(e) => change({ [f.key]: e.target.value })} aria-label={f.label} />
+            <span>
+              <b>{f.label}</b>
+              <small>{f.note}</small>
+            </span>
+          </label>
+        ))}
+      </div>
+      <div className="builder-preview" aria-hidden="true" style={{ background: tokens['--surface'], color: tokens['--ink'], borderColor: tokens['--line'] }}>
+        <span style={{ color: tokens['--ink-muted'] }}>Preview</span>
+        <b>A quiet place to write.</b>
+        <span className="builder-chips">
+          <span style={{ background: tokens['--iris'], color: tokens['--on-iris'] }}>Send</span>
+          <span style={{ background: tokens['--dusk-soft'], color: tokens['--dusk'] }}>Insights</span>
+          <span style={{ background: tokens['--horizon-soft'], color: tokens['--horizon'] }}>Pane B</span>
+        </span>
+        <small style={{ color: tokens['--ink-faint'] }}>Text contrast {contrast(tokens['--ink'], tokens['--surface']).toFixed(1)}:1</small>
+      </div>
+      <p className="field-note">
+        {adjusted.length
+          ? `Adjusted to stay readable: ${adjusted.map((f) => f.label.toLowerCase()).join(', ')}. Every colour keeps text at 4.5:1 or better.`
+          : 'Every colour keeps text at 4.5:1 or better; ones that would not are lightened (or, for the ground, darkened) automatically.'}
+      </p>
+      <button className="tw-btn tw-btn-ghost tw-btn-sm builder-reset" onClick={() => change(DEFAULT_CUSTOM)}>
+        Start from Twilight's colours
+      </button>
     </div>
   )
 }

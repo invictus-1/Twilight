@@ -156,13 +156,199 @@
   background: linear-gradient(180deg, #1a0808, var(--night) 40%);
 }
 
+/* Midnight: near-black navy, ice blue for actions, soft violet for tools, ice cyan for writing. */
+:root[data-theme='midnight'] {
+  --night: #05070d;
+  --surface: #0a0d16;
+  --surface-raised: #111522;
+  --surface-overlay: #181d2d;
+  --surface-hover: #ffffff0d;
+  --line: #1e2436;
+  --line-strong: #5a6a8f;
+  --ink: #e8ecf6;
+  --ink-muted: #a3adc4;
+  --ink-faint: #7f8aa5;
+  --iris: #7aa2ff;
+  --iris-soft: #16223f;
+  --on-iris: #05070d;
+  --dusk: #b39dff;
+  --dusk-soft: #211a3f;
+  --horizon: #7fd6e8;
+  --horizon-soft: #10303a;
+  --on-horizon: #05070d;
+  --selection: #7aa2ff40;
+  --shadow-lg: 0 12px 32px -4px #000000d0, 0 0 0 1px #1f2840;
+  --focus-ring: 0 0 0 2px #0a0d16, 0 0 0 4px #7aa2ff;
+}
+
+/* Synthwave: hot pink, cyan and a yellow sun on deep purple, with a horizon grid. */
+:root[data-theme='synthwave'] {
+  --night: #0d0221;
+  --surface: #140433;
+  --surface-raised: #1c0845;
+  --surface-overlay: #260d58;
+  --surface-hover: #ffffff10;
+  --line: #33125f;
+  --line-strong: #9a5bd6;
+  --ink: #fff0ff;
+  --ink-muted: #e0b8f2;
+  --ink-faint: #b78fd0;
+  --iris: #ff2e97;
+  --iris-soft: #3d0a3d;
+  --on-iris: #0d0221;
+  --dusk: #2de2e6;
+  --dusk-soft: #0a3340;
+  --horizon: #ffd319;
+  --horizon-soft: #3a2d08;
+  --on-horizon: #0d0221;
+  --selection: #ff2e9750;
+  --shadow-lg: 0 12px 32px -4px #000000d0, 0 0 0 1px #4a1a6a;
+  --focus-ring: 0 0 0 2px #140433, 0 0 0 4px #2de2e6;
+}
+:root[data-theme='synthwave'] .tw-btn-primary,
+:root[data-theme='synthwave'] .tw-send {
+  background: linear-gradient(90deg, #ff2e97, #ff8a3d);
+  border-color: transparent;
+}
+:root[data-theme='synthwave'] .chat {
+  background:
+    repeating-linear-gradient(90deg, transparent 0 59px, #ff2e9714 59px 60px) bottom / 100% 140px no-repeat,
+    repeating-linear-gradient(0deg, transparent 0 27px, #ff2e9714 27px 28px) bottom / 100% 140px no-repeat,
+    linear-gradient(180deg, transparent calc(100% - 180px), #ff2e9712 100%),
+    var(--surface);
+}
+:root[data-theme='synthwave'] .t-display,
+:root[data-theme='synthwave'] .chat-title {
+  text-shadow: 0 0 16px #ff2e9766;
+}
+
+/* Aurora: green for actions and violet for tools, over dark teal, with lights in the sky. */
+:root[data-theme='aurora'] {
+  --night: #03100f;
+  --surface: #071816;
+  --surface-raised: #0c211e;
+  --surface-overlay: #122c28;
+  --surface-hover: #ffffff0d;
+  --line: #183832;
+  --line-strong: #4f8f80;
+  --ink: #e6fff8;
+  --ink-muted: #a7d9cc;
+  --ink-faint: #7fb3a6;
+  --iris: #4cf2c2;
+  --iris-soft: #0e3a30;
+  --on-iris: #03100f;
+  --dusk: #9d7bff;
+  --dusk-soft: #241b47;
+  --horizon: #5ec8ff;
+  --horizon-soft: #0f2c3d;
+  --on-horizon: #03100f;
+  --selection: #4cf2c240;
+  --shadow-lg: 0 12px 32px -4px #000000d0, 0 0 0 1px #1a4038;
+  --focus-ring: 0 0 0 2px #071816, 0 0 0 4px #4cf2c2;
+}
+:root[data-theme='aurora'] .tw-btn-primary,
+:root[data-theme='aurora'] .tw-send {
+  background: linear-gradient(90deg, #2bd6a3, #9d7bff);
+  border-color: transparent;
+}
+:root[data-theme='aurora'] .chat {
+  background: radial-gradient(900px 380px at 15% -10%, #12503f 0%, transparent 60%), radial-gradient(800px 360px at 90% -12%, #2a1f5c 0%, transparent 60%), var(--surface);
+}
+
+/* Campfire: warm amber and gold, with embers glowing from below. */
+:root[data-theme='campfire'] {
+  --night: #110b07;
+  --surface: #18100a;
+  --surface-raised: #22170f;
+  --surface-overlay: #2d1f14;
+  --surface-hover: #ffffff0d;
+  --line: #3a2919;
+  --line-strong: #9c7350;
+  --ink: #fff3e6;
+  --ink-muted: #e3c3a2;
+  --ink-faint: #b8987a;
+  --iris: #ff9f43;
+  --iris-soft: #3d2410;
+  --on-iris: #110b07;
+  --dusk: #ffcf6e;
+  --dusk-soft: #3a2c10;
+  --horizon: #ff6b4a;
+  --horizon-soft: #3d1810;
+  --on-horizon: #110b07;
+  --selection: #ff9f4347;
+  --shadow-lg: 0 12px 32px -4px #000000d0, 0 0 0 1px #4a3220;
+  --focus-ring: 0 0 0 2px #18100a, 0 0 0 4px #ff9f43;
+}
+:root[data-theme='campfire'] .tw-btn-primary,
+:root[data-theme='campfire'] .tw-send {
+  background: linear-gradient(90deg, #ff7a2f, #ffcf6e);
+  border-color: transparent;
+}
+:root[data-theme='campfire'] .chat {
+  background: radial-gradient(1000px 420px at 50% 115%, #5a2a0e 0%, transparent 62%), var(--surface);
+}
+
+/* High contrast: black and white, yellow for actions, strong lines and a thick focus ring. */
+:root[data-theme='contrast'] {
+  --night: #000000;
+  --surface: #000000;
+  --surface-raised: #0a0a0a;
+  --surface-overlay: #141414;
+  --surface-hover: #ffffff24;
+  --line: #6b6b6b;
+  --line-strong: #bdbdbd;
+  --ink: #ffffff;
+  --ink-muted: #e6e6e6;
+  --ink-faint: #cfcfcf;
+  --iris: #ffd60a;
+  --iris-soft: #332b00;
+  --on-iris: #000000;
+  --dusk: #5ce1ff;
+  --dusk-soft: #002b33;
+  --horizon: #ff8c42;
+  --horizon-soft: #331a00;
+  --on-horizon: #000000;
+  --success: #4dff88;
+  --warning: #ffd60a;
+  --danger: #ff6b6b;
+  --danger-soft: #330d0d;
+  --selection: #ffd60a66;
+  --shadow-lg: 0 0 0 2px #ffffff;
+  --focus-ring: 0 0 0 3px #000000, 0 0 0 6px #ffd60a;
+}
+:root[data-theme='contrast'] .tw-msg-user { border: 1px solid var(--line-strong); }
+:root[data-theme='contrast'] .tw-composer { border-width: 2px; }
+
 /* The skies on Insights, the Roadmap and the welcome, in each theme's colours. */
+:root[data-theme='midnight'] .ins-hero, :root[data-theme='midnight'] .rm-hero { background: linear-gradient(180deg, #05070d 0%, #0f1630 55%, #1d2350 100%); }
+:root[data-theme='synthwave'] .ins-hero, :root[data-theme='synthwave'] .rm-hero { background: linear-gradient(180deg, #0d0221 0%, #2a0845 55%, #6a0f5a 100%); }
+:root[data-theme='aurora'] .ins-hero, :root[data-theme='aurora'] .rm-hero { background: radial-gradient(80% 70% at 20% 0%, #12503f, transparent 70%), radial-gradient(70% 60% at 90% 10%, #2a1f5c, transparent 70%), #03100f; }
+:root[data-theme='campfire'] .ins-hero, :root[data-theme='campfire'] .rm-hero { background: linear-gradient(180deg, #110b07 0%, #2d1a0c 55%, #5a2a0e 100%); }
+:root[data-theme='contrast'] .ins-hero, :root[data-theme='contrast'] .rm-hero { background: #000; border: 2px solid #fff; }
+:root[data-theme='midnight'] .welcome { background: linear-gradient(180deg, #020306 0%, #05070d 30%, #0f1630 62%, #1d2350 86%, #2d3570 100%); }
+:root[data-theme='synthwave'] .welcome { background: linear-gradient(180deg, #05010f 0%, #0d0221 30%, #2a0845 62%, #6a0f5a 86%, #b0185a 100%); }
+:root[data-theme='aurora'] .welcome { background: radial-gradient(90% 60% at 20% 10%, #12503f, transparent 65%), radial-gradient(80% 50% at 85% 20%, #2a1f5c, transparent 65%), linear-gradient(180deg, #010605, #03100f 60%, #0a2a24); }
+:root[data-theme='campfire'] .welcome { background: linear-gradient(180deg, #050302 0%, #110b07 30%, #2d1a0c 62%, #5a2a0e 86%, #8a3f12 100%); }
+:root[data-theme='contrast'] .welcome { background: #000; }
 :root[data-theme='phosphor'] .ins-hero, :root[data-theme='phosphor'] .rm-hero { background: linear-gradient(180deg, #04120a 0%, #082417 55%, #0f3a22 100%); }
 :root[data-theme='nightshade'] .ins-hero, :root[data-theme='nightshade'] .rm-hero { background: linear-gradient(180deg, #0d0820 0%, #1d1240 55%, #2d1a55 100%); }
 :root[data-theme='ember'] .ins-hero, :root[data-theme='ember'] .rm-hero { background: linear-gradient(180deg, #1a0606 0%, #3a0d0d 55%, #5a1a0f 100%); }
 :root[data-theme='phosphor'] .welcome { background: linear-gradient(180deg, #010302 0%, #030604 30%, #082417 62%, #0f3a22 86%, #1b5a33 100%); }
 :root[data-theme='nightshade'] .welcome { background: linear-gradient(180deg, #030205 0%, #07050b 30%, #1d1240 62%, #2d1a55 86%, #4a2a80 100%); }
 :root[data-theme='ember'] .welcome { background: linear-gradient(180deg, #050202 0%, #0a0505 30%, #3a0d0d 62%, #5a1a0f 86%, #8a2a10 100%); }
+
+/* Settings: building your own theme */
+.builder-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-2); }
+.builder-field { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); cursor: pointer; }
+.builder-field input[type='color'] { width: 36px; height: 36px; padding: 0; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: none; cursor: pointer; }
+.builder-field span { display: flex; flex-direction: column; }
+.builder-field b { font-size: 13px; }
+.builder-field small { font-size: 12px; color: var(--ink-faint); }
+.builder-preview { display: flex; flex-direction: column; gap: 6px; padding: var(--space-4); border: 1px solid; border-radius: var(--radius-md); }
+.builder-preview b { font-family: var(--font-serif); font-size: 18px; }
+.builder-chips { display: flex; gap: var(--space-2); }
+.builder-chips span { font-size: 12px; font-weight: 500; padding: 3px 10px; border-radius: var(--radius-full); }
+.builder-reset { align-self: flex-start; }
 
 /* Settings: the theme picker */
 .theme-picker { display: flex; gap: var(--space-3); flex-wrap: wrap; }
