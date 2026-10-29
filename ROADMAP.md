@@ -88,8 +88,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Installer** · Core — Windows installer and portable zip, with Twilight artwork
 
 ## Next
-- [~] **Your feedback on 0.4** · Core — fixes from real use of Writer insights, the updater and the Tools menu
-- [ ] **Code signing** · Core — a signed installer, so Windows doesn't warn
+- [~] **Your feedback on 0.8** · Core — fixes from real use of the Code tab, Extras and backgrounds
 
 ## Later
 - [ ] **Polish pass** · Core — once nearly feature-complete: an optimization run and a UI/UX pass over every screen, with more gradients and motion

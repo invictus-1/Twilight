@@ -3467,6 +3467,25 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('with Motion on Gentle there are no particles, and Settings says why', !fxMotion43.gentle && fxMotion43.note.includes('only with Motion set to Full'), fxMotion43)
       check('switching them off removes them', fxBack43.off)
 
+      // Settings' group names have to read as headings, not as one more page.
+      await key(',', ['control'])
+      const groups44 = await js<{ names: string[]; heading: string; page: string; weight: string; ruled: boolean }>(`(async () => {
+        await new Promise((r) => setTimeout(r, 200))
+        const head = document.querySelector('.settings-nav .side-section')
+        const item = document.querySelector('.settings-nav-item:not([aria-current="true"])')
+        const second = document.querySelectorAll('.settings-nav > div')[1]
+        return {
+          names: [...document.querySelectorAll('.settings-nav .side-section')].map((e) => e.textContent),
+          heading: getComputedStyle(head).color,
+          page: getComputedStyle(item).color,
+          weight: getComputedStyle(head).fontWeight,
+          ruled: getComputedStyle(second).borderTopStyle === 'solid'
+        }
+      })()`)
+      check('Settings group names stand out from the pages under them', groups44.names.join() === 'App,Models,About' && groups44.heading !== groups44.page && Number(groups44.weight) >= 700 && groups44.ruled, groups44)
+      await shot('e2e-settings-groups.png')
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
       // What the mock server saw last, so a stalled reply shows whether its request ever arrived.

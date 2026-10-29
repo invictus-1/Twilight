@@ -342,6 +342,10 @@ body.resizing .resize-handle { pointer-events: auto; }
 /* Settings page */
 .settings-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: 220px minmax(0, 1fr); }
 .settings-nav { border-right: 1px solid var(--line); padding: var(--space-2); overflow-y: auto; }
+/* Group names stand apart from the pages under them: accent colour, bolder, a rule between groups. */
+.settings-nav .side-section { color: var(--dusk); font-weight: 700; letter-spacing: 0.08em; padding-top: var(--space-4); }
+.settings-nav > div + div { margin-top: var(--space-2); border-top: 1px solid var(--line); }
+.settings-nav > div:first-child .side-section { padding-top: var(--space-2); }
 .settings-nav-item { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: var(--radius-sm); padding: 7px var(--space-3); color: var(--ink-muted); font-size: 13px; cursor: pointer; }
 .settings-nav-item:hover { background: var(--surface-hover); color: var(--ink); }
 .settings-nav-item[aria-current='true'] { background: var(--iris-soft); color: var(--ink); font-weight: 500; }

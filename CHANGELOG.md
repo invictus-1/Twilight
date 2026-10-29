@@ -16,6 +16,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 - **Cache-friendly:** like chats, each step resends the one before exactly, so long sessions read mostly from the prompt cache; the session shows how much.
 
 **Look and feel**
+- **Clearer Settings headings:** the group names in Settings (App, Models, About) are now in the accent colour and bold, with a line between groups, so they no longer read like one more page.
 - **Frame your picture:** with your own background picture, drag the preview to choose which part shows and zoom in to crop tighter.
 - **Nebula and Embers now show.** A mistake in how they were written made the window skip them entirely; they're back, much richer: Nebula's clouds have stars through them, and Embers has sparks rising from the glow.
 - **Starfield, filled in:** nearly three hundred stars of every size and warmth, and a faint band of sky light across them.
