@@ -6,6 +6,7 @@ import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
 import type { JudgeInput, Judgment, JudgmentSummary, Leaderboard, Rubric } from './judge'
+import type { Library, Persona, SavedPrompt } from './library'
 
 export type ProviderKind = 'anthropic' | 'openai'
 
@@ -355,7 +356,11 @@ export interface TwilightApi {
   deleteJudgment(id: string): Promise<void>
 
   listConversations(): Promise<ConversationSummary[]>
-  createConversation(folderId?: string | null): Promise<ConversationView>
+  /**
+   * A new chat from the defaults, its workspace's and then the persona's (when given). `reuseId` names
+   * an untouched chat to set up instead of making another.
+   */
+  createConversation(folderId?: string | null, personaId?: string | null, reuseId?: string | null): Promise<ConversationView>
   listFolders(): Promise<ChatFolder[]>
   createFolder(name: string): Promise<ChatFolder[]>
   renameFolder(id: string, name: string): Promise<ChatFolder[]>
@@ -381,6 +386,16 @@ export interface TwilightApi {
   send(id: string, text: string, target?: SendTarget, attachments?: Attachment[]): Promise<ConversationView>
   /** Opens a file picker; returns the chosen text files' contents. */
   pickAttachments(): Promise<Attachment[]>
+  /** Your personas and prompts (Settings → Library). */
+  getLibrary(): Promise<Library>
+  savePersona(persona: Persona): Promise<Library>
+  deletePersona(id: string): Promise<Library>
+  savePrompt(prompt: SavedPrompt): Promise<Library>
+  deletePrompt(id: string): Promise<Library>
+  /** Picks a library file and adds what it holds; null if cancelled. */
+  importLibrary(): Promise<{ library: Library; added: number } | null>
+  /** Saves the library (or only the items with these ids) to a file you choose; false if cancelled. */
+  exportLibrary(ids?: string[]): Promise<boolean>
   listPresets(): Promise<SettingsPreset[]>
   savePreset(preset: SettingsPreset): Promise<SettingsPreset[]>
   deletePreset(name: string): Promise<SettingsPreset[]>

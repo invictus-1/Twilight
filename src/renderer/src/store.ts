@@ -19,6 +19,8 @@ import { clearStream } from './stream'
 import { setCustomPrices, type CustomPrice } from '@shared/pricing'
 
 export type Mode = 'chat' | 'write' | 'judge' | 'insights'
+/** A floating panel over everything: the command menu, the shortcut sheet, search or the persona chooser. */
+export type Overlay = 'commands' | 'shortcuts' | 'search' | 'personas' | null
 
 const api = window.twilight
 
@@ -49,14 +51,13 @@ interface State {
   /** Your own prices (Settings → Prices); costs re-render when they change. */
   prices: CustomPrice[]
   setPrices(list: CustomPrice[]): Promise<void>
-  /** A floating panel over everything: the command menu, the shortcut sheet or search. */
-  overlay: 'commands' | 'shortcuts' | 'search' | null
+  overlay: Overlay
   /** A message to scroll to and highlight once its chat shows (a search result). */
   flash: string | null
   revealMessage(conversationId: string, nodeId: string): Promise<void>
   /** What search opens with (from the command menu). */
   searchQuery: string
-  setOverlay(overlay: 'commands' | 'shortcuts' | 'search' | null, searchQuery?: string): void
+  setOverlay(overlay: Overlay, searchQuery?: string): void
   updates: UpdateState | null
   error: string | null
   /** The current chat's recently deleted messages, newest first. */
@@ -74,6 +75,8 @@ interface State {
   refreshModels(refresh?: boolean): Promise<void>
   open(id: string): Promise<void>
   newChat(folderId?: string | null): Promise<void>
+  /** A new chat set up from a persona: its system prompt, and its model and choice cards when it has them. */
+  newChatFromPersona(personaId: string, folderId?: string | null): Promise<void>
   createFolder(name: string): Promise<void>
   renameFolder(id: string, name: string): Promise<void>
   toggleFolder(id: string): Promise<void>
@@ -208,6 +211,15 @@ export const useStore = create<State>((set, get) => {
         return
       }
       const view = await guard(set, () => api.createConversation(folderId))
+      if (!view) return
+      set({ current: view, deletions: [], undo: appUndo() })
+      await get().refreshList()
+    },
+
+    async newChatFromPersona(personaId, folderId = null) {
+      const current = get().current
+      const untouched = current && current.path.length === 0 && !current.split ? current.id : null
+      const view = await guard(set, () => api.createConversation(folderId, personaId, untouched))
       if (!view) return
       set({ current: view, deletions: [], undo: appUndo() })
       await get().refreshList()

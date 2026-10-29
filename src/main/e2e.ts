@@ -12,6 +12,8 @@ import { extractChoices } from '@shared/choices'
 import { gameFormat } from '@shared/gameFormat'
 import { computeVerdict } from '@shared/judge'
 import * as judge from './judge'
+import * as library from './library'
+import { parseLibrary } from '@shared/library'
 import { anthropicOptions, keyShape, toMessages } from './providers/anthropic'
 import { randomUUID } from 'node:crypto'
 import * as workspaces from './workspaces'
@@ -228,7 +230,12 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
     tick = Date.now()
   }, 100).unref()
   const shot = async (name: string): Promise<void> => {
-    await win.webContents.capturePage().then((img) => writeFileSync(join(outDir, name), img.toPNG()), () => undefined)
+    // The refusal can come as a throw as well as a rejected promise.
+    try {
+      writeFileSync(join(outDir, name), (await win.webContents.capturePage()).toPNG())
+    } catch {
+      appendFileSync(join(outDir, 'timings.log'), `screenshot ${name} refused\n`)
+    }
   }
   // Keep timers and frames running when the test window is behind others.
   win.webContents.setBackgroundThrottling(false)
@@ -2098,6 +2105,255 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('the Prices page lists the built-in prices', priceUi.builtIn === BUILT_IN_PRICES.length, priceUi.builtIn)
       check('a price you add re-prices replies on screen', /\$[0-9.]+/.test(priceUi.after) && !/(^|\|)\$0 ·/.test(priceUi.after) && (db.kvGet<{ model: string }[]>('prices') ?? []).some((p) => p.model === 'mock-a'), priceUi.after.slice(0, 200))
+
+      // 37. The library. Personas and prompts are saved, changed and deleted through the app and
+      // travel as a file; a persona starts a chat with its prompt, model and choice setting;
+      // applied mid-chat as a change from the next message it leaves the earlier messages byte
+      // for byte, so the cache holds; a prompt goes into the message box, {{input}} filled first.
+      const until = async (done: () => boolean, ms = 6000): Promise<void> => {
+        for (const end = Date.now() + ms; Date.now() < end && !done(); ) await new Promise((r) => setTimeout(r, 25))
+      }
+      const lampPrompt = 'You are a lamplighter who tells short harbour stories.'
+      const ferryPrompt = 'Answer as the ferryman would, in one paragraph.'
+      const crud = await js<{ saved: number; changed: string; kept: string[]; prompts: number }>(`(async () => {
+        const t = window.twilight
+        let lib = await t.savePersona({ id: '', name: 'Lamplighter', description: 'Tells harbour stories', systemPrompt: ${JSON.stringify(lampPrompt)}, providerId: 'mock', modelId: 'mock-b', choiceCards: true })
+        const lamp = lib.personas.find((p) => p.name === 'Lamplighter')
+        await t.savePersona({ id: '', name: 'Ferryman', description: '', systemPrompt: ${JSON.stringify(ferryPrompt)}, providerId: null, modelId: null, choiceCards: false })
+        lib = await t.savePersona({ id: '', name: 'Scratch', description: '', systemPrompt: 'Temporary.', providerId: null, modelId: null, choiceCards: false })
+        const saved = lib.personas.length
+        lib = await t.savePersona({ ...lamp, description: 'Tells harbour stories at dusk' })
+        const changed = lib.personas.filter((p) => p.id === lamp.id).map((p) => p.description).join('|')
+        lib = await t.deletePersona(lib.personas.find((p) => p.name === 'Scratch').id)
+        await t.savePrompt({ id: '', name: 'Describe a place', text: 'Describe {{input}} at dusk, in three sentences.' })
+        lib = await t.savePrompt({ id: '', name: 'Plain ask', text: 'What happens next?' })
+        return { saved, changed, kept: lib.personas.map((p) => p.name), prompts: lib.prompts.length }
+      })()`)
+      check(
+        'personas save, change in place and delete through the app',
+        crud.saved === 3 && crud.changed === 'Tells harbour stories at dusk' && crud.kept.join() === 'Ferryman,Lamplighter' && crud.prompts === 2,
+        crud
+      )
+      const lamp = library.getLibrary().personas.find((p) => p.name === 'Lamplighter')!
+      const ferry = library.getLibrary().personas.find((p) => p.name === 'Ferryman')!
+      const libFile = library.libraryFile()
+      const reread = parseLibrary(libFile, randomUUID)
+      const reimported = library.importLibrary(libFile)
+      const single = library.importLibrary(JSON.stringify({ name: 'Cartographer', systemPrompt: 'Draw maps in words.' }))
+      const refused = (() => {
+        try {
+          library.importLibrary(JSON.stringify({ personas: [{ name: 'No prompt' }] }))
+          return false
+        } catch {
+          return true
+        }
+      })()
+      check(
+        'a library file round-trips; importing replaces by id, takes a single persona, and refuses an empty one',
+        JSON.stringify(reread) === JSON.stringify({ personas: [ferry, lamp], prompts: library.getLibrary().prompts }) &&
+          reimported.library.personas.length === 2 &&
+          single.added === 1 &&
+          single.library.personas.length === 3 &&
+          refused &&
+          JSON.parse(library.libraryFile([lamp.id])).personas.length === 1 &&
+          JSON.parse(library.libraryFile([lamp.id])).prompts.length === 0,
+        { again: reimported.library.personas.length, single: single.library.personas.length, refused }
+      )
+      library.deletePersona(single.library.personas.find((p) => p.name === 'Cartographer')!.id)
+
+      // A new chat from a persona, chosen from the command menu.
+      const defaultsBefore = chat.getDefaults().modelId
+      await js(`document.activeElement?.blur()`)
+      await key('K', ['control'])
+      win.webContents.insertText('from a persona')
+      await new Promise((r) => setTimeout(r, 200))
+      await key('Return')
+      const chooser = await js<string[]>(`(async () => {
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.persona-chooser .persona-item').length < 2; ) await new Promise((r) => setTimeout(r, 25))
+        return [...document.querySelectorAll('.persona-chooser .persona-item .palette-title')].map((e) => e.textContent)
+      })()`)
+      check('"New chat from a persona…" opens a chooser of your personas', chooser.join() === 'Ferryman,Lamplighter', chooser)
+      win.webContents.insertText('lamp')
+      await new Promise((r) => setTimeout(r, 200))
+      await key('Return')
+      const fresh = await js<{ title: string; empty: boolean; choices: string | null }>(`(async () => {
+        for (let end = Date.now() + 3000; Date.now() < end && !(document.querySelector('.chat .empty') && !document.querySelector('.persona-chooser')); ) await new Promise((r) => setTimeout(r, 25))
+        document.querySelector('.tw-composer textarea')?.focus()
+        return { title: document.querySelector('.chat-title')?.textContent ?? '', empty: !!document.querySelector('.chat .empty'), choices: document.querySelector('.tw-composer [aria-label="Choice cards"]')?.getAttribute('aria-pressed') ?? null }
+      })()`)
+      const before37 = log.length
+      win.webContents.insertText('Light the way')
+      await key('Return')
+      await until(() => log.slice(before37).some((r) => r.messages.at(-1)?.content === 'Light the way'))
+      const lampChat = db.listConversations().find((c) => c.title === 'Light the way')
+      if (lampChat) await idle(lampChat.id)
+      const firstReq = log.slice(before37).find((r) => r.messages.at(-1)?.content === 'Light the way')
+      const lampView = lampChat ? chat.view(lampChat.id) : null
+      check(
+        "a chat from a persona sends its system prompt, with its model and choice cards",
+        fresh.empty &&
+          fresh.choices === 'true' &&
+          firstReq?.model === 'mock-b' &&
+          (firstReq?.messages[0]?.content ?? '').startsWith(lampPrompt) &&
+          (firstReq?.messages[0]?.content ?? '').includes('Interactive choices:') &&
+          lampView?.settings.systemPrompt === lampPrompt &&
+          lampView?.settings.choiceCards === true,
+        { fresh, model: firstReq?.model, system: firstReq?.messages[0]?.content.slice(0, 80) }
+      )
+      check("a persona's model is for its chats, not the default for new ones", chat.getDefaults().modelId === defaultsBefore, [defaultsBefore, chat.getDefaults().modelId])
+
+      // Apply another persona in the started chat as a change from the next message.
+      const setPersona = (way: 'next' | 'system'): Promise<{ note: string; pending: string; system: string; chip: boolean }> =>
+        js(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+          if (!document.querySelector('.settings-panel')) [...document.querySelectorAll('.chat-head button')].find((b) => /Model settings/.test(b.textContent))?.click()
+          const pick = () => document.querySelector('.settings-panel select[aria-label="Apply a persona"]')
+          for (let end = Date.now() + 3000; Date.now() < end && !(pick() && pick().options.length > 2); ) await wait(25)
+          const sel = pick()
+          Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(sel, ${JSON.stringify(ferry.id)})
+          sel.dispatchEvent(new Event('change', { bubbles: true }))
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.persona-ways'); ) await wait(25)
+          const note = document.querySelector('.persona-ways .field-note')?.textContent ?? ''
+          document.querySelector('.persona-ways [data-way="${way}"]')?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && document.querySelector('.persona-ways'); ) await wait(25)
+          await wait(150)
+          const out = {
+            note,
+            pending: document.querySelector('.settings-panel .pending-instruction')?.value ?? '',
+            system: document.querySelector('.settings-panel textarea[placeholder="Instructions the model follows for this chat"]')?.value ?? '',
+            chip: !!document.querySelector('.tw-composer .pending-chip')
+          }
+          document.querySelector('.settings-panel button[aria-label="Close"]')?.click()
+          await wait(100)
+          return out
+        })()`)
+      const asNext = await setPersona('next')
+      const pendingView = lampChat ? chat.view(lampChat.id) : null
+      check(
+        'applying a persona from the next message queues its prompt and keeps the system prompt',
+        asNext.pending === ferryPrompt && asNext.chip && pendingView?.settings.pendingInstruction === ferryPrompt && pendingView?.settings.systemPrompt === lampPrompt && /restarts the prompt cache/.test(asNext.note) && /keeps everything before it cached/.test(asNext.note),
+        asNext
+      )
+      const before37b = log.length
+      await js(`document.querySelector('.tw-composer textarea')?.focus()`)
+      win.webContents.insertText('Second light')
+      await key('Return')
+      await until(() => log.slice(before37b).some((r) => (r.messages.at(-1)?.content ?? '').endsWith('Second light')))
+      if (lampChat) await idle(lampChat.id)
+      const secondReq = log.slice(before37b).find((r) => (r.messages.at(-1)?.content ?? '').endsWith('Second light'))
+      const secondUser = secondReq?.messages.at(-1)?.content ?? ''
+      check(
+        'the persona rides in the next message and the earlier messages are sent byte for byte',
+        JSON.stringify(secondReq?.messages.slice(0, 2)) === JSON.stringify(firstReq?.messages) &&
+          secondReq?.messages.length === 4 &&
+          secondUser.startsWith('<instruction_update>') &&
+          secondUser.includes(ferryPrompt),
+        secondUser.slice(0, 200)
+      )
+      if (lampChat) {
+        chat.send(contents, lampChat.id, 'Third light')
+        await idle(lampChat.id)
+      }
+      check('later requests replay the change unchanged', JSON.stringify(log.at(-1)?.messages.slice(0, 4)) === JSON.stringify(secondReq?.messages.slice(0, 4)) && log.at(-1)?.messages.length === 6)
+      const asSystem = await setPersona('system')
+      check(
+        'applying a persona as the system prompt replaces it, and the panel shows it',
+        asSystem.system === ferryPrompt && (lampChat ? chat.view(lampChat.id).settings.systemPrompt === ferryPrompt : false),
+        asSystem
+      )
+
+      // Prompts go into the message box from the composer, never sent on their own.
+      const before37c = log.length
+      const promptUi = await js<{ items: string[]; fill: boolean; value: string; closed: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('.tw-composer button[aria-label="Prompts"]')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.prompt-pop .prompt-item').length < 2; ) await wait(25)
+        return { items: [...document.querySelectorAll('.prompt-pop .prompt-item .palette-title')].map((e) => e.textContent), fill: false, value: '', closed: false }
+      })()`)
+      win.webContents.insertText('describe')
+      await new Promise((r) => setTimeout(r, 200))
+      await key('Return')
+      const fillShown = await js<boolean>(`!!document.querySelector('.prompt-pop .prompt-fill textarea') && document.activeElement === document.querySelector('.prompt-pop .prompt-fill textarea')`)
+      win.webContents.insertText('the harbour')
+      await key('Return')
+      const afterFill = await js<{ value: string; closed: boolean }>(`({ value: document.querySelector('.tw-composer textarea')?.value ?? '', closed: !document.querySelector('.prompt-pop') })`)
+      check('the Prompts popover lists your prompts', promptUi.items.join() === 'Describe a place,Plain ask', promptUi.items)
+      check(
+        'a prompt with {{input}} asks for it, then goes into the message box filled in',
+        fillShown && afterFill.closed && afterFill.value === 'Describe the harbour at dusk, in three sentences.',
+        { fillShown, ...afterFill }
+      )
+      await js(`document.activeElement?.blur()`)
+      await key('K', ['control'])
+      win.webContents.insertText('insert a prompt')
+      await new Promise((r) => setTimeout(r, 200))
+      await key('Return')
+      await js(`(async () => { for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.prompt-pop .prompt-item').length < 2; ) await new Promise((r) => setTimeout(r, 25)) })()`)
+      win.webContents.insertText('plain')
+      await new Promise((r) => setTimeout(r, 200))
+      await key('Return')
+      const plainValue = await js<string>(`document.querySelector('.tw-composer textarea')?.value ?? ''`)
+      check(
+        '"Insert a prompt" opens the popover; a plain prompt goes in at the caret, and nothing is sent',
+        plainValue === 'Describe the harbour at dusk, in three sentences.What happens next?' && log.length === before37c,
+        { plainValue, sent: log.length - before37c }
+      )
+      await shot('e2e-prompts.png')
+      await js(`(() => {
+        const area = document.querySelector('.tw-composer textarea')
+        Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(area, '')
+        area.dispatchEvent(new Event('input', { bubbles: true }))
+        area.blur()
+      })()`)
+
+      // The Library page: both lists, a persona made and deleted (with an undo) from the page.
+      await key(',', ['control'])
+      const libUi = await js<{ group: string; personas: string[]; prompts: string[]; badges: string; made: boolean; deleted: boolean; undo: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const nav = [...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Library')
+        const group = nav?.parentElement?.querySelector('.side-section')?.textContent ?? ''
+        nav?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.library-item').length < 4; ) await wait(25)
+        const names = (sel) => [...document.querySelectorAll(sel)].map((e) => e.textContent)
+        const out = {
+          group,
+          personas: names('.library-item[data-persona] .library-name'),
+          prompts: names('.library-item[data-prompt] .library-name'),
+          badges: names('.library-item[data-persona] .tw-badge').join('|'),
+          made: false, deleted: false, undo: ''
+        }
+        ;[...document.querySelectorAll('.library-card[data-kind="personas"] button')].find((b) => /New persona/.test(b.textContent))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.library-editor'); ) await wait(25)
+        const editor = document.querySelector('.library-editor')
+        const fill = (el, v) => {
+          const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype
+          Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v)
+          el.dispatchEvent(new Event('input', { bubbles: true }))
+        }
+        fill(editor.querySelector('input'), 'Tide clerk')
+        fill(editor.querySelector('textarea'), 'Keep the tide tables.')
+        await wait(50)
+        editor.querySelector('.tw-btn-primary')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.library-item[data-persona]').length < 3; ) await wait(25)
+        out.made = names('.library-item[data-persona] .library-name').includes('Tide clerk')
+        document.querySelector('.library-item[data-persona] button[aria-label="Delete Tide clerk"]')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.library-item[data-persona]').length > 2; ) await wait(25)
+        out.deleted = !names('.library-item[data-persona] .library-name').includes('Tide clerk')
+        out.undo = document.querySelector('.toast')?.textContent ?? ''
+        return out
+      })()`)
+      check(
+        'the Library page lists personas and prompts under App',
+        libUi.group === 'App' && libUi.personas.join() === 'Ferryman,Lamplighter' && libUi.prompts.join() === 'Describe a place,Plain ask' && /Mock B|mock-b/i.test(libUi.badges) && /Choices/.test(libUi.badges),
+        libUi
+      )
+      check(
+        'a persona made on the Library page is saved, and deleting it offers an undo',
+        libUi.made && libUi.deleted && /Tide clerk/.test(libUi.undo) && !library.getLibrary().personas.some((p) => p.name === 'Tide clerk'),
+        libUi
+      )
+      await shot('e2e-library.png')
+      await key('Escape')
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

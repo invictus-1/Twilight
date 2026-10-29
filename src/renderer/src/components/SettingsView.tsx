@@ -2,6 +2,7 @@ import { ThemePicker } from './ThemePicker'
 import { useEffect, useMemo, useState } from 'react'
 import { ShortcutsSection } from './ShortcutsSection'
 import { PricesSection } from './PricesSection'
+import { LibrarySection } from './LibrarySection'
 import type { ModelInfo, ProviderConfig } from '@shared/types'
 import { readGameFormat, writeGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
@@ -15,10 +16,11 @@ import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIc
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'prices' | 'general' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
+type Section = 'providers' | 'prices' | 'general' | 'library' | 'writing' | 'data' | 'shortcuts' | 'updates' | 'roadmap' | 'about'
 
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
   { id: 'general', group: 'App', label: 'General', description: 'How Twilight looks and how chats behave: the theme, the cache status line, Game Format, and the safety net.' },
+  { id: 'library', group: 'App', label: 'Library', description: 'Your personas and prompts. A persona starts a chat with its instructions; a prompt goes into the message box from the composer.' },
   { id: 'writing', group: 'App', label: 'Writing', description: 'Where your documents live. Point it at an Obsidian vault and both apps edit the same files.' },
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats, settings and request logs on this machine.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
@@ -585,6 +587,7 @@ export function SettingsView() {
           {section === 'providers' && <ProvidersSection />}
           {section === 'prices' && <PricesSection />}
           {section === 'general' && <GeneralSection />}
+          {section === 'library' && <LibrarySection />}
           {section === 'writing' && <WritingSection />}
           {section === 'data' && <DataSection />}
           {section === 'shortcuts' && <ShortcutsSection />}

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { CacheTtl, ChatSettings, Pane, SettingsPreset } from '@shared/types'
+import type { Persona } from '@shared/library'
+import { useLibrary } from '../libraryStore'
 import { modelName, optionsFor, paneOf, useStore } from '../store'
 import { CloseIcon, TrashIcon } from './Icons'
 
@@ -55,6 +57,73 @@ function NumberSetting(props: {
   )
 }
 
+/**
+ * Applies a persona from the library. Before the first message it sets everything the persona
+ * has; after, it changes only the instructions, either in the system prompt (the cache restarts)
+ * or from the next message on (the cache holds).
+ */
+function PersonaRow(props: { settings: ChatSettings; started: boolean; split: boolean; apply: (patch: Partial<ChatSettings>) => Promise<void> }) {
+  const personas = useLibrary((s) => s.personas)
+  const [picked, setPicked] = useState('')
+  useEffect(() => void useLibrary.getState().refresh(), [])
+  const persona = personas.find((p) => p.id === picked)
+  const everything = (p: Persona): Partial<ChatSettings> => ({
+    systemPrompt: p.systemPrompt,
+    ...(p.providerId && p.modelId ? { providerId: p.providerId, modelId: p.modelId } : {}),
+    ...(p.choiceCards ? { choiceCards: true } : {})
+  })
+  const done = (patch: Partial<ChatSettings>): void => {
+    setPicked('')
+    void props.apply(patch)
+  }
+  return (
+    <div className="field persona-row">
+      <div className="preset-row">
+        <select
+          value={picked}
+          aria-label="Apply a persona"
+          onChange={(e) => {
+            const p = personas.find((x) => x.id === e.target.value)
+            if (p && !props.started) done(everything(p))
+            else setPicked(e.target.value)
+          }}
+        >
+          <option value="">{personas.length ? 'Apply a persona…' : 'No personas yet'}</option>
+          {personas.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <button className="tw-btn tw-btn-ghost tw-btn-sm" onClick={() => useStore.getState().setSettingsOpen(true, 'library')}>
+          Library
+        </button>
+      </div>
+      {persona && (
+        <div className="persona-ways" role="group" aria-label={`Apply ${persona.name}`}>
+          <button className="tw-btn tw-btn-sm" data-way="system" onClick={() => done({ systemPrompt: persona.systemPrompt, ...(persona.choiceCards ? { choiceCards: true } : {}) })}>
+            Replace the system prompt
+          </button>
+          <button
+            className="tw-btn tw-btn-sm"
+            data-way="next"
+            onClick={() => {
+              const pending = props.settings.pendingInstruction.trim()
+              done({ pendingInstruction: pending ? `${pending}\n\n${persona.systemPrompt}` : persona.systemPrompt })
+            }}
+          >
+            Change from the next message
+          </button>
+          <span className="field-note">
+            Replacing restarts the prompt cache for this chat{props.split ? ' pane' : ''}. A change from the next message keeps everything before it cached.
+            Either way the model stays as it is.
+          </span>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
   const current = useStore((s) => s.current)!
   const models = useStore((s) => s.models)
@@ -68,6 +137,14 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
   const provider = providers.find((p) => p.id === settings.providerId)
   const options = optionsFor(models, providers, settings.providerId, settings.modelId)
   const update = (patch: Partial<ChatSettings>): Promise<void> => useStore.getState().updateSettings(patch, shown)
+  // Bumped when a persona is applied, so the prompt boxes below show what it put there.
+  const [applied, setApplied] = useState(0)
+  const applyPersona = async (patch: Partial<ChatSettings>): Promise<void> => {
+    // Straight to the chat: a persona's model is for this chat, not the default for new ones.
+    const view = await window.twilight.updateChatSettings(current.id, patch, shown)
+    if (useStore.getState().current?.id === view.id) useStore.setState({ current: view })
+    setApplied((n) => n + 1)
+  }
   const [extra, setExtra] = useState(settings.extraParams)
   const extraError = (() => {
     if (!extra.trim()) return null
@@ -146,10 +223,12 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
         )}
       </div>
 
+      <PersonaRow settings={settings} started={current.started} split={!!current.split} apply={applyPersona} />
+
       <label className="field">
         <span className="field-label">System prompt{current.split ? ` (pane ${shown.toUpperCase()})` : ''}</span>
         <textarea
-          key={`${shown}-sp`}
+          key={`${shown}-sp-${applied}`}
           rows={5}
           defaultValue={settings.systemPrompt}
           placeholder="Instructions the model follows for this chat"
@@ -167,7 +246,7 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
         <label className="field">
           <span className="field-label">Change the instructions from the next message on</span>
           <textarea
-            key={`${shown}-pending`}
+            key={`${shown}-pending-${applied}`}
             className="pending-instruction"
             rows={3}
             defaultValue={settings.pendingInstruction}
