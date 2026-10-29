@@ -9,3 +9,4 @@ private/
 *.stackdump
 installer/.build/
 installer/.vendor/
+.claude/
