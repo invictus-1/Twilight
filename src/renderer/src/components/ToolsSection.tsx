@@ -131,9 +131,9 @@ function ServerRow({ server, onEdit }: { server: McpServerView; onEdit: () => vo
           {s.state === 'ready' && ` · ${s.tools.length} tool${s.tools.length === 1 ? '' : 's'}`}
         </span>
         <span className="tw-spacer" />
-        <label className="check mcp-enabled" title="Off: no chat can use it">
-          <input type="checkbox" checked={server.enabled} onChange={(e) => void api.saveMcpServer({ ...server, enabled: e.target.checked }).then(update)} />
-          On
+        <label className="switch mcp-enabled" title={server.enabled ? 'On' : 'Off: no chat can use it'}>
+          <input type="checkbox" checked={server.enabled} aria-label={`${server.name} on`} onChange={(e) => void api.saveMcpServer({ ...server, enabled: e.target.checked }).then(update)} />
+          <span className="switch-track" />
         </label>
         <button className="tw-btn tw-btn-ghost tw-btn-sm" title="Connect again and list its tools" onClick={() => void api.testMcpServer(server.id).then(update)}>
           <RefreshIcon size={14} />

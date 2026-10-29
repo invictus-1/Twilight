@@ -4,6 +4,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.0.0 · In progress
+- [x] **Speed pass, measured** · Core — the window appears in half the time, a third of the startup script, and a startup check that no longer grows with your history; numbers in bench/README.md
+
 ### 0.9.0 · October 2026
 - [x] **Document library** · Writing — folders of your writing searched for the passages each message needs: a local full-text index, optional embeddings for search by meaning, and a search tool for models that call tools
 - [x] **Code, further** · Core — plan mode, the agent's own task list, a project instructions file (TWILIGHT.md, AGENTS.md or CLAUDE.md), web search and fetch with Claude, and rewinding to any message
@@ -100,7 +103,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [~] **Your feedback on 0.8** · Core — fixes from real use of the Code tab, MCP, backups, Extras and backgrounds
 
 ## Later
-- [ ] **1.0: the polish pass** · Core — the final pass, then a talk about the road to 2.0: an optimization run and a UI/UX pass over every screen, with more gradients and motion. Startup, chat-open and scroll times are measured before and after, so the gains are real numbers
+- [~] **1.0: the polish pass** · Core — the final pass, then a talk about the road to 2.0: an optimization run and a UI/UX pass over every screen, with more gradients and motion. Startup, chat-open and scroll times are measured before and after, so the gains are real numbers
 
 ## Ideas
 - **Smarter retrieval** · Writing — for 2.0: a small, fast model that searches out the context a prompt needs, passages indexed with context about where they sit, reranking, and graph-based search across a manuscript

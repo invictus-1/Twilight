@@ -393,8 +393,8 @@
 .builder-reset { align-self: flex-start; }
 
 /* Settings: the theme picker */
-.theme-picker { display: flex; gap: var(--space-3); flex-wrap: wrap; }
-.theme-option { display: flex; flex-direction: column; gap: var(--space-2); width: 200px; padding: var(--space-2); border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; }
+.theme-picker { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: var(--space-3); }
+.theme-option { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; padding: var(--space-2); border-radius: var(--radius-md); border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; text-align: left; }
 .theme-option[aria-pressed='true'] { border-color: var(--iris); box-shadow: 0 0 0 1px var(--iris); }
 .theme-option:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 .theme-swatch { height: 72px; border-radius: var(--radius-sm); display: flex; align-items: flex-end; gap: 6px; padding: 10px; }

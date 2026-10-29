@@ -45,7 +45,7 @@ function ReleaseRow({ release, current }: { release: ReleaseInfo; current: strin
         <span className="release-version">{release.version}</span>
         {isCurrent && <span className="tw-badge cap-badge">Installed</span>}
         {order > 0 && release.version === u.latest && <span className="tw-badge cap-badge">Newest</span>}
-        {u.cached.includes(release.version) && !isCurrent && <span className="tw-badge">Downloaded</span>}
+        {u.cached.includes(release.version) && !isCurrent && <span className="tw-badge cap-badge">Downloaded</span>}
         <span className="release-date">
           {release.publishedAt ? day(release.publishedAt) : ''}
           {release.installer ? ` · ${mb(release.installer.size)}` : ''}

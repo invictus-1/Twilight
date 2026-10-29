@@ -1335,7 +1335,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards >= 1 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '1.0.0,0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check(
         'a wide window shows the way to 1.0 beside the roadmap, and a step jumps to its release',
         roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
@@ -2651,8 +2651,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key('Return')
       const plainValue = await js<string>(`document.querySelector('.tw-composer textarea')?.value ?? ''`)
       check(
-        '"Insert a prompt" opens the popover; a plain prompt goes in at the caret, and nothing is sent',
-        plainValue === 'Describe the harbour at dusk, in three sentences.What happens next?' && log.length === before37c,
+        '"Insert a prompt" opens the popover; a plain prompt goes in at the caret, spaced from your words, and nothing is sent',
+        plainValue === 'Describe the harbour at dusk, in three sentences. What happens next?' && log.length === before37c,
         { plainValue, sent: log.length - before37c }
       )
       await shot('e2e-prompts.png')

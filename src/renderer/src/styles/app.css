@@ -1420,3 +1420,39 @@ body.resizing .resize-handle { pointer-events: auto; }
 .library-hits { margin: var(--space-2) 0 0; padding-left: var(--space-6); display: flex; flex-direction: column; gap: var(--space-2); font-size: 13px; }
 .library-hit-source { display: block; font-family: var(--font-mono); font-size: 12px; color: var(--dusk); }
 .library-hit-text { color: var(--ink-muted); }
+
+/* The Code header on a narrower window: the least needed pieces give way first (the folder and
+   the instructions file are in the session list and the intro; Undo all is one click from Undo). */
+.code-view .chat-head { container-type: inline-size; min-width: 0; }
+@container (max-width: 1080px) { .code-view .code-instructions { display: none; } }
+@container (max-width: 980px) { .code-view .code-folder { display: none; } }
+@container (max-width: 880px) { .code-view .chat-head .code-undo-all { display: none; } }
+@container (max-width: 800px) { .code-view .code-model { max-width: 120px; } .code-view .code-web { display: none; } }
+
+/* ——— 1.0 polish ——— */
+/* In a half-width split pane the reply footer wraps instead of overflowing. */
+.msg-foot { flex-wrap: wrap; row-gap: 2px; }
+.tw-branch { white-space: nowrap; }
+/* The empty chat's evening fades into the composer instead of ending in a hard edge. */
+.empty-sky { -webkit-mask-image: linear-gradient(180deg, #000 72%, transparent 100%); mask-image: linear-gradient(180deg, #000 72%, transparent 100%); }
+/* Header chips in Code: one look for the folder, the instructions file and the Web toggle. */
+.code-chip { display: inline-flex; align-items: center; gap: var(--space-1); height: 24px; padding: 0 var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-raised); color: var(--ink-muted); font: inherit; font-size: 12px; white-space: nowrap; }
+.code-instructions { font-family: var(--font-mono); }
+button.code-chip { cursor: pointer; }
+button.code-chip:hover:not(:disabled) { color: var(--ink); border-color: var(--line-strong); }
+button.code-chip[aria-pressed='true'] { background: var(--iris-soft); border-color: var(--iris); color: var(--ink); }
+button.code-chip:disabled { opacity: 0.5; cursor: default; }
+button.code-chip:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.code-model { border-radius: var(--radius-full); padding-left: var(--space-3); }
+/* Dropdowns draw the app's own chevron, not the system's. */
+select:not([multiple]) { appearance: none; -webkit-appearance: none; padding-right: 28px !important; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238a90c4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; }
+:root[data-theme='moonlit'] select:not([multiple]) { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%235f5b7d' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); }
+/* Checkboxes: an outlined box when off (not a flat grey tile), filled with a tick when on. */
+input[type='checkbox']:not(.switch input) { appearance: none; -webkit-appearance: none; flex: none; width: 16px; height: 16px; margin: 0; border: 1.5px solid var(--line-strong); border-radius: 4px; background: var(--surface); display: inline-grid; place-content: center; cursor: pointer; transition: background-color 100ms ease, border-color 100ms ease; }
+input[type='checkbox']:not(.switch input)::after { content: ''; width: 8px; height: 4px; border: solid var(--on-iris); border-width: 0 0 2px 2px; transform: translateY(-1px) rotate(-45deg) scale(0); transition: transform 100ms ease; }
+input[type='checkbox']:not(.switch input):checked { background: var(--iris); border-color: var(--iris); }
+input[type='checkbox']:not(.switch input):checked::after { transform: translateY(-1px) rotate(-45deg) scale(1); }
+input[type='checkbox']:not(.switch input):focus-visible { outline: none; box-shadow: var(--focus-ring); }
+input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: default; }
+/* Buttons beside a field are as tall as it. */
+.field-inline > .tw-btn-sm, .choice-own .tw-btn, .library-try .tw-btn, .code-answer .tw-btn, .mcp-form-actions .tw-btn { height: var(--control-md); }

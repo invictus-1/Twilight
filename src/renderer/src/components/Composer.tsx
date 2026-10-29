@@ -85,10 +85,14 @@ export function Composer() {
     const el = area.current
     const start = el?.selectionStart ?? text.length
     const end = el?.selectionEnd ?? text.length
-    setText(text.slice(0, start) + snippet + text.slice(end))
+    // A prompt put after (or before) words you typed keeps a space between them.
+    const before = text.slice(0, start)
+    const after = text.slice(end)
+    const piece = `${before && !/\s$/.test(before) ? ' ' : ''}${snippet}${after && !/^\s/.test(after) ? ' ' : ''}`
+    setText(before + piece + after)
     requestAnimationFrame(() => {
       el?.focus()
-      el?.setSelectionRange(start + snippet.length, start + snippet.length)
+      el?.setSelectionRange(start + piece.length, start + piece.length)
     })
   }
 

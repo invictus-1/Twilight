@@ -69,17 +69,21 @@ function Journey({ roadmap, version, progress }: { roadmap: Roadmap; version?: s
           </div>
         </div>
         <ol className="rm-steps">
-          <li className="rm-step rm-step-goal">
-            <span className="rm-step-dot" />
-            <span className="rm-step-v">1.0</span>
-            <span className="rm-step-note">the final pass</span>
-          </li>
+          {/* The goal, unless 1.0 is the release being built (then it's that step). */}
+          {!building?.version.startsWith('1.0') && (
+            <li className="rm-step rm-step-goal">
+              <span className="rm-step-dot" />
+              <span className="rm-step-v">1.0</span>
+              <span className="rm-step-note">the final pass</span>
+            </li>
+          )}
           {building && (
             <li className="rm-step rm-step-now">
               <button className="rm-step-btn" onClick={() => jump(building.version)}>
                 <span className="rm-step-dot" />
                 <span className="rm-step-v">{building.version.replace(/\.0$/, '')}</span>
                 <span className="rm-step-note">
+                  {building.version.startsWith('1.0') ? 'the final pass · ' : ''}
                   {building.items.length} done{left ? ` · ${left} to go` : ''}
                 </span>
               </button>

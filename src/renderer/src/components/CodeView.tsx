@@ -3,7 +3,7 @@ import type { CodeEntry, CodeMode, CodePending, CodeTask, DiffLine } from '@shar
 import { useCode } from '../codeStore'
 import { renderMarkdownLive } from '../markdown'
 import { modelName, useStore } from '../store'
-import { AlertIcon, CheckIcon, CloseIcon, FolderIcon, SendIcon, SidebarIcon, StopIcon, UndoIcon } from './Icons'
+import { AlertIcon, CheckIcon, CloseIcon, FolderIcon, GlobeIcon, SendIcon, SidebarIcon, StopIcon, UndoIcon } from './Icons'
 
 // The Code tab: one session's transcript, the agent's approvals and questions, and your messages.
 
@@ -23,7 +23,6 @@ function Diff({ lines }: { lines: DiffLine[] }) {
         <span key={i} className={`diff-${l.kind}`}>
           {l.kind === 'add' ? '+ ' : l.kind === 'del' ? '− ' : l.kind === 'gap' ? '⋯ ' : '  '}
           {l.text}
-          {'\n'}
         </span>
       ))}
     </pre>
@@ -218,14 +217,20 @@ export function CodeView() {
           {current.folder.split(/[\\/]/).pop()}
         </span>
         {current.instructions && (
-          <span className="tw-badge code-instructions no-drag" title={`The agent follows ${current.instructions} from the project folder`}>
+          <span className="code-chip code-instructions no-drag" title={`The agent follows ${current.instructions} from the project folder`}>
             {current.instructions}
           </span>
         )}
-        <label className="check code-web no-drag" title={current.webAvailable ? "Claude's web search and page reading, for this session" : 'Web search needs a Claude model'}>
-          <input type="checkbox" checked={current.web && current.webAvailable} disabled={!current.webAvailable} onChange={(e) => void useCode.getState().setOptions({ web: e.target.checked })} />
+        <button
+          className="code-chip code-web no-drag"
+          aria-pressed={current.web && current.webAvailable}
+          disabled={!current.webAvailable}
+          title={current.webAvailable ? "Claude's web search and page reading, for this session" : 'Web search needs a Claude model'}
+          onClick={() => void useCode.getState().setOptions({ web: !current.web })}
+        >
+          <GlobeIcon size={13} />
           Web
-        </label>
+        </button>
         <div className="tw-seg code-modes no-drag" role="radiogroup" aria-label="What the agent may do">
           {MODES.map((m) => (
             <button key={m.id} role="radio" aria-checked={current.mode === m.id} aria-pressed={current.mode === m.id} title={m.note} onClick={() => void useCode.getState().setOptions({ mode: m.id })}>
@@ -261,7 +266,7 @@ export function CodeView() {
           Undo
         </button>
         <button
-          className="tw-btn tw-btn-ghost tw-btn-sm no-drag"
+          className="tw-btn tw-btn-ghost tw-btn-sm no-drag code-undo-all"
           disabled={current.running || current.undoable.length < 2}
           title="Put back every file this session changed"
           onClick={() => void useCode.getState().undo(true)}

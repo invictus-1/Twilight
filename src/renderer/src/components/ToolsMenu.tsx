@@ -13,6 +13,8 @@ export function Hint({ title, text, children }: { title: string; text: string; c
   const timer = useRef<number | undefined>(undefined)
   const show = (): void => {
     clearTimeout(timer.current)
+    // An open menu (Tools, Prompts, documents) is what you're looking at; a hint would cover it.
+    if (document.querySelector('.tools-pop')) return
     timer.current = window.setTimeout(() => setOpen(true), 450)
   }
   const hide = (): void => {
