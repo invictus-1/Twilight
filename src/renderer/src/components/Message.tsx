@@ -10,6 +10,7 @@ import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
+import { DiffBody, useDiffed } from './SplitDiff'
 import { AlertIcon, BranchIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SplitIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
@@ -273,6 +274,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
   const showThinking = useStore((s) => (s.current ? paneOf(s.current, pane).settings.showThinking : false))
   const [editing, setEditing] = useState(false)
   const fresh = useFresh(node)
+  const diffed = useDiffed(pane, node.id)
   const streaming = node.status === 'streaming'
   if (editing) {
     return (
@@ -299,7 +301,12 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
               <div className="thinking-body">{node.thinking}</div>
             </details>
           )}
-          {body && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />}
+          {body && diffed && (
+            <DiffBody pane={pane} nodeId={node.id}>
+              <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />
+            </DiffBody>
+          )}
+          {body && !diffed && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />}
           {choices && (
             <ChoiceCard choices={choices} active={isLast} answer={next?.role === 'user' ? next.text : null} />
           )}

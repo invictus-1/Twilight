@@ -10,6 +10,7 @@ import * as db from './db'
 import * as docs from './docs'
 import { extractChoices } from '@shared/choices'
 import { gameFormat } from '@shared/gameFormat'
+import { compareTexts, plainProse, wordDiff } from '@shared/diff'
 import { computeVerdict } from '@shared/judge'
 import * as judge from './judge'
 import * as library from './library'
@@ -2637,6 +2638,101 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return { fresh: !!document.querySelector('.msg-user-row.msg-enter') }
       })()`)
       check('a message you just sent eases in', enterUi.fresh, enterUi)
+
+      // 40. Split differences: the diff itself on known strings (a long pair falls back to
+      // paragraphs), then in the app: each pane's latest reply marked against the other's, a
+      // summary, and off putting the replies back. Nothing stored or sent changes.
+      const dusk40 = compareTexts('The lamp was lit at dusk.', 'The lamp was lit at dawn.')
+      check(
+        'the reply diff marks the one word that changed',
+        JSON.stringify(dusk40.a) === JSON.stringify([[{ text: 'The lamp was lit at ', changed: false }, { text: 'dusk.', changed: true }]]) &&
+          dusk40.b[0]?.[1]?.text === 'dawn.' && dusk40.by === 'words' && dusk40.onlyA === 1 && dusk40.onlyB === 1 && Math.abs(dusk40.similarity - 10 / 12) < 1e-9,
+        dusk40
+      )
+      const twin40 = compareTexts('Wren counted the lamps.\n\nRowan kept the tally.', 'Wren counted  the lamps.\n\n\nRowan kept the tally.\n')
+      check('replies differing only in spacing have no differences', twin40.onlyA + twin40.onlyB === 0 && twin40.similarity === 1 && twin40.a.length === 2 && twin40.a.flat().every((r) => !r.changed), twin40)
+      const prose40 = plainProse('## The quay\n\n**Wren** saw [the lamps](http://x) and `nine` boats.\n\n- one\n- two')
+      check('the diff reads markdown as the words it shows', prose40 === 'The quay\n\nWren saw the lamps and nine boats.\n\none\ntwo', prose40)
+      const edit40 = wordDiff('Nobody had ever seen who lit them.', 'No one ever saw who lit them.')
+      check(
+        'the editor diff still marks removals and insertions',
+        edit40.filter((o) => o.type === 'del').map((o) => o.text).join('|') === 'Nobody|had|seen' &&
+          edit40.filter((o) => o.type === 'ins').map((o) => o.text).join('|') === 'No|one|saw' &&
+          edit40.filter((o) => o.type !== 'ins').map((o) => o.text).join('') === 'Nobody had ever seen who lit them.',
+        edit40
+      )
+      // 4,000 words a side. Changed only in the middle, the shared start and end are set aside and
+      // it's still word by word; changed at both ends, the whole of it differs and is too long.
+      const para40 = (k: number, tag = ''): string => Array.from({ length: 100 }, (_, i) => `tide${k}w${i}${tag}`).join(' ')
+      const long40 = Array.from({ length: 40 }, (_, k) => para40(k)).join('\n\n')
+      const mid40 = compareTexts(long40, long40.replace('tide20w50 ', 'tide20w50b '))
+      check('a long pair changed in one place is still compared word by word', mid40.by === 'words' && mid40.onlyA === 1 && mid40.onlyB === 1, { by: mid40.by, onlyA: mid40.onlyA, onlyB: mid40.onlyB })
+      const ends40 = Array.from({ length: 40 }, (_, k) => para40(k, k === 0 || k === 39 ? 'b' : '')).join('\n\n')
+      const t40 = Date.now()
+      const big40 = compareTexts(long40, ends40)
+      const ms40 = Date.now() - t40
+      const changed40 = big40.a.map((p, k) => (p[0]?.changed ? k : -1)).filter((k) => k >= 0)
+      check(
+        'a long pair falls back to comparing paragraphs, quickly',
+        big40.by === 'paragraphs' && big40.a.length === 40 && changed40.join() === '0,39' && big40.onlyA === 200 && big40.onlyB === 200 && Math.abs(big40.similarity - 0.95) < 1e-9 && ms40 < 1000,
+        { by: big40.by, changed40, onlyA: big40.onlyA, onlyB: big40.onlyB, similarity: big40.similarity, ms40 }
+      )
+
+      const c40 = chat.create().id
+      chat.updateSettings(c40, { providerId: 'mock', modelId: 'mock-a' })
+      chat.send(contents, c40, 'Two tellings of the tide')
+      await idle(c40)
+      chat.cloneIntoSplit(c40)
+      chat.updateSettings(c40, { modelId: 'mock-b' }, 'b')
+      chat.send(contents, c40, 'Tell it again', 'both')
+      await idle(c40)
+      const stored40 = (): string => JSON.stringify([chat.view(c40).path.map((n) => n.text), chat.view(c40).split?.path.map((n) => n.text)])
+      const before40 = stored40()
+      const requests40 = log.length
+      await reloadUi()
+      type DiffUi = { split: boolean; pressed: string | null; bodies: number; aOnly: string[]; bOnly: string[]; paras: number; bar: string[]; colours: string[]; latestMd: boolean; strong: string | null }
+      const readDiff = `(() => {
+        const latest = (p) => [...document.querySelectorAll('.tw-pane-' + p + ' .tw-msg-ai')].at(-1)
+        const only = (p) => [...document.querySelectorAll('.tw-pane-' + p + ' .diff-only')]
+        return {
+          split: !!document.querySelector('.tw-split'),
+          pressed: [...document.querySelectorAll('.chat-head button')].find((b) => b.textContent === 'Differences')?.getAttribute('aria-pressed') ?? null,
+          bodies: document.querySelectorAll('.diff-body').length,
+          aOnly: only('a').map((e) => e.textContent), bOnly: only('b').map((e) => e.textContent),
+          paras: latest('a')?.querySelectorAll('.diff-para').length ?? 0,
+          bar: [...(document.querySelector('.split-diff-bar')?.children ?? [])].map((e) => e.textContent),
+          colours: [only('a')[0], only('b')[0]].filter(Boolean).map((e) => getComputedStyle(e).backgroundColor),
+          latestMd: !!latest('a')?.querySelector('.tw-msg-body.md'),
+          strong: latest('a')?.querySelector('.tw-msg-body.md strong')?.textContent ?? null
+        }
+      })()`
+      const diffOn = await js<DiffUi>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const row = [...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Two tellings of the tide')
+        row?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.tw-split .tw-msg-ai').length < 4; ) await wait(50)
+        ;[...document.querySelectorAll('.chat-head button')].find((b) => b.textContent === 'Differences')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelectorAll('.diff-body').length < 2; ) await wait(50)
+        await wait(100)
+        return ${readDiff}
+      })()`)
+      check('the Differences toggle shows in split view and turns on', diffOn.split && diffOn.pressed === 'true' && diffOn.bodies === 2, diffOn)
+      check('words only in A are marked in A, words only in B in B', diffOn.aOnly.join('|') === 'mock-a' && diffOn.bOnly.join('|') === 'mock-b', diffOn)
+      check("each pane's mark takes its own colour", diffOn.colours.length === 2 && diffOn.colours[0] !== diffOn.colours[1] && !diffOn.colours.includes('rgba(0, 0, 0, 0)'), diffOn.colours)
+      check('the diff keeps the reply readable as plain paragraphs', diffOn.paras === 3 && !diffOn.latestMd, diffOn)
+      check('the summary counts the differing words and the similarity', diffOn.bar.join(' · ') === '2 words differ · 1 only in A · 1 only in B · 94% similar', diffOn.bar)
+      await shot('e2e-split-diff.png')
+      await js(`document.activeElement?.blur()`)
+      await key('K', ['control'])
+      win.webContents.insertText('differences between')
+      await new Promise((r) => setTimeout(r, 200))
+      const diffCommand = await js<string | null>(`document.querySelector('.palette-item .palette-title')?.textContent ?? null`)
+      await key('Return')
+      await new Promise((r) => setTimeout(r, 200))
+      const diffOff = await js<DiffUi>(readDiff)
+      check('the command menu offers the differences toggle', diffCommand === 'Show differences between panes', diffCommand)
+      check('turning differences off restores the normal reply', diffOff.pressed === 'false' && diffOff.bodies === 0 && diffOff.bar.length === 0 &&diffOff.latestMd && diffOff.strong === 'mock-a', diffOff)
+      check('differences never change stored messages or send anything', stored40() === before40 && log.length === requests40, { requests: log.length - requests40 })
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
