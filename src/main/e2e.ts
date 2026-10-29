@@ -3822,6 +3822,18 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('the Tools menu switches servers and pictures per chat', menu45.join() === 'mcp:Lamp tools=false,mcp:Library=false,imageGen=false', menu45)
       mcp.closeAll()
 
+      // Your own message has a regenerate button too: it adds another version of the reply to it.
+      const regenUi45 = await js<boolean>(`(() => {
+        const mine = [...document.querySelectorAll('.msg-user-row')].at(-1)
+        const b = mine?.querySelector('button[aria-label="Regenerate the reply"]')
+        b?.click()
+        return !!b
+      })()`)
+      await new Promise((r) => setTimeout(r, 200))
+      await idle(c45)
+      const again45 = chat.view(c45).path.at(-1)!
+      check('your message can regenerate the reply to it', regenUi45 && again45.role === 'assistant' && again45.siblingCount === 2 && again45.siblingIndex === 1, { regenUi45, siblings: again45.siblingCount })
+
       // 46. Backups and where the data lives. Backups are made from the running app; a restore
       // and a move are done at start, so they're checked on folders of their own here.
       const H = 60 * 60 * 1000

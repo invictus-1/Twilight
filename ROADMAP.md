@@ -4,7 +4,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
-### 0.8.0 · In progress
+### 0.8.0 · October 2026
 - [x] **Background framing** · Core — drag and zoom your picture to choose which part shows; brighter Nebula, Embers and Starfield
 - [x] **Your data, your place** · Core — backups now or on a schedule, restore from any of them, and move the data folder anywhere
 - [x] **MCP and pictures** · Chat — MCP servers (programs or addresses) switched on per chat, each call approved in the reply unless allowed, and pictures from an image model

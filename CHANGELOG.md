@@ -4,6 +4,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.8.0
 
+**Chat**
+- **Regenerate from your own message:** your messages now have a regenerate button too, next to edit and copy. It adds another version of the reply, like the one on the reply itself.
+
 **Your data**
 - **Backups:** Settings → Data backs everything up: chats, workspaces, settings, encrypted keys, your background, generated pictures, and your theme, motion and shortcut settings. Each backup is a plain folder, in "Twilight backups" in Documents or a folder you choose. Back up now whenever you like; automatic backups run daily or weekly and keep the last ten (you can change that). Older automatic ones go to the Recycle Bin, and ones you made stay until you remove them.
 - **Restore:** pick a backup and Twilight backs up what's there first, restarts, and puts the backup in place before anything opens.

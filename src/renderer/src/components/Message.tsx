@@ -103,6 +103,7 @@ function DeleteButton({ node }: { node: NodeView }) {
 const useFresh = (node: NodeView): boolean => useState(() => Date.now() - node.createdAt < 4000)[0]
 
 function UserMessage({ node }: { node: NodeView }) {
+  const pane = usePane()
   const fresh = useFresh(node)
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -127,6 +128,14 @@ function UserMessage({ node }: { node: NodeView }) {
         </button>
         <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Copy" title="Copy" onClick={() => void navigator.clipboard.writeText(node.text)}>
           <CopyIcon />
+        </button>
+        <button
+          className="tw-btn tw-btn-ghost tw-btn-icon"
+          aria-label="Regenerate the reply"
+          title="Regenerate the reply to this message (adds a new version)"
+          onClick={() => void useStore.getState().regenerate(node.id, pane)}
+        >
+          <RefreshIcon />
         </button>
         <DeleteButton node={node} />
       </span>

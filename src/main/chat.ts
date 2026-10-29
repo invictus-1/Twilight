@@ -268,11 +268,13 @@ export function send(
   return view(id)
 }
 
-export function regenerate(contents: WebContents, id: string, assistantNodeId: string, pane: Pane = 'a'): ConversationView {
+/** A new reply as another version: to a reply's message, or straight to a message of yours. */
+export function regenerate(contents: WebContents, id: string, nodeId: string, pane: Pane = 'a'): ConversationView {
   if (isRunning(id, pane)) throw new Error('A reply is still streaming in this pane.')
-  const node = db.loadNodes(id).get(assistantNodeId)
-  if (!node?.parent_id) throw new Error('Nothing to regenerate.')
-  generate(contents, id, node.parent_id, pane)
+  const node = db.loadNodes(id).get(nodeId)
+  const userId = node?.role === 'user' ? node.id : node?.parent_id
+  if (!userId) throw new Error('Nothing to regenerate.')
+  generate(contents, id, userId, pane)
   return view(id)
 }
 
