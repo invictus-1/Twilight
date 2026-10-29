@@ -13,9 +13,9 @@
   "groups": [],
   "lastChange": {
     "by": "Claude",
-    "at": "2026-10-28T14:25:00Z",
+    "at": "2026-10-29T12:00:00Z",
     "via": "Claude Code",
-    "note": "Dark only; conversations as branch trees; split composer target switch; Alt+Enter accept; keyboard map."
+    "note": "Brought up to 1.0: the light theme Moonlit Paper and the never-hard-code rule, the mark, motion allowances and the Motion setting, the rail and its reordering, the Code and Settings layouts, and guidelines for Rail, Toggle, Approval and Chip."
   },
   "layout": "files",
   "libraries": [],

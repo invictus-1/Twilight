@@ -2,11 +2,14 @@
 
 The source of truth for how Twilight looks: `tokens.json` (colours, type, spacing, radii, shadows, sizes), `components/` (each with guidelines and a preview), and the principles below. The app's own CSS (`src/renderer/src/styles/`) implements these tokens.
 
-Twilight is a desktop front end for language models — cloud APIs, local models, tools and agents — with a writing studio built in. It should feel like the quiet hour after sunset: dark, calm, and fast. Every rule below serves two promises: **nothing waits on the interface**, and **the user's words are the brightest thing on screen**.
+Twilight is a desktop front end for language models — cloud APIs, local models, tools and agents — with a writing studio and a coding agent built in. It should feel like the quiet hour after sunset: calm, and fast. Every rule below serves two promises: **nothing waits on the interface**, and **the user's words are the brightest thing on screen**.
+
+This describes the app as of 1.0. When the app and this file disagree, check the app's CSS (`src/renderer/src/styles/`) and update whichever is wrong.
 
 ## Principles
 
-- **Fast before fancy.** Nothing animates longer than 180ms. No splash screens, no skeleton shimmer for things that load under 300ms, no confirmation dialogs for undoable actions — undo instead.
+- **Fast before fancy.** Controls never animate longer than 180ms. No splash screens, no skeleton shimmer for things that load under 300ms, no confirmation dialogs for undoable actions — undo instead. Speed claims are measured (`scripts/bench.cjs`), before and after any change meant to make things faster.
+- **Nothing is lost.** Anything that can destroy work asks once more inline (a button that arms, then acts) or can be undone: deletions go to the Recycle Bin or Recently deleted, agent edits are snapshotted, a restore or a move backs up first.
 - **One accent per job.** `iris` is interaction, `dusk` is agents and tools, `horizon` is writing. If something is colored, a person should be able to say which of the three it belongs to.
 - **Tone, not boxes.** Layers are separated by stepping `night` → `surface` → `surface-raised` → `surface-overlay`. Borders appear only where a control needs a boundary (`line-strong`) or a card needs an edge (`line`).
 - **The manuscript is sacred.** Models never change the user's text silently — every edit arrives as a Suggestion to accept or reject.
@@ -23,7 +26,9 @@ Plain, short, and on the user's side. Sentence case everywhere, including button
 
 ## Color
 
-Twilight is dark only. Further themes (Ultraviolet, Phosphor, Nightshade, Ember, Midnight, Synthwave, Aurora, Campfire, High contrast, and your own from the builder in src/renderer/src/customTheme.ts) are `[data-theme]` overrides of the same tokens in `src/renderer/src/styles/themes.css`, listed once in `src/shared/themes.ts` for the pickers, the command menu and the window frame. Every text token names the grounds it is legible on, and every one of those pairs meets 4.5:1; control borders and focus meet 3:1.
+Twilight (the default, a dark dusk) has ten sister themes: Ultraviolet, Phosphor, Nightshade, Ember, Midnight, Synthwave, Aurora, Campfire, High contrast, and **Moonlit Paper**, the one light theme (warm paper, dark ink, `color-scheme: light`); plus your own from the builder in `src/renderer/src/customTheme.ts`. They are `[data-theme]` overrides of the same tokens in `src/renderer/src/styles/themes.css`, listed once in `src/shared/themes.ts` for the pickers, the command menu and the window frame. Every text token names the grounds it is legible on, and every one of those pairs meets 4.5:1 in every theme (the e2e measures every visible text in Moonlit Paper); control borders and focus meet 3:1.
+
+- **Never hard-code a colour** in component CSS. A literal colour is either a token, or a decoration with a per-theme override in `themes.css` (the skies on the Roadmap, Insights and the welcome are the examples). Moonlit Paper is where a missed one shows.
 
 - **Grounds:** `night` for the frame (title bar, sidebar, split gutter), `surface` for the canvas, `surface-raised` for things on the canvas (composer, cards, inputs), `surface-overlay` + `shadow-lg` for anything floating. Hover is a `surface-hover` wash over whatever is beneath.
 - **Text:** `ink` for content, `ink-muted` for labels and metadata, `ink-faint` for placeholders and timestamps. Never lighten text further with opacity.
@@ -31,7 +36,7 @@ Twilight is dark only. Further themes (Ultraviolet, Phosphor, Nightshade, Ember,
 - **Dusk** marks the agent: tool names, running spinners, MCP badges, the Tools toggle when on.
 - **Horizon** marks writing: suggestion insertions, the Ask tool, split pane B, writing badges. On a horizon fill use `on-horizon`.
 - **Status** (`success`, `warning`, `danger`) always travels with a word or an icon — never a bare colored dot.
-- Fills are flat. Gradients are kept for a few celebratory surfaces only: Insights page titles, charts and progress bars, and the Roadmap header.
+- Fills are flat. Gradients are kept for a few celebratory surfaces only: the skies (welcome, Insights, Roadmap, the empty chat), charts and progress bars, and the background gradients a user can put behind the window.
 
 ## Typography
 
@@ -57,13 +62,17 @@ Three families, each with one job. The app ships the font files itself (all thre
 
 ## Motion
 
-- Hover and press: 120ms ease. Menus and popovers: 150ms fade plus 4px rise. Panes opening or closing: 180ms ease-out. Nothing longer.
+- Hover and press: 120ms ease. Menus and popovers: 150ms fade plus 4px rise. Panes opening or closing: 180ms ease-out. Rail sections sliding aside while one is dragged: 180–200ms.
 - Streaming text appears as it arrives — no typewriter effect, no fade per token.
-- The only looping animation is the `dusk` tool spinner. Under `prefers-reduced-motion`, slow it and drop the rise on menus.
+- Longer motion is allowed only where nothing waits on it: the welcome's sunset, page fade-ins, messages easing in, and the opt-in scroll particles in Extras. Settings → General → Motion has Full, Gentle (fades only) and Off, and Windows' reduce-motion setting counts as Gentle. Particles show only on Full.
+- The only looping animation in normal use is the `dusk` spinner.
 
 ## Layout
 
+- **Rail:** the column of sections at the far left (Chats, Writing, Judge, Insights, Code, then Search and Settings at the foot), each an icon over its name. Sections can be dragged into the user's own order. See `components/Rail`.
 - **Chat:** sidebar on `night` · thread on `surface`, centered, max `thread` · composer pinned to the bottom of the pane.
+- **Code:** the same shape as a chat. The header holds the title, then chips for the folder, the instructions file and Web, the mode switch (Plan · Ask first · Accept edits · Read only), the model pill, Undo and Undo all; on a narrow window the chips give way first. Above the composer: the plan bar when a plan is ready, then the agent's task list. Approvals and questions appear in the thread as cards (`components/Approval`).
+- **Settings:** a section list on the left with group names (App, Models, About) in `dusk`, bold, with a rule between groups; one page on the right, capped at 1320px. A page may add a side panel on a window wide enough for it (the Roadmap shows the way to 1.0 at 1700px and up); it never appears on narrower windows.
 - **Split compare:** two panes on a `night` gutter, A (`pane-a`) left and B (`pane-b`) right, each with its own header, thread and footer, and one composer below both with an **A / B / Both** target switch (default Both).
 - **Writing:** the manuscript in `prose` on `surface`, centered at `measure`, with an optional chat pane docked right. Writing tools appear in the SelectionToolbar; results arrive as Suggestions.
 
@@ -100,6 +109,8 @@ Everything is reachable from the keyboard, every shortcut can be rebound in Sett
 | Next / previous suggestion | Alt+] / Alt+[ |
 | Ask about the selection | Ctrl+J |
 | Settings | Ctrl+, |
+| Chats · Writing · Judge · Insights · Code | Ctrl+1 … Ctrl+5 |
+| Move a focused rail section | Alt+↑ / Alt+↓ |
 
 Defaults avoid keys that move on non-US layouts (`\`, `[`, `]` alone, `` ` ``) except where a layout-safe alternative is also bound.
 
@@ -109,8 +120,10 @@ Line icons at 16px on a 24px grid, 1.5px stroke, round caps and joins, drawn in 
 
 ## Logo
 
-There is no Twilight logo yet. Until there is, set the name in Geist 600 in `ink` — never draw a placeholder mark.
+The mark is a sun on the horizon under two bands of sky (`Rail.tsx`, `Mark`), drawn in `horizon` with an `iris`→`dusk` sky. The wordmark is the name in Literata 600, used large only on the welcome and the installer.
 
 ## Using the components
 
 Components are plain CSS classes (prefix `tw-`) in `components/bundle.css`, framework-agnostic, reading only tokens. Load the compiled tokens CSS first, then `bundle.css`. Each component's guidelines list the markup and what you provide.
+
+Components added since the previews were drawn (Rail, Toggle, Approval, Chip) have guidelines only; their live styles are in `src/renderer/src/styles/app.css`. The app's styles are the reference for anything newer than a preview.

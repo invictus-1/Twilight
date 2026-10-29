@@ -1,5 +1,7 @@
 # Working on Twilight
 
+**New here?** Read [docs/HANDOFF.md](docs/HANDOFF.md) first: what Twilight is, where it stands, how the owner and Claude work together, and the quirks of this machine. Then this file.
+
 Twilight is a local-first Windows desktop app (Electron + React + TypeScript) for writing with language models: chat with Claude and OpenAI-compatible models, split compare, a writing editor with Forge-style tools, the Judge, choice cards for text adventures, and Writer insights. This file is what a new session needs to pick the work up, whichever account it runs under.
 
 ## Ground rules
