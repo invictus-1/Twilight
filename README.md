@@ -146,7 +146,9 @@ Twilight checks this repository's releases once a day (you can turn that off) an
 
 Get `Twilight-Setup-<version>.exe` from the [latest release](https://github.com/invictus-1/twilight/releases/latest), or the portable `.zip`. The installer is the app's own evening: the sun sets, a glowing bar fills, and Twilight opens. It installs just for you and never asks for admin rights.
 
-The installers aren't code-signed, so Windows SmartScreen may warn the first time you run one. Choose **More info**, then **Run anyway**.
+The installers aren't code-signed yet, so Windows SmartScreen may warn the first time you run one. Choose **More info**, then **Run anyway**.
+
+**Code signing:** Twilight is applying to the [SignPath Foundation](https://signpath.org) for free code signing of open-source projects. Once accepted, Windows releases will be built by [GitHub Actions](.github/workflows/build.yml) from this repository's public source and signed with a certificate from SignPath Foundation (free code signing provided by [SignPath.io](https://signpath.io)).
 
 For Claude you need an API key from [console.anthropic.com](https://console.anthropic.com) (a Claude subscription can't be used). Local models need a server such as LM Studio or Ollama running on your computer.
 
@@ -165,7 +167,7 @@ npm run dist       # Windows installer (.exe) and portable .zip in release/
 npm run typecheck
 ```
 
-`npm run dist` builds electron-builder's NSIS installer, then `installer/build.cjs` wraps it in the animated installer (a small WebView2 program; it needs Visual Studio's C++ tools, and without them the classic installer is published instead). The builds are unsigned. `npx electron scripts/make-icon.cjs` regenerates the app icon.
+`npm run dist` builds electron-builder's NSIS installer, then `installer/build.cjs` wraps it in the animated installer (a small WebView2 program; it needs Visual Studio's C++ tools, and without them the classic installer is published instead). The builds are unsigned for now; [.github/workflows/build.yml](.github/workflows/build.yml) builds the same on GitHub Actions. `npx electron scripts/make-icon.cjs` regenerates the app icon.
 
 ### How it's built
 
@@ -196,3 +198,7 @@ After `npm run build`, each runs the real app in a throwaway profile and never t
 - `node scripts/bench.cjs <label>` times startup, opening screens, memory and scrolling on the packaged app.
 - `TWILIGHT_SELFTEST=<folder> npx electron .` scrolls a ~350k-token chat one step per frame and writes frame timings.
 - `TWILIGHT_SHOWCASE=<folder> npx electron .` fills a profile with an invented story and captures the screenshots in `docs/screenshots/`.
+
+## License
+
+[MIT](LICENSE).

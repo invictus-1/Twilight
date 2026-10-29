@@ -1,0 +1,30 @@
+# Builds the Windows installer and portable zip on GitHub's own machines, so every
+# release can be traced to public source (code signing through SignPath needs this).
+# Publishing stays a manual step: `npm run release` from a reviewed build.
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: twilight-windows
+          path: |
+            release/Twilight-Setup-*.exe
+            release/Twilight-*-x64.zip
+            release/latest.yml
+          if-no-files-found: error
