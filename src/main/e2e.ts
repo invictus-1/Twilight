@@ -189,7 +189,10 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
 async function idle(id: string): Promise<void> {
   const start = Date.now()
   while (chat.isRunning(id)) {
-    if (Date.now() - start > 15000) throw new Error('Timed out waiting for replies')
+    if (Date.now() - start > 15000) {
+      const last = chat.view(id).path.at(-1)
+      throw new Error(`Timed out waiting for replies (last: ${JSON.stringify({ role: last?.role, status: last?.status, model: last?.modelId, error: last?.error, chars: last?.text.length })})`)
+    }
     await new Promise((r) => setTimeout(r, 20))
   }
 }
@@ -1500,6 +1503,9 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
 
       await reloadUi()
       const key = async (keyCode: string, modifiers: ('control' | 'shift' | 'alt')[] = []): Promise<void> => {
+        // Key events only reach a page with keyboard focus, and another window (someone using
+        // the PC) can take it; give it back first, as a real key press would find it.
+        if (!win.webContents.isFocused()) win.webContents.focus()
         win.webContents.sendInputEvent({ type: 'keyDown', keyCode, modifiers })
         win.webContents.sendInputEvent({ type: 'keyUp', keyCode, modifiers })
         await new Promise((r) => setTimeout(r, 250))
