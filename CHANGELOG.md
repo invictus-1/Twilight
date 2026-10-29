@@ -4,6 +4,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## 0.9.0
 
+**Look and feel**
+- **The way to 1.0:** on a wide window, the Roadmap has a panel beside it: how far along 1.0 is, each release as a step you can click to jump to, and what has shipped in each area.
+
 **Writing**
 - **Spelling:** misspelled words are underlined as you type, in the editor, the message box and everywhere else. Right-click one for suggestions, or to add it to the dictionary. It's Windows' own spellchecker with the languages set in Windows, so it works offline and nothing is downloaded. Switch it off in Settings → Writing.
 - **A right-click menu:** cut, copy, paste and select all, wherever you type.

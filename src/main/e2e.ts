@@ -1270,6 +1270,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await shot('e2e-providers.png')
 
       // 31. The Roadmap page draws ROADMAP.md: planned cards, ideas, and the shipped timeline.
+      // Wide enough for the Roadmap's side panel, for this page only.
+      const size31 = win.getSize()
+      win.setSize(2000, size31[1])
+      await new Promise((r) => setTimeout(r, 300))
       const roadmapUi = await win.webContents.executeJavaScript(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         ;[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Roadmap'))?.click()
@@ -1280,6 +1284,15 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           ideas: document.querySelectorAll('.rm-idea').length,
           doing: document.querySelectorAll('.rm-card.is-doing').length
         }
+        // The side panel shows only when the window is wide enough.
+        out.wide = innerWidth >= 1700
+        out.aside = getComputedStyle(document.querySelector('.rm-aside')).display !== 'none'
+        out.steps = [...document.querySelectorAll('.rm-step-v')].map((e) => e.textContent)
+        ;[...document.querySelectorAll('.rm-step-btn')].find((b) => b.querySelector('.rm-step-v')?.textContent === '0.4')?.click()
+        await wait(900)
+        const box = document.querySelector('.settings-content').getBoundingClientRect()
+        out.jumped = Math.abs(document.querySelector('[data-release="0.4.0"]').getBoundingClientRect().top - box.top) < 120
+        document.querySelector('.settings-content').scrollTop = 0
         ;[...document.querySelectorAll('.rm-chip')].find((b) => b.textContent.startsWith('Writing'))?.click()
         await wait(200)
         out.writingCards = [...document.querySelectorAll('.rm-card .rm-area')].map((e) => e.textContent)
@@ -1289,8 +1302,15 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards >= 5 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
       check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check(
+        'a wide window shows the way to 1.0 beside the roadmap, and a step jumps to its release',
+        roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
+        roadmapUi
+      )
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
       await shot('e2e-roadmap.png')
+      win.setSize(size31[0], size31[1])
+      await new Promise((r) => setTimeout(r, 300))
 
       // 32. Writer insights: the first scan is a baseline; growth after it is written today; imports
       // and shrinking aren't writing; characters, pairs and achievements follow.
