@@ -39,6 +39,7 @@ import { runShowcase } from './showcase'
 import { searchAll } from './search'
 import * as code from './code/agent'
 import { applyPendingRestore, backupFolder, backupSettings, chooseBackupFolder, createBackup, listBackups, setBackupSettings, stageRestore, startBackupSchedule, takeRestoredWindowSettings } from './backups'
+import { attachContextMenu, setSpellcheck, spellcheckOn } from './contextMenu'
 import { checkTarget, isMoved, lastLocationChange, resolveDataFolder, stageMove, standardFolder } from './location'
 import { toRecycleBin } from './code/workspace'
 import type { BackupSettings, DataInfo } from '@shared/backups'
@@ -129,10 +130,11 @@ function createWindow(): BrowserWindow {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,
       contextIsolation: true,
-      // Electron's spellchecker downloads dictionaries from the web; off until we bundle them.
-      spellcheck: false
+      // On Windows this is the system's own spellchecker: offline, with the languages Windows has.
+      spellcheck: true
     }
   })
+  attachContextMenu(win)
   win.once('ready-to-show', () => win.show())
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (isWebUrl(url)) void shell.openExternal(url)
@@ -390,6 +392,8 @@ function registerIpc(): void {
     runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
     stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
     getAppInfo: () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), electron: process.versions.electron }),
+    getSpellcheck: () => spellcheckOn(),
+    setSpellcheck: (e, on: boolean) => setSpellcheck(BrowserWindow.fromWebContents(e.sender), on),
     getDataInfo: () => dataInfo(),
     listBackups: () => listBackups(),
     backupNow: async () => {

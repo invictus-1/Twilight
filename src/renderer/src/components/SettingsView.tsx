@@ -506,19 +506,41 @@ function GeneralSection() {
   )
 }
 
+function SpellcheckSwitch() {
+  const [on, setOn] = useState<boolean | null>(null)
+  useEffect(() => void window.twilight.getSpellcheck().then(setOn), [])
+  if (on === null) return null
+  return (
+    <div className="settings-card">
+      <h3 className="t-heading">Spelling</h3>
+      <label className="check">
+        <input type="checkbox" checked={on} onChange={(e) => void window.twilight.setSpellcheck(e.target.checked).then(setOn)} />
+        Check spelling as you type
+      </label>
+      <p className="field-note">
+        In the editor, the message box and everywhere else you type. Right-click an underlined word for suggestions, or to add it to the dictionary. It uses Windows&apos; own spellchecker
+        and the languages set in Windows, so nothing is downloaded.
+      </p>
+    </div>
+  )
+}
+
 function WritingSection() {
   const folder = useWriting((s) => s.folder)
   return (
-    <div className="settings-card">
-      <h3 className="t-heading">Writing folder</h3>
-      <div className="field-inline">
-        <span className="folder-path log-path">{folder}</span>
-        <button className="tw-btn tw-btn-sm" onClick={() => void useWriting.getState().chooseFolder()}>
-          Choose…
-        </button>
+    <>
+      <SpellcheckSwitch />
+      <div className="settings-card">
+        <h3 className="t-heading">Writing folder</h3>
+        <div className="field-inline">
+          <span className="folder-path log-path">{folder}</span>
+          <button className="tw-btn tw-btn-sm" onClick={() => void useWriting.getState().chooseFolder()}>
+            Choose…
+          </button>
+        </div>
+        <p className="field-note">Documents are plain .md files. Twilight's per-document context and edit history stay in its own database, never in your files.</p>
       </div>
-      <p className="field-note">Documents are plain .md files. Twilight's per-document context and edit history stay in its own database, never in your files.</p>
-    </div>
+    </>
   )
 }
 

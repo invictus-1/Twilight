@@ -174,7 +174,7 @@ export function Editor({ docPath }: { docPath: string }) {
           ]),
           markdown({ base: markdownLanguage }),
           EditorView.lineWrapping,
-          EditorView.contentAttributes.of({ spellcheck: 'false', 'aria-label': 'Manuscript' }),
+          EditorView.contentAttributes.of({ spellcheck: 'true', 'aria-label': 'Manuscript' }),
           twilightEditorTheme,
           EditorView.updateListener.of((u) => {
             if (u.docChanged) {

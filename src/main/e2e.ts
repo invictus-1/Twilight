@@ -8,6 +8,7 @@ import { join } from 'node:path'
 import * as chat from './chat'
 import * as code from './code/agent'
 import * as mcp from './mcp'
+import { contextMenuItems, setSpellcheck, showContextMenus } from './contextMenu'
 import Database from 'better-sqlite3'
 import { applyPendingRestore, backupDue, backupSettings, createBackup, listBackups, pruneBackups, setBackupSettings, stageRestore, takeRestoredWindowSettings } from './backups'
 import { checkTarget, resolveDataFolder, stageMove } from './location'
@@ -1287,7 +1288,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards >= 5 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Writing'), roadmapUi.writingCards)
       await shot('e2e-roadmap.png')
 
@@ -3833,6 +3834,38 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await idle(c45)
       const again45 = chat.view(c45).path.at(-1)!
       check('your message can regenerate the reply to it', regenUi45 && again45.role === 'assistant' && again45.siblingCount === 2 && again45.siblingIndex === 1, { regenUi45, siblings: again45.siblingCount })
+
+      // 47. Spelling: Windows' own spellchecker marks a misspelled word as you type, offline, and a
+      // right-click offers suggestions that replace it.
+      showContextMenus(false)
+      check('spelling is checked by default', win.webContents.session.isSpellCheckerEnabled())
+      win.webContents.focus()
+      await js(`(() => { const t = document.querySelector('.tw-composer textarea'); t.focus(); t.value = ''; t.dispatchEvent(new Event('input', { bubbles: true })); return true })()`)
+      win.webContents.insertText('teh ')
+      await new Promise((r) => setTimeout(r, 1500))
+      const at47 = await js<{ x: number; y: number }>(`(() => { const r = document.querySelector('.tw-composer textarea').getBoundingClientRect(); return { x: Math.round(r.left + 14), y: Math.round(r.top + 14) } })()`)
+      const menu47 = await new Promise<Electron.ContextMenuParams | null>((resolve) => {
+        const done = setTimeout(() => resolve(null), 4000)
+        win.webContents.once('context-menu', (_e, p) => {
+          clearTimeout(done)
+          resolve(p)
+        })
+        win.webContents.sendInputEvent({ type: 'mouseDown', x: at47.x, y: at47.y, button: 'right', clickCount: 1 })
+        win.webContents.sendInputEvent({ type: 'mouseUp', x: at47.x, y: at47.y, button: 'right', clickCount: 1 })
+      })
+      check('a misspelled word is found offline, with suggestions', menu47?.misspelledWord === 'teh' && menu47.dictionarySuggestions.includes('the'), menu47 && { word: menu47.misspelledWord, suggestions: menu47.dictionarySuggestions })
+      const items47 = menu47 ? contextMenuItems(win.webContents, menu47) : []
+      check('the right-click menu offers the suggestions, adding the word, and editing', ['the', 'Add to dictionary', 'Cut', 'Copy', 'Paste'].every((l) => items47.some((i) => i.label === l)), items47.map((i) => i.label))
+      items47.find((i) => i.label === 'the')?.click?.(undefined as never, undefined, undefined as never)
+      const fixed47 = await js<string>(`(async () => { await new Promise((r) => setTimeout(r, 300)); return document.querySelector('.tw-composer textarea').value })()`)
+      check('choosing a suggestion fixes the word', fixed47.startsWith('the'), fixed47)
+      await js(`(() => { const t = document.querySelector('.tw-composer textarea'); t.select(); return true })()`)
+      win.webContents.delete()
+      setSpellcheck(win, false)
+      const off47 = win.webContents.session.isSpellCheckerEnabled()
+      setSpellcheck(win, true)
+      check('spelling can be switched off and on', !off47 && win.webContents.session.isSpellCheckerEnabled())
+      showContextMenus(true)
 
       // 46. Backups and where the data lives. Backups are made from the running app; a restore
       // and a move are done at start, so they're checked on folders of their own here.

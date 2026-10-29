@@ -2,6 +2,12 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## 0.9.0
+
+**Writing**
+- **Spelling:** misspelled words are underlined as you type, in the editor, the message box and everywhere else. Right-click one for suggestions, or to add it to the dictionary. It's Windows' own spellchecker with the languages set in Windows, so it works offline and nothing is downloaded. Switch it off in Settings → Writing.
+- **A right-click menu:** cut, copy, paste and select all, wherever you type.
+
 ## 0.8.0
 
 **Chat**

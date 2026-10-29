@@ -74,6 +74,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'copyText',
   'listCodeSessions',
   'listMcpServers',
+  'getSpellcheck',
+  'setSpellcheck',
   'getDataInfo',
   'listBackups',
   'backupNow',

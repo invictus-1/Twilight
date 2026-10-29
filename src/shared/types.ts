@@ -565,6 +565,9 @@ export interface TwilightApi {
   /** Tokens and spend over a range: totals, a series, and splits by model and by chat. */
   usageStats(range: UsageRange): Promise<UsageStats>
   getAppInfo(): Promise<{ version: string; dataFolder: string; electron: string }>
+  /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
+  getSpellcheck(): Promise<boolean>
+  setSpellcheck(on: boolean): Promise<boolean>
   // ——— Data: backups and where it lives ———
   getDataInfo(): Promise<DataInfo>
   listBackups(): Promise<BackupInfo[]>

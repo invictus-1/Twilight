@@ -4,6 +4,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 0.9.0 · In progress
+- [x] **Offline spellcheck** · Writing — Windows' own spellchecker, so nothing is downloaded: underlines as you type everywhere, with suggestions on right-click
+
 ### 0.8.0 · October 2026
 - [x] **Background framing** · Core — drag and zoom your picture to choose which part shows; brighter Nebula, Embers and Starfield
 - [x] **Your data, your place** · Core — backups now or on a schedule, restore from any of them, and move the data folder anywhere
@@ -94,7 +97,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [ ] **Code, further** · Core — for 0.9: a plan mode that agrees the steps first, a project instructions file the agent reads, web search in Code, and a checkpoint per message you can rewind to
 - [ ] **A light theme** · Core — for 0.9, Moonlit Paper: a soft, paper-light theme (Twilight is dark throughout today)
 - [ ] **Document library** · Writing — for 0.9: retrieval over very large collections with local embeddings
-- [ ] **Offline spellcheck** · Writing — for 0.9: bundled dictionaries
 
 ## Later
 - [ ] **Polish pass** · Core — the final pass for 1.0: an optimization run and a UI/UX pass over every screen, with more gradients and motion. Startup, chat-open and scroll times are measured before and after, so the gains are real numbers
