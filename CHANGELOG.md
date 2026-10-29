@@ -4,6 +4,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **The model's thinking, always there:** every reply that thought has a folded Thoughts section under the model's name, saying how long it thought ("Thought for 1m 13s"). Open it to read the thinking. While a reply is being written the thinking shows as it comes; turn that off in Model settings to keep it folded.
+- **Chat text size:** Small, Medium or Large in Settings → General, for the words in chats, your messages and the message box. Medium, the new default, is a step bigger than before.
+- **Model settings closes when you click outside it.** Pin it with the pin beside the close button to keep it open while you work.
 - **The window opens as you left it:** the size and place it had when you closed it, or maximized if it was. A window last left on a monitor that's since been unplugged opens centred on the screen you have.
 
 ## 1.1.0

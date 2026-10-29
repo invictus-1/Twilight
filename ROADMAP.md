@@ -107,6 +107,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
 - [x] **Remembers its window** · Core — opens at the size and place you left it, maximized if it was
+- [x] **Thoughts** · Chat — every reply's thinking in a folded section, with how long it thought
+- [x] **Chat text size** · Chat — small, medium or large, with medium a step bigger than before
+- [x] **Settings that get out of the way** · Chat — Model settings closes on a click outside, or stays pinned open
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story

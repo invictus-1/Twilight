@@ -1485,3 +1485,14 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 /* Gentle and Off keep the evening still: no drifting grid, no shooting star, no twinkling. */
 :root[data-motion='reduced'] .empty-grid, :root[data-motion='reduced'] .empty-shooting, :root[data-motion='reduced'] .is-retro .empty-star,
 :root[data-motion='off'] .empty-grid, :root[data-motion='off'] .empty-shooting, :root[data-motion='off'] .is-retro .empty-star { animation: none; }
+
+/* Chat text size (Settings → General): the words in a chat, your messages and the message box.
+   Medium is a step up from the interface's 14px, for reading long replies. */
+:root { --chat-size: 15px; --chat-line: 24px; }
+:root[data-chat-text='small'] { --chat-size: 14px; --chat-line: 22px; }
+:root[data-chat-text='large'] { --chat-size: 17px; --chat-line: 27px; }
+.thread .tw-msg-body, .thread .tw-msg-user, .tw-composer textarea { font-size: var(--chat-size); line-height: var(--chat-line); }
+
+/* Model settings: the pin sits beside the close button and lights when the panel is pinned open. */
+.settings-panel .panel-head .panel-pin { margin-left: auto; color: var(--ink-faint); }
+.settings-panel .panel-head .panel-pin[aria-pressed='true'] { color: var(--iris); }

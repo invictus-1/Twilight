@@ -977,6 +977,24 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(100)
         return result
       })()`)
+      // A click outside Model settings closes it, unless it's pinned open.
+      const outsideUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const btn = () => [...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings'))
+        const outside = () => document.querySelector('.tw-composer').dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))
+        const open = () => !!document.querySelector('.settings-panel')
+        btn().click(); await wait(200)
+        outside(); await wait(150)
+        const closed = !open()
+        btn().click(); await wait(200)
+        document.querySelector('.settings-panel .panel-pin').click(); await wait(100)
+        outside(); await wait(150)
+        const stayed = open()
+        document.querySelector('.settings-panel .panel-pin').click(); await wait(100)
+        document.querySelector('.settings-panel .panel-head [aria-label="Close"]').click(); await wait(150)
+        return { closed, stayed, after: open() }
+      })()`)
+      check('model settings closes on a click outside, and stays open when pinned', outsideUi.closed && outsideUi.stayed && !outsideUi.after, outsideUi)
       check('max output tokens takes any number as typed', tokensUi.seen.join() === '1,10,100,1000' && tokensUi.settled === '1000' && tokensUi.step === '1', tokensUi)
 
       // 22. Game Format: paragraphs joined within chunks, dividers kept, code and HTML untouched.
@@ -3045,6 +3063,23 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const retroUi = await js<{ field: number; grid: boolean; horizon: boolean; sub: string }>(`({ field: document.querySelectorAll('.empty .empty-field circle').length, grid: !!document.querySelector('.empty .empty-plane .empty-grid'), horizon: !!document.querySelector('.empty .empty-horizon'), sub: document.querySelector('.empty .empty-sub')?.textContent ?? '' })`)
       check('the empty chat is a retro evening: a field of stars, a horizon and a grid', retroUi.field > 100 && retroUi.grid && retroUi.horizon, retroUi)
       check('the empty chat names the model that is ready', /is ready/.test(retroUi.sub), retroUi)
+      await key(',', ['control'])
+      const sizeUi = await js<{ before: string; large: string; medium: string; box: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => /General/.test(b.textContent))?.click()
+        await wait(250)
+        const pick = (label) => [...document.querySelectorAll('[aria-label="Chat text size"] button')].find((b) => b.textContent === label)?.click()
+        const size = () => getComputedStyle(document.documentElement).getPropertyValue('--chat-size').trim()
+        const before = document.documentElement.dataset.chatText
+        pick('Large'); await wait(50)
+        const large = size()
+        pick('Medium'); await wait(50)
+        return { before, large, medium: size(), box: '' }
+      })()`)
+      await key('Escape')
+      await new Promise((r) => setTimeout(r, 300))
+      sizeUi.box = await js<string>(`getComputedStyle(document.querySelector('.tw-composer textarea')).fontSize`)
+      check('chat text is medium by default, a step up from the interface, and can be set larger', sizeUi.before === 'medium' && sizeUi.medium === '15px' && sizeUi.large === '17px' && sizeUi.box === '15px', sizeUi)
       await shot('e2e-emptysky.png')
       const enterUi = await js<{ fresh: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -3341,7 +3376,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const c40w = chat.create().id
       const root41 = db.getConversation(c40w).root_id
       const user41 = db.insertNode({ id: randomUUID(), conversation_id: c40w, parent_id: root41, role: 'user', text: 'Who lit the lamps?', content: hist41[0].content, thinking: null, model: null, provider_id: null, usage: null, status: 'done', error: null })
-      db.insertNode({ id: randomUUID(), conversation_id: c40w, parent_id: user41.id, role: 'assistant', text: replyText(webReply41), content: JSON.stringify(webReply41), thinking: null, model: 'claude-opus-5-5', provider_id: 'anthropic', usage: JSON.stringify({ ...usage41, webSearches: 1 }), status: 'done', error: null })
+      db.insertNode({ id: randomUUID(), conversation_id: c40w, parent_id: user41.id, role: 'assistant', text: replyText(webReply41), content: JSON.stringify(webReply41), thinking: "Weighing which keeper's log to trust.", model: 'claude-opus-5-5', provider_id: 'anthropic', usage: JSON.stringify({ ...usage41, webSearches: 1, thinkMs: 73000 }), status: 'done', error: null })
       db.updateConversation(c40w, { started: 1, title: 'Keepers on the web' })
       await reloadUi()
       const toolsUi41 = await js<{
@@ -3353,6 +3388,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         links: string[]
         sources: string[]
         body: string
+        thought: string | null
+        thoughtOpen: boolean
       }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         document.querySelector('[data-mode="chat"]')?.click()
@@ -3387,8 +3424,11 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         out.links = [...(reply?.querySelectorAll('.web-links a, .web-step > .web-what a') ?? [])].map((a) => a.getAttribute('href'))
         out.sources = [...(reply?.querySelectorAll('.web-sources li a') ?? [])].map((a) => a.getAttribute('href'))
         out.body = reply?.querySelector('.tw-msg-body')?.textContent ?? ''
+        out.thought = reply?.querySelector('.thinking summary')?.textContent ?? null
+        out.thoughtOpen = !!reply?.querySelector('.thinking')?.open
         return out
       })()`)
+      check('a reply shows its thinking folded, with how long it thought', toolsUi41.thought === 'Thought for 1m 13s' && toolsUi41.thoughtOpen === false, { thought: toolsUi41.thought, open: toolsUi41.thoughtOpen })
       check('the message shows it carried the date and time', toolsUi41.chip === 'Date and time' && /^Sent /.test(toolsUi41.chipTitle ?? ''), toolsUi41)
       const rows41 = Object.fromEntries(toolsUi41.rows.map((r) => [r.tool, r]))
       check(

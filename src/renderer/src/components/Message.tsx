@@ -355,6 +355,28 @@ function Pictures({ images }: { images: GeneratedImage[] }) {
   )
 }
 
+/** "12s", "1m 13s": how long a reply thought. */
+function thoughtFor(ms: number): string {
+  const s = Math.max(1, Math.round(ms / 1000))
+  return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
+}
+
+/**
+ * The model's thinking, as a quiet section under its name: open while it's written when "Open the
+ * thinking as it's written" is on, folded once the reply is done, and always there to open.
+ */
+function Thoughts({ text, live, open, ms }: { text: string; live: boolean; open: boolean; ms?: number }) {
+  return (
+    <details className={`thinking ${live ? 'is-live' : ''}`} open={open || undefined}>
+      <summary>
+        {live ? <span className="tw-spin" /> : <ChevronRight size={12} />}
+        <span>{live ? 'Thinking' : ms ? `Thought for ${thoughtFor(ms)}` : 'Thoughts'}</span>
+      </summary>
+      <div className="thinking-body">{text}</div>
+    </details>
+  )
+}
+
 function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking: boolean }) {
   const subscribe = (cb: () => void): (() => void) => subscribeStream(nodeId, cb)
   const text = useSyncExternalStore(subscribe, () => readStream(nodeId).text)
@@ -366,12 +388,7 @@ function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking:
   const fenced = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceFenced : true))
   return (
     <>
-      {showThinking && thinking && (
-        <details className="thinking" open>
-          <summary>Thinking</summary>
-          <div className="thinking-body">{thinking}</div>
-        </details>
-      )}
+      {thinking && <Thoughts text={thinking} live={!text} open={showThinking} />}
       {activity.length > 0 && (
         <div className="web-steps">
           {activity.map((line, i) => (
@@ -481,12 +498,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
         <StreamingBody nodeId={node.id} showThinking={showThinking} />
       ) : (
         <>
-          {showThinking && node.thinking && (
-            <details className="thinking">
-              <summary>Thinking</summary>
-              <div className="thinking-body">{node.thinking}</div>
-            </details>
-          )}
+          {node.thinking && <Thoughts text={node.thinking} live={false} open={false} ms={node.usage?.thinkMs} />}
           {node.web && node.web.steps.length > 0 && <WebSteps steps={node.web.steps} />}
           {node.tools && node.tools.length > 0 && <ToolSteps steps={node.tools} />}
           {body && diffed && (

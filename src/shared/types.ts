@@ -162,6 +162,8 @@ export interface Usage {
   cacheTtl?: CacheTtl
   /** Time to the first streamed token, for tokens-per-second. */
   ttftMs?: number
+  /** How long the model thought before its first words, when it thought. */
+  thinkMs?: number
   /** What the provider itself says the reply cost (OpenRouter), used before any price list. */
   costUsd?: number
   /** Web searches Claude ran for the reply, billed per search on top of tokens. */

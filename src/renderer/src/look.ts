@@ -139,6 +139,35 @@ export function setMotion(m: Motion): void {
 
 export const useMotion = (): Motion => useSyncExternalStore(subscribe, () => motion)
 
+/** The size of the words in a chat (replies, your messages and the message box). */
+export type ChatText = 'small' | 'medium' | 'large'
+let chatText: ChatText = (() => {
+  try {
+    const t = localStorage.getItem('twilight.chatText')
+    return t === 'small' || t === 'large' ? t : 'medium'
+  } catch {
+    return 'medium'
+  }
+})()
+
+/** Applies the chat text size to the page (read before the first paint, like motion). */
+export function applyChatText(t: ChatText = chatText): void {
+  document.documentElement.dataset.chatText = t
+}
+
+export function setChatText(t: ChatText): void {
+  chatText = t
+  try {
+    localStorage.setItem('twilight.chatText', t)
+  } catch {
+    // Storage unavailable: the setting holds for this session.
+  }
+  applyChatText(t)
+  changed()
+}
+
+export const useChatText = (): ChatText => useSyncExternalStore(subscribe, () => chatText)
+
 export type ScrollFxStyle = 'stardust' | 'sparks' | 'fireflies' | 'snow' | 'constellations' | 'bats'
 /** Particles while you scroll a chat: off unless you switch them on. */
 export interface ScrollFx {

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { contrast, customTokens, DEFAULT_CUSTOM, loadCustom, saveCustom, type CustomTheme } from '../customTheme'
 import { setTheme } from '../theme'
-import { GRADIENTS, backdropImage, framing, setBackdrop, setMotion, setScrollFx, useBackdrop, useMotion, useScrollFx, type Backdrop, type Motion, type ScrollFxStyle } from '../look'
+import { GRADIENTS, backdropImage, framing, setBackdrop, setChatText, setMotion, setScrollFx, useBackdrop, useChatText, useMotion, useScrollFx, type Backdrop, type ChatText, type Motion, type ScrollFxStyle } from '../look'
 import { useStore } from '../store'
 
 /** None, a built-in gradient, or your own picture; then how dark and soft it sits behind the text. */
@@ -144,6 +144,30 @@ export function MotionPicker() {
         ))}
       </div>
       <p className="field-note">{MOTIONS.find((m) => m.id === motion)?.note}</p>
+    </div>
+  )
+}
+
+const CHAT_TEXTS: { id: ChatText; label: string }[] = [
+  { id: 'small', label: 'Small' },
+  { id: 'medium', label: 'Medium' },
+  { id: 'large', label: 'Large' }
+]
+
+/** How big the words in a chat are: replies, your messages and the message box. */
+export function ChatTextPicker() {
+  const size = useChatText()
+  return (
+    <div className="look-block">
+      <span className="field-label">Chat text size</span>
+      <div className="tw-seg motion-seg" role="radiogroup" aria-label="Chat text size">
+        {CHAT_TEXTS.map((t) => (
+          <button key={t.id} role="radio" aria-checked={size === t.id} aria-pressed={size === t.id} onClick={() => setChatText(t.id)}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <p className="field-note">The words in chats, your messages and the message box. Menus and labels stay as they are.</p>
     </div>
   )
 }

@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CacheTtl, ChatSettings, Pane, SettingsPreset } from '@shared/types'
 import type { Persona } from '@shared/library'
 import { useLibrary } from '../libraryStore'
 import { modelName, optionsFor, paneOf, useStore } from '../store'
-import { CloseIcon, TrashIcon } from './Icons'
+import { CloseIcon, PinIcon, TrashIcon } from './Icons'
 
 /** Settings a preset carries (everything about how the model is asked, not which chat). */
 const PRESET_KEYS: (keyof ChatSettings)[] = [
@@ -180,10 +180,39 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
   }, [])
   useEffect(() => setExtra(settings.extraParams), [settings.extraParams, shown])
 
+  // A click anywhere outside closes the panel, unless it's pinned open (remembered). The header's
+  // own Model settings button is left to toggle it.
+  const panelRef = useRef<HTMLElement>(null)
+  const [pinned, setPinned] = useState(() => {
+    try {
+      return localStorage.getItem('twilight.settingsPinned') === '1'
+    } catch {
+      return false
+    }
+  })
+  const pin = (on: boolean): void => {
+    setPinned(on)
+    try {
+      localStorage.setItem('twilight.settingsPinned', on ? '1' : '0')
+    } catch {
+      // Storage unavailable: the pin holds while the panel is open.
+    }
+  }
+  useEffect(() => {
+    if (pinned) return
+    const down = (e: PointerEvent): void => {
+      const target = e.target as Element | null
+      if (!target?.isConnected || panelRef.current?.contains(target) || target.closest('.chat-head [aria-expanded]')) return
+      onClose()
+    }
+    document.addEventListener('pointerdown', down)
+    return () => document.removeEventListener('pointerdown', down)
+  }, [pinned, onClose])
+
   const defaultEffortLabel = options.defaultEffort ? `Model default (${options.defaultEffort})` : 'Model default'
 
   return (
-    <section className="panel settings-panel" aria-label="Model settings" key={shown}>
+    <section className="panel settings-panel" aria-label="Model settings" key={shown} ref={panelRef}>
       <div className="panel-head">
         <h2 className="t-heading">Model settings</h2>
         {current.split && (
@@ -196,6 +225,15 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
             </button>
           </div>
         )}
+        <button
+          className="tw-btn tw-btn-ghost tw-btn-icon panel-pin"
+          aria-label={pinned ? 'Unpin: close when clicking outside' : 'Pin open'}
+          title={pinned ? 'Pinned open. Click to close it when you click outside' : 'Keep open when clicking outside'}
+          aria-pressed={pinned}
+          onClick={() => pin(!pinned)}
+        >
+          <PinIcon size={14} />
+        </button>
         <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Close" onClick={onClose}>
           <CloseIcon />
         </button>
@@ -377,7 +415,7 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
       )}
       <label className="check">
         <input type="checkbox" checked={settings.showThinking} onChange={(e) => void update({ showThinking: e.target.checked })} />
-        Show the model's thinking in the chat
+        Open the model's thinking as it's written
       </label>
 
       {options.caching ? (

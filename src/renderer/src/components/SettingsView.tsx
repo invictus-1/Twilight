@@ -1,5 +1,5 @@
 import { ThemePicker } from './ThemePicker'
-import { BackgroundPicker, MotionPicker, ScrollFxPicker, ThemeBuilder } from './LookSettings'
+import { BackgroundPicker, ChatTextPicker, MotionPicker, ScrollFxPicker, ThemeBuilder } from './LookSettings'
 import { useEffect, useMemo, useState } from 'react'
 import { ShortcutsSection } from './ShortcutsSection'
 import { PricesSection } from './PricesSection'
@@ -447,6 +447,7 @@ function GeneralSection() {
         {theme === 'custom' && <ThemeBuilder />}
         <BackgroundPicker />
         <MotionPicker />
+        <ChatTextPicker />
       </div>
       <div className="settings-card">
         <h3 className="t-heading">Chat</h3>

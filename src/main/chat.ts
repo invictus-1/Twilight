@@ -26,7 +26,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
   thinkingDisplay: 'summarized',
   caching: true,
   cacheTtl: '1h',
-  showThinking: false,
+  showThinking: true,
   temperature: null,
   maxTokens: null,
   messageLimit: null,
@@ -697,6 +697,8 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
       ]
       const requestedAt = Date.now()
       let firstTokenAt = 0
+      // How long it thought: from the request to the reply's first words (or its end).
+      let firstTextAt = 0
       const first = (): void => {
         if (!firstTokenAt) firstTokenAt = Date.now()
         markStarted()
@@ -712,6 +714,7 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
         signal: controller.signal,
         onText: (delta) => {
           first()
+          if (!firstTextAt) firstTextAt = Date.now()
           text += delta
           emit({ kind: 'text', conversationId, nodeId: assistant.id, delta })
         },
@@ -746,7 +749,7 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
         thinking: result.thinking ?? null,
         content: result.content ? JSON.stringify(result.content) : null,
         model: result.modelId,
-        usage: JSON.stringify({ ...result.usage, cacheTtl: settings.cacheTtl, ttftMs: firstTokenAt ? firstTokenAt - requestedAt : undefined }),
+        usage: JSON.stringify({ ...result.usage, cacheTtl: settings.cacheTtl, ttftMs: firstTokenAt ? firstTokenAt - requestedAt : undefined, thinkMs: thinking ? (firstTextAt || Date.now()) - requestedAt : undefined }),
         status: controller.signal.aborted ? 'stopped' : result.error ? 'error' : 'done',
         error: result.error ?? null
       })

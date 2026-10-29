@@ -6,10 +6,11 @@ import './styles/tokens.css'
 import './styles/app.css'
 import './styles/themes.css'
 import { applyTheme, savedTheme } from './theme'
-import { applyMotion } from './look'
+import { applyChatText, applyMotion } from './look'
 
 applyTheme(savedTheme())
 applyMotion()
+applyChatText()
 import { createRoot } from 'react-dom/client'
 import { App } from './components/App'
 
