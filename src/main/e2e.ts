@@ -3545,6 +3545,24 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const copied41 = await clipboard.readText()
       check('copying a reply puts it on the clipboard and says Copied for a moment', copied41.trim().length > 20, { label: copyUi.label, again: copyUi.again, chars: copied41.length })
       check('the Copied tick shows, then goes back', copyUi.label === 'Copied' && copyUi.again === 'back', copyUi)
+      // Find on the page: Ctrl+F lights up matches in the open chat, Enter steps, Esc closes.
+      await js(`document.activeElement?.blur()`)
+      await key('F', ['control'])
+      await new Promise((r) => setTimeout(r, 150))
+      win.webContents.insertText('lamps')
+      await new Promise((r) => setTimeout(r, 400))
+      const find1 = await js<{ bar: boolean; count: string; marked: number }>(`({ bar: !!document.querySelector('.find-bar'), count: document.querySelector('.find-count')?.textContent ?? '', marked: CSS.highlights.get('find')?.size ?? 0 })`)
+      await key('Return')
+      await new Promise((r) => setTimeout(r, 150))
+      const find2 = await js<string>(`document.querySelector('.find-count')?.textContent ?? ''`)
+      await key('Escape')
+      await new Promise((r) => setTimeout(r, 150))
+      const find3 = await js<{ bar: boolean; marked: number }>(`({ bar: !!document.querySelector('.find-bar'), marked: CSS.highlights.get('find')?.size ?? 0 })`)
+      check(
+        'Ctrl+F finds words in the chat, steps through them with Enter, and Esc clears it',
+        find1.bar && /^1 of \d+$/.test(find1.count) && find1.marked >= 1 && /^\d+ of \d+$/.test(find2) && !find3.bar && find3.marked === 0,
+        { find1, find2, find3 }
+      )
       // An edit saved without sending waits as the newest message, with Send under it.
       const ed = chat.create(null)
       chat.send(contents, ed.id, 'Light the lamps')

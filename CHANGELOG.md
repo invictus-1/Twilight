@@ -2,6 +2,11 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## Unreleased
+
+- **Find on the page (Ctrl+F):** a small find bar lights up every match in the open chat (or Judge, Code, Settings), with "3 of 12", Enter and Shift+Enter to step through them and Esc to close. The writing editor keeps its own find.
+- **Thinking stays folded until you open it,** while it's being written too, and stays open once you do. The "open as it's written" option is gone.
+
 ## 1.2.0
 
 - **The system prompt lives with the chat:** it's no longer in Model settings. On an empty chat, a small System prompt button under the greeting (No system prompt when there isn't one) opens it to check or set before the first message; once the chat starts, it's at the top.

@@ -1,3 +1,4 @@
+import { FindBar } from './FindBar'
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
 import { useStore } from '../store'
 import { useJudge } from '../judgeStore'
@@ -182,6 +183,7 @@ export function App() {
           <Welcome />
         </Suspense>
       )}
+      <FindBar />
       {overlay === 'commands' && <CommandMenu />}
       {overlay === 'shortcuts' && <ShortcutSheet />}
       {overlay === 'search' && <SearchPanel />}

@@ -27,7 +27,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
   thinkingDisplay: 'summarized',
   caching: true,
   cacheTtl: '1h',
-  showThinking: true,
+  showThinking: false,
   temperature: null,
   maxTokens: null,
   messageLimit: null,

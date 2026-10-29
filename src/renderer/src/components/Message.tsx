@@ -402,13 +402,20 @@ function thoughtFor(ms: number): string {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`
 }
 
+// Replies whose thinking you opened, so it stays open as the reply finishes and re-renders.
+const openThoughts = new Set<string>()
+
 /**
- * The model's thinking, as a quiet section under its name: open while it's written when "Open the
- * thinking as it's written" is on, folded once the reply is done, and always there to open.
+ * The model's thinking, as a quiet section under its name: folded, while it's written too, until
+ * you open it, and then it stays open.
  */
-function Thoughts({ text, live, open, ms }: { text: string; live: boolean; open: boolean; ms?: number }) {
+function Thoughts({ nodeId, text, live, ms }: { nodeId: string; text: string; live: boolean; ms?: number }) {
   return (
-    <details className={`thinking ${live ? 'is-live' : ''}`} open={open || undefined}>
+    <details
+      className={`thinking ${live ? 'is-live' : ''}`}
+      open={openThoughts.has(nodeId) || undefined}
+      onToggle={(e) => (e.currentTarget.open ? openThoughts.add(nodeId) : openThoughts.delete(nodeId))}
+    >
       <summary>
         {live ? <span className="tw-spin" /> : <ChevronRight size={12} />}
         <span>{live ? 'Thinking' : ms ? `Thought for ${thoughtFor(ms)}` : 'Thoughts'}</span>
@@ -418,7 +425,7 @@ function Thoughts({ text, live, open, ms }: { text: string; live: boolean; open:
   )
 }
 
-function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking: boolean }) {
+function StreamingBody({ nodeId }: { nodeId: string }) {
   const subscribe = (cb: () => void): (() => void) => subscribeStream(nodeId, cb)
   const text = useSyncExternalStore(subscribe, () => readStream(nodeId).text)
   const thinking = useSyncExternalStore(subscribe, () => readStream(nodeId).thinking)
@@ -429,7 +436,7 @@ function StreamingBody({ nodeId, showThinking }: { nodeId: string; showThinking:
   const fenced = useStore((s) => (s.current ? paneOf(s.current, pane).settings.choiceFenced : true))
   return (
     <>
-      {thinking && <Thoughts text={thinking} live={!text} open={showThinking} />}
+      {thinking && <Thoughts nodeId={nodeId} text={thinking} live={!text} />}
       {activity.length > 0 && (
         <div className="web-steps">
           {activity.map((line, i) => (
@@ -515,7 +522,6 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
     ? { body: node.text, choices: node.toolChoices }
     : extractChoices(node.text, plainChoices, fencedChoices)
   const models = useStore((s) => s.models)
-  const showThinking = useStore((s) => (s.current ? paneOf(s.current, pane).settings.showThinking : false))
   const [editing, setEditing] = useState(false)
   const fresh = useFresh(node)
   const diffed = useDiffed(pane, node.id)
@@ -537,10 +543,10 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
       </div>
       <EarlierPrompt createdAt={node.createdAt} />
       {streaming ? (
-        <StreamingBody nodeId={node.id} showThinking={showThinking} />
+        <StreamingBody nodeId={node.id} />
       ) : (
         <>
-          {node.thinking && <Thoughts text={node.thinking} live={false} open={false} ms={node.usage?.thinkMs} />}
+          {node.thinking && <Thoughts nodeId={node.id} text={node.thinking} live={false} ms={node.usage?.thinkMs} />}
           {node.web && node.web.steps.length > 0 && <WebSteps steps={node.web.steps} />}
           {node.tools && node.tools.length > 0 && <ToolSteps steps={node.tools} />}
           {body && diffed && (

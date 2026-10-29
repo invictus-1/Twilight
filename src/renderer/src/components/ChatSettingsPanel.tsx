@@ -422,10 +422,6 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
           </select>
         </label>
       )}
-      <label className="check">
-        <input type="checkbox" checked={settings.showThinking} onChange={(e) => void update({ showThinking: e.target.checked })} />
-        Open the model's thinking as it's written
-      </label>
 
       {options.caching ? (
         <div className="field">

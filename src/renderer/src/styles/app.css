@@ -1534,3 +1534,12 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 /* The empty chat's small system prompt button: quiet until hovered, iris when there is one to read. */
 .empty-prompt-chip { display: inline-flex; align-items: center; gap: 6px; margin-top: var(--space-1); padding: 2px var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-full); background: color-mix(in srgb, var(--surface-raised) 70%, transparent); color: var(--ink-muted); font: inherit; font-size: 12px; cursor: pointer; }
 .empty-prompt-chip:hover, .empty-prompt-chip[aria-expanded='true'] { color: var(--ink); border-color: var(--line-strong); }
+
+/* Find on the page (Ctrl+F): a small bar at the top right of the open section. Matches are marked
+   with the Custom Highlight API, so the page's own text is never wrapped or changed. */
+.find-bar { position: fixed; top: calc(var(--titlebar) + var(--space-2)); right: var(--space-4); z-index: 30; display: flex; align-items: center; gap: 2px; padding: 4px 4px 4px var(--space-2); background: var(--surface-overlay); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); animation: ov-rise 150ms cubic-bezier(.2, .8, .2, 1); }
+.find-bar input { width: 220px; height: var(--control-sm); border: none; background: transparent; color: var(--ink); font: inherit; outline: none; }
+.find-count { min-width: 72px; font-size: 12px; color: var(--ink-faint); text-align: right; margin-right: var(--space-1); white-space: nowrap; }
+.find-prev svg { transform: rotate(180deg); }
+::highlight(find) { background-color: color-mix(in srgb, var(--horizon) 35%, transparent); }
+::highlight(find-current) { background-color: var(--horizon); color: var(--on-horizon); }
