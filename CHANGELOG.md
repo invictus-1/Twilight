@@ -2,6 +2,10 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
+## Unreleased
+
+- **Compact a long chat:** replace the conversation so far with a summary and carry on from it, quicker and cheaper, with everything above still there to read. With Claude it's Anthropic's own compaction; other models write the summary themselves. Set a size in Settings → General (say 250k tokens) and a quiet bar offers it when a chat gets there, or compact any time from the command menu. Your own summary instructions can replace the model's, and the documents, pictures and instruction changes you attached go in again right after the summary, word for word.
+
 ## 1.3.0
 
 **Extras: the sky, small motions and celebrations** (Settings → Extras, each its own switch; Gentle or Off motion stills them all)

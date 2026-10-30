@@ -441,6 +441,9 @@ function registerIpc(): void {
     },
     searchDocLibrary: (_e, query: string) => searchLibrary(query),
     getSpellcheck: () => spellcheckOn(),
+    compactChat: (_e, id: string, pane?: Pane) => chat.compact(id, pane),
+    getCompaction: () => chat.compactionSettings(),
+    setCompaction: (_e, patch: Partial<chat.CompactionSettings>) => chat.setCompactionSettings(patch),
     listBookmarks: (_e, conversationId: string) => db.kvGet<Record<string, string[]>>('bookmarks')?.[conversationId] ?? [],
     toggleBookmark: (_e, conversationId: string, nodeId: string) => {
       const all = db.kvGet<Record<string, string[]>>('bookmarks') ?? {}

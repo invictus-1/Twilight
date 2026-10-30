@@ -4,6 +4,7 @@ import { useJudge } from '../judgeStore'
 import { modelName, useStore } from '../store'
 import { CacheBar } from './CacheBar'
 import { ChatSettingsPanel } from './ChatSettingsPanel'
+import { CompactBar } from './Compaction'
 import { Composer } from './Composer'
 import { DeletedPanel } from './DeletedPanel'
 import { SidebarIcon, SlidersIcon, SplitIcon, StarIcon, TrashIcon } from './Icons'
@@ -161,6 +162,7 @@ export function ChatView() {
         <Thread key={current.id} />
       )}
       {!split && current && <CacheBar />}
+      {!split && current && <CompactBar />}
       <Composer />
     </main>
   )

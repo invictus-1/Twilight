@@ -48,6 +48,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { placement } from './windowState'
 import { shouldSignal } from './doneNotice'
+import { sinceCompaction } from './providers/compactionBlocks'
 import { clockTime, seasonFor } from '@shared/sky'
 import { modelKey, pickModelDefaults } from '@shared/modelDefaults'
 
@@ -1070,6 +1071,60 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('an unsent message is kept while you visit another section', draftUi.away && draftUi.back === 'Half a thought about the lamps', draftUi)
       check('max output tokens takes any number as typed', tokensUi.seen.join() === '1,10,100,1000' && tokensUi.settled === '1000' && tokensUi.step === '1', tokensUi)
+
+      // Compaction. With Claude, the API's block goes first and what it carried follows as the next user turn.
+      const cRow = (role: string, text: string, content: unknown): db.NodeRow =>
+        ({ id: randomUUID(), conversation_id: 'x', parent_id: 'p', role, text, content: content ? JSON.stringify(content) : null, thinking: null, model: null, provider_id: null, usage: null, status: 'done', error: null, created_at: 0, active_child_id: null }) as unknown as db.NodeRow
+      const doc = { type: 'text', text: '<document name="Lamps.md">\nNine lamps on the quay.\n</document>' }
+      const compRows = sinceCompaction([
+        cRow('user', 'First light', [doc, { type: 'text', text: 'First light' }]),
+        cRow('assistant', 'Wren counted.', [{ type: 'text', text: 'Wren counted.' }]),
+        cRow('assistant', 'The keeper and Wren...', [{ type: 'compaction', content: 'The keeper and Wren...', signature: 'sig' }, { type: 'carried', blocks: [doc] }]),
+        cRow('user', 'Next evening', [{ type: 'text', text: 'Next evening' }])
+      ])
+      const compMsgs = toMessages(compRows)
+      check(
+        'a compacted chat goes to Claude from its summary block, with the documents carried after it',
+        compRows.length === 2 && compMsgs[0]?.role === 'assistant' && (compMsgs[0].content[0] as { type: string }).type === 'compaction' &&
+          compMsgs[1]?.role === 'user' && JSON.stringify(compMsgs[1].content).includes('Lamps.md') && JSON.stringify(compMsgs[1].content).includes('Next evening') && !JSON.stringify(compMsgs).includes('First light'),
+        compMsgs
+      )
+      // With another model, it writes the summary; the next request starts from it, documents attached again.
+      const cc = chat.create(null).id
+      chat.send(contents, cc, 'First light on the quay', 'a', [{ name: 'Lamps.md', text: 'Nine lamps on the quay.' }])
+      await idle(cc)
+      chat.send(contents, cc, 'Second evening')
+      await idle(cc)
+      const compacted = await chat.compact(cc)
+      const marker = compacted.path.at(-1)
+      const beforeAfter = log.length
+      chat.send(contents, cc, 'After the summary')
+      await idle(cc)
+      const afterReq = JSON.stringify(log.slice(beforeAfter).find((r) => r.messages.at(-1)?.content === 'After the summary')?.messages ?? [])
+      check(
+        'compacting with another model leaves a summary node, and later requests start from it with the documents again',
+        !!marker?.compaction && marker.compaction.local && marker.compaction.carried === 1 && afterReq.includes('conversation_summary') && afterReq.includes('Nine lamps on the quay.') && !afterReq.includes('First light on the quay'),
+        { marker: marker?.compaction, sent: afterReq.slice(0, 300) }
+      )
+      // Past your size, a quiet bar offers it; compacting puts a marker in the chat.
+      chat.setCompactionSettings({ threshold: 10 })
+      const cb = chat.create(null).id
+      chat.send(contents, cb, 'Bar test lamps')
+      await idle(cb)
+      await reloadUi()
+      const barUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="chat"]')?.click()
+        await wait(200)
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Bar test lamps')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.compact-bar'); ) await wait(25)
+        const offered = !!document.querySelector('.compact-bar')
+        ;[...document.querySelectorAll('.compact-bar button')].find((b) => b.textContent === 'Compact chat')?.click()
+        for (let end = Date.now() + 6000; Date.now() < end && !document.querySelector('.compaction-marker'); ) await wait(50)
+        return { offered, marker: !!document.querySelector('.compaction-marker'), barGone: !document.querySelector('.compact-bar') }
+      })()`)
+      chat.setCompactionSettings({ threshold: null })
+      check('past your size a bar offers to compact, and compacting leaves a marker in the chat', barUi.offered && barUi.marker && barUi.barGone, barUi)
 
       // 22. Game Format: paragraphs joined within chunks, dividers kept, code and HTML untouched.
       const sample = 'ofjasdoifjasodif\n\najosdfjasoidfj\n\nasdofjiasodf\n\n---\n\noidsfjsodjfids\n\nsdfjosidjf\n\nsdojfsoidfj'

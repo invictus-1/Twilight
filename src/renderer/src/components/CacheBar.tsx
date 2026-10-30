@@ -33,7 +33,8 @@ export function cacheStatus(usage: Usage | undefined, settings: ChatSettings, op
  * plus what it wrote, which is what the next message builds on.
  */
 export function contextUse(path: NodeView[], models: ModelInfo[], settings: ChatSettings): { used: number; window?: number } | null {
-  const u = path.findLast((n) => n.role === 'assistant' && n.usage)?.usage
+  // After a summary, only replies since it count: the summary is what's sent now.
+  const u = path.slice(path.findLastIndex((n) => n.compaction) + 1).findLast((n) => n.role === 'assistant' && n.usage)?.usage
   if (!u) return null
   const window = models.find((m) => m.id === settings.modelId && m.providerId === settings.providerId)?.contextWindow
   return { used: u.input + u.cacheRead + u.cacheWrite + u.output, window }

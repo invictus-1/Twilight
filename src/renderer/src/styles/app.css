@@ -1574,3 +1574,13 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .star-btn.is-on { color: var(--horizon); }
 .star-btn.is-on svg path, .bookmark-jump svg path { fill: currentColor; }
 .bookmark-jump { color: var(--horizon); }
+
+/* Compacting: the offer above the message box, and the marker where a chat was compacted. */
+.compact-bar { display: flex; align-items: center; gap: var(--space-2); margin: 0 auto var(--space-2); width: min(var(--thread), calc(100% - 2 * var(--space-6))); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); font-size: 13px; color: var(--ink-muted); }
+.compact-bar > span:first-child { flex: 1; }
+.compact-bar .tw-btn { flex: none; }
+.compaction-marker { display: flex; flex-direction: column; gap: var(--space-2); margin: var(--space-6) 0; }
+.compaction-line { display: flex; align-items: center; gap: var(--space-3); font-size: 12px; font-weight: 500; color: var(--dusk); }
+.compaction-line::before, .compaction-line::after { content: ''; flex: 1; height: 1px; background: color-mix(in srgb, var(--dusk) 45%, transparent); }
+.compaction-summary summary { cursor: pointer; font-size: 12px; color: var(--ink-faint); text-align: center; }
+.compaction-text { margin-top: var(--space-2); padding: var(--space-3); border-left: 2px solid var(--dusk-soft); white-space: pre-wrap; font-size: 13px; line-height: 20px; color: var(--ink-muted); max-height: 360px; overflow-y: auto; }

@@ -1,3 +1,4 @@
+import { compactionOf, summaryText } from './compactionBlocks'
 import Anthropic from '@anthropic-ai/sdk'
 import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
 import type { NodeRow } from '../db'
@@ -104,6 +105,17 @@ export function toMessages(history: NodeRow[], serverTools: ReadonlySet<string> 
     else messages.push({ role, content })
   }
   for (const node of history) {
+    // A summary stands in for everything before it: Claude's own block goes back as it came, one
+    // written by another model as text; what it carried (documents, instruction changes) follows.
+    const summary = compactionOf(node)
+    if (summary) {
+      if (summary.local) add('user', [{ type: 'text', text: summaryText(summary.text) }, ...(summary.carried as Block[])])
+      else {
+        add('assistant', [summary.block as Block])
+        if (summary.carried.length) add('user', summary.carried as Block[])
+      }
+      continue
+    }
     let role: 'user' | 'assistant'
     let content: Block[]
     if (node.role === 'user') {
@@ -476,6 +488,46 @@ async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> 
     },
     error: stopReason === 'refusal' ? 'The model declined this request.' : undefined
   }
+}
+
+/**
+ * Claude's own compaction: the conversation goes up as it stands with the `compaction` option, and
+ * a summary block comes back instead of a reply. Same model, system prompt and settings as the
+ * chat, so it reads what the chat reads. `instructions`, when given, replace Claude's summary prompt.
+ */
+export async function compactAnthropic(req: {
+  config: ProviderConfig
+  apiKey?: string
+  system: string
+  history: NodeRow[]
+  settings: ChatSettings
+  options?: ModelOptions
+  instructions: string
+}): Promise<{ block: Block; text: string }> {
+  const { body, betas } = anthropicRequest(req)
+  const client = anthropicClient(req.config, req.apiKey ?? '')
+  const instructions = req.instructions.trim()
+  // Streamed, as a long summary on a big chat can run past what an unstreamed call may take.
+  const res = (await explainKey(req.apiKey, () =>
+    client.beta.messages
+      .stream({ ...body, betas: [...betas, 'compact-2026-09-04'], compaction: { type: 'summarize', ...(instructions ? { instructions } : {}) } } as unknown as Parameters<typeof client.beta.messages.stream>[0])
+      .finalMessage()
+  )) as unknown as { content: Block[]; stop_reason: string | null }
+  if (res.stop_reason !== 'compaction') {
+    throw new Error(
+      res.stop_reason === 'tool_use'
+        ? 'The model called a tool instead of writing the summary. Add "Do not call tools" to your summary instructions and try again.'
+        : res.stop_reason === 'model_context_window_exceeded'
+          ? 'There was no room left in the context for the summary. Try shorter summary instructions.'
+          : 'No summary came back. Try again in a moment.'
+    )
+  }
+  const raw = res.content.find((b) => b.type === 'compaction')
+  if (!raw) throw new Error('No summary came back. Try again in a moment.')
+  const { type: _type, ...rest } = raw
+  const text = [rest.content, rest.summary, rest.text].find((v): v is string => typeof v === 'string') ?? ''
+  // Kept with its type first (how Twilight finds it again) and otherwise exactly as it came.
+  return { block: { type: 'compaction', ...rest }, text }
 }
 
 export const ANTHROPIC_DEFAULT_URL = 'https://api.anthropic.com'

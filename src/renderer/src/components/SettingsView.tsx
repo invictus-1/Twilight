@@ -1,3 +1,4 @@
+import { saveCompactionSettings, useCompactionSettings } from './Compaction'
 import { ExtrasSettings } from './ExtrasSettings'
 import { ThemePicker } from './ThemePicker'
 import { BackgroundPicker, ChatTextPicker, MotionPicker, ScrollFxPicker, ThemeBuilder } from './LookSettings'
@@ -450,6 +451,7 @@ function GeneralSection() {
           Show the prompt cache status line under chats
         </label>
       </div>
+      <LongChats />
       <DoneSignal />
       <SpellcheckSwitch />
       <div className="settings-card">
@@ -525,6 +527,48 @@ function RequestLogsCard() {
         </div>
       )}
     </>
+  )
+}
+
+/** Compacting long chats: when to offer it, your own summary instructions, and documents carried over. */
+function LongChats() {
+  const settings = useCompactionSettings()
+  if (!settings) return null
+  return (
+    <div className="settings-card">
+      <h3 className="t-heading">Long chats</h3>
+      <p className="field-note">
+        Compacting replaces a chat&apos;s conversation so far with a summary, and the chat carries on from it: quicker and cheaper, with everything above still there to read. With Claude it&apos;s Anthropic&apos;s own compaction; other models write the summary themselves. You can always compact from the command menu (Ctrl+K).
+      </p>
+      <label className="field">
+        <span className="field-label">Offer to compact at</span>
+        <span className="field-inline">
+          <input
+            type="number"
+            min={10000}
+            step={10000}
+            placeholder="Never"
+            defaultValue={settings.threshold ?? ''}
+            onBlur={(e) => void saveCompactionSettings({ threshold: e.currentTarget.value ? Math.max(10000, Number(e.currentTarget.value)) : null })}
+          />
+          <span className="field-note">tokens (for example 250000; empty never offers)</span>
+        </span>
+      </label>
+      <label className="field">
+        <span className="field-label">Summary instructions</span>
+        <textarea
+          rows={6}
+          defaultValue={settings.instructions}
+          placeholder="Empty uses the model's own summary prompt. Yours replaces it entirely: say what the summary must keep, and tell it not to call tools."
+          onBlur={(e) => e.currentTarget.value !== settings.instructions && void saveCompactionSettings({ instructions: e.currentTarget.value })}
+        />
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={settings.keepDocs} onChange={(e) => void saveCompactionSettings({ keepDocs: e.target.checked })} />
+        Attach my documents again after the summary
+      </label>
+      <p className="field-note">The documents, pictures and instruction changes from the summarized turns go in again right after the summary, word for word, so they never become part of it.</p>
+    </div>
   )
 }
 

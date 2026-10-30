@@ -8,6 +8,7 @@ import { domainOf } from '@shared/webTools'
 import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
 import { EarlierPrompt } from './ChatTop'
+import { CompactionMarker } from './Compaction'
 import { toggleBookmark, useBookmarks } from '../bookmarks'
 import { modelName, paneOf, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
@@ -724,6 +725,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
 
 export const Message = memo(
   function Message({ node, next, isLast = false }: { node: NodeView; next?: NodeView; isLast?: boolean }) {
+    if (node.compaction) return <CompactionMarker node={node} />
     return node.role === 'user' ? <UserMessage node={node} waiting={isLast} /> : <AssistantMessage node={node} next={next} isLast={isLast} />
   },
   (a, b) =>

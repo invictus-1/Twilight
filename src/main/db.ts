@@ -409,8 +409,15 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
     dateTime: node.role === 'user' ? dateTimeOf(node.content) : undefined,
     library: node.role === 'user' ? libraryOf(node.content) : undefined,
     web: node.role === 'assistant' ? webOf(node.content) : undefined,
-    ...(node.role === 'assistant' ? toolsOf(node.content) : {})
+    ...(node.role === 'assistant' ? toolsOf(node.content) : {}),
+    ...(node.role === 'assistant' && node.content?.startsWith('[{"type":"compaction"') ? { compaction: compactionView(node.content) } : {})
   }
+}
+
+/** A summary node, as the window shows it: how many things it carried over. */
+function compactionView(content: string): { carried: number; local: boolean } {
+  const blocks = JSON.parse(content) as { type: string; local?: boolean; blocks?: unknown[] }[]
+  return { carried: blocks.find((b) => b.type === 'carried')?.blocks?.length ?? 0, local: blocks[0]?.local === true }
 }
 
 /** Tools Twilight ran and pictures it made during a reply; most replies have neither, so they skip the parse. */

@@ -250,6 +250,8 @@ export interface NodeView {
   attachments?: { name: string; chars: number; kind?: AttachmentKind; bytes?: number }[]
   /** Choices the model offered with a present_choices tool call. */
   toolChoices?: ChoiceSet
+  /** A summary that stands in for everything above it (a compacted chat): how much it carried over. */
+  compaction?: { carried: number; local: boolean }
   /** Instructions added mid-chat with this message. */
   instructionUpdate?: string
   /** The date and time sent along with this message, as the model read it. */
@@ -596,6 +598,10 @@ export interface TwilightApi {
   onDocLibrary(listener: (status: LibraryStatus) => void): () => void
   /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
   getSpellcheck(): Promise<boolean>
+  /** Replaces a chat's (or pane's) conversation so far with a summary; requests start from it after. */
+  compactChat(id: string, pane?: Pane): Promise<ConversationView>
+  getCompaction(): Promise<{ threshold: number | null; instructions: string; keepDocs: boolean }>
+  setCompaction(patch: Partial<{ threshold: number | null; instructions: string; keepDocs: boolean }>): Promise<{ threshold: number | null; instructions: string; keepDocs: boolean }>
   /** Replies you starred in a chat, to jump between. */
   listBookmarks(conversationId: string): Promise<string[]>
   toggleBookmark(conversationId: string, nodeId: string): Promise<string[]>

@@ -1,3 +1,4 @@
+import { compactOpenChat } from './components/Compaction'
 import { openFind } from './components/FindBar'
 import { useSyncExternalStore } from 'react'
 import { useInsights } from './insightsStore'
@@ -43,6 +44,13 @@ const split = (): boolean => !!s().current?.split
 export const COMMANDS: Command[] = [
   { id: 'menu', title: 'Command menu', group: 'App', keys: 'Ctrl+K', run: () => s().setOverlay('commands') },
   { id: 'shortcuts', title: 'Keyboard shortcuts', group: 'App', keys: 'Ctrl+/', hint: 'keys help cheat sheet', run: () => s().setOverlay('shortcuts') },
+  {
+    id: 'compact',
+    title: 'Compact this chat',
+    group: 'Chat',
+    hint: 'summarize summary long context compaction shrink',
+    run: () => void compactOpenChat().catch((err) => s().setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err)))
+  },
   { id: 'find', title: 'Find on the page', group: 'App', keys: 'Ctrl+F', hint: 'find in chat search this text', run: () => openFind() },
   { id: 'search', title: 'Search everything', group: 'App', keys: 'Ctrl+Shift+F', hint: 'find chats documents', run: () => s().setOverlay('search') },
   { id: 'new-chat', title: 'New chat', group: 'Chat', keys: 'Ctrl+N', run: () => (go('chat'), void s().newChat()) },

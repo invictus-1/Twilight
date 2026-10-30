@@ -6,11 +6,12 @@ import * as db from './db'
 import { signalDone } from './doneNotice'
 import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { appendLog } from './logs'
-import { describeAnthropicError } from './providers/anthropic'
+import { compactAnthropic, describeAnthropicError } from './providers/anthropic'
+import { compactionOf, sinceCompaction } from './providers/compactionBlocks'
 import { toWorkspace, workspaceSystemPrompt } from './workspaces'
 import { getPersona } from './library'
 import { CHOICES_INSTRUCTION, CHOICES_TOOL_INSTRUCTION } from '@shared/choices'
-import { CLOCK_OPEN, clockBlock, instructionBlock, isContextText } from '@shared/attachments'
+import { CLOCK_OPEN, clockBlock, INSTRUCTION_OPEN, instructionBlock, isContextText } from '@shared/attachments'
 import { DECLINED, IMAGE_TOOL, type ToolApproval, type ToolApprovalResponse } from '@shared/mcp'
 import { allowTool, callTool, chatTools, type ChatTool } from './mcp'
 import { generateImage, imageConfig, IMAGE_TOOL_DEF } from './images'
@@ -699,8 +700,9 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
       const askedChanged = await addLibraryPassages(conversationId, userNodeId, settings).catch(() => false)
       if (askedChanged) asked = true
       const nodes = db.loadNodes(conversationId)
+      // From the newest summary on, once the chat has been compacted.
       const history = trimHistory(
-        db.ancestors(nodes, userNodeId).filter((n) => n.role !== 'root'),
+        sinceCompaction(db.ancestors(nodes, userNodeId).filter((n) => n.role !== 'root')),
         settings.messageLimit
       )
       const config = getProvider(settings.providerId)
@@ -810,4 +812,125 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
     }
   })()
   return started
+}
+
+// ——— Compacting a long chat ———
+
+export interface CompactionSettings {
+  /** Offer to compact once a chat's context reaches this many tokens; null never offers. */
+  threshold: number | null
+  /** Your own summary instructions; empty uses the model's (Claude's own, or Twilight's below). */
+  instructions: string
+  /** Attach again, after the summary, the documents and instruction changes from the turns it replaced. */
+  keepDocs: boolean
+}
+const DEFAULT_COMPACTION: CompactionSettings = { threshold: null, instructions: '', keepDocs: true }
+export const compactionSettings = (): CompactionSettings => ({ ...DEFAULT_COMPACTION, ...(db.kvGet<Partial<CompactionSettings>>('compaction') ?? {}) })
+export function setCompactionSettings(patch: Partial<CompactionSettings>): CompactionSettings {
+  const next = { ...compactionSettings(), ...patch }
+  db.kvSet('compaction', next)
+  return next
+}
+
+/** For models without Claude's compaction: the summary request Twilight sends instead. */
+const LOCAL_SUMMARY = `Write a summary of this whole conversation so far, to stand in for it from now on: the conversation will continue from your summary alone, so anything you leave out is lost.
+
+Keep: every person, place and thing that matters, with names spelled exactly; what has happened, in order, with the details later turns could call back to; decisions made, promises, open questions and anything still unresolved; what the user has asked for and any standing instructions, preferences or rules they gave; the current situation at the very end, precisely enough to pick up mid-scene.
+
+Write it plainly and compactly, in sections with short headings. Don't continue the conversation, don't address the user, and don't call any tools: reply with the summary only.`
+
+type CarriedBlock = { type: string; text?: string; [key: string]: unknown }
+
+/**
+ * What carries over a summary: the documents, pictures and instruction changes attached in the
+ * turns it replaces (and whatever an earlier summary carried), each once, in the order first seen.
+ * Times of day and library passages are left behind: they were for their own message.
+ */
+function carriedBlocks(history: db.NodeRow[]): CarriedBlock[] {
+  const seen = new Map<string, CarriedBlock>()
+  const keep = (b: CarriedBlock): void => {
+    const key = JSON.stringify(b)
+    if (!seen.has(key)) seen.set(key, b)
+  }
+  for (const node of history) {
+    const summary = compactionOf(node)
+    if (summary) {
+      summary.carried.forEach((b) => keep(b as CarriedBlock))
+      continue
+    }
+    if (node.role !== 'user' || !node.content) continue
+    for (const b of JSON.parse(node.content) as CarriedBlock[]) {
+      const text = typeof b.text === 'string' ? b.text : ''
+      const isDoc = b.type === 'image' || b.type === 'document' || (b.type === 'text' && (text.startsWith('<document name=') || text.startsWith(INSTRUCTION_OPEN)))
+      if (isDoc) keep(b)
+    }
+  }
+  return [...seen.values()]
+}
+
+/**
+ * Compacts a chat (or one split pane): the conversation so far becomes a summary node at the end
+ * of its path, and from then on requests start there. Everything above stays in the chat to read.
+ * With Claude it's the API's own compaction; with other models, the model writes a summary.
+ */
+export async function compact(id: string, pane: Pane = 'a'): Promise<ConversationView> {
+  if (isRunning(id, pane)) throw new Error('Wait for the reply to finish before compacting.')
+  const conv = db.getConversation(id)
+  const settings = settingsFor(conv, pane)
+  const current = view(id)
+  const path = pane === 'b' && current.split ? current.split.path : current.path
+  const leaf = path.at(-1)
+  if (!leaf || leaf.role !== 'assistant' || leaf.status !== 'done' || leaf.compaction) throw new Error('Compact after a finished reply.')
+  const nodes = db.loadNodes(id)
+  const history = sinceCompaction(db.ancestors(nodes, leaf.id).filter((n) => n.role !== 'root'))
+  const config = getProvider(settings.providerId)
+  const apiKey = getApiKey(config.id)
+  const system = systemFor(settings, nodes.get(conv.root_id)?.text ?? '')
+  const options = modelOptions(settings.providerId, settings.modelId)
+  const cfg = compactionSettings()
+  let block: Record<string, unknown>
+  let text: string
+  if (config.kind === 'anthropic') {
+    ;({ block, text } = await compactAnthropic({ config, apiKey, system, history, settings, options, instructions: cfg.instructions }))
+  } else {
+    // The model writes it, as a reply to one more message that asks for it (never stored).
+    const ask = cfg.instructions.trim() || LOCAL_SUMMARY
+    const request = { ...history[history.length - 1], id: randomUUID(), role: 'user', text: ask, content: JSON.stringify([{ type: 'text', text: ask }]), status: 'done' } as db.NodeRow
+    const result = await implFor(config).generate({
+      config,
+      apiKey,
+      system,
+      history: [...history, request],
+      settings: { ...settings, webSearch: false, webFetch: false, choiceTool: false },
+      options,
+      signal: new AbortController().signal,
+      onText: () => undefined,
+      onThinking: () => undefined
+    })
+    if (result.error || !result.text.trim()) throw new Error(result.error ?? 'No summary came back. Try again in a moment.')
+    block = { type: 'compaction', local: true }
+    text = result.text.trim()
+  }
+  const carried = cfg.keepDocs ? carriedBlocks(history) : []
+  const row = db.insertNode(
+    {
+      id: randomUUID(),
+      conversation_id: id,
+      parent_id: leaf.id,
+      role: 'assistant',
+      text,
+      content: JSON.stringify([block, ...(carried.length ? [{ type: 'carried', blocks: carried }] : [])]),
+      thinking: null,
+      model: settings.modelId,
+      provider_id: settings.providerId,
+      usage: null,
+      status: 'done',
+      error: null
+    },
+    { activate: pane === 'a' }
+  )
+  const split = splitOf(db.getConversation(id))
+  if (pane === 'b' && split) setSplit(id, { ...split, leafId: row.id })
+  db.touchConversation(id)
+  return view(id)
 }

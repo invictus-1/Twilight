@@ -1,3 +1,4 @@
+import { compactionOf, summaryText } from './compactionBlocks'
 import { CHOICES_TOOL } from '@shared/choices'
 import { isContextText } from '@shared/attachments'
 import { isLocalUrl, isOpenRouter } from '@shared/webTools'
@@ -7,7 +8,7 @@ import { savePictureFrom } from '../generated'
 import { MAX_TOOL_ROUNDS, TOO_MANY_ROUNDS, mergeExtraParams, textBlocks, wantsChoiceTool, type ClientOutcome, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
 /** A stored image or PDF block (Claude's format). */
-type Block = { type: string; title?: string; source?: { media_type?: string; data?: string } }
+type Block = { type: string; title?: string; text?: string; source?: { media_type?: string; data?: string } }
 
 /** A tool call as stored with the reply, replayed in the next request. */
 interface StoredCall {
@@ -173,6 +174,15 @@ export const openaiProvider: Provider = {
     let pendingCalls: StoredCall[] = []
     for (const node of req.history) {
       if (node.role !== 'user' && node.role !== 'assistant') continue
+      // A summary stands in for everything before it, as one message with what it carried.
+      const summary = compactionOf(node)
+      if (summary) {
+        const carried = summary.carried as Block[]
+        const text = [summaryText(summary.text), ...carried.filter((b) => b.type === 'text').map((b) => b.text as string)].join('\n\n')
+        const media = mediaParts({ ...node, role: 'user', content: JSON.stringify(carried) })
+        messages.push({ role: 'user', content: media.length ? [...media, { type: 'text', text }] : text })
+        continue
+      }
       const blocks = textBlocks(node)
       if (node.role === 'user' && pendingCalls.length) {
         // The reader's answer to a present_choices call goes back as the call's result; attached
