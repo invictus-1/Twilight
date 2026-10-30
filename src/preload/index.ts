@@ -144,6 +144,7 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'trashDocPath',
   'searchAll',
   'revealMessage',
+  'branchMap',
   'listProviders',
   'saveProvider',
   'deleteProvider',

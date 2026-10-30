@@ -101,6 +101,12 @@ export function UsageSection() {
             <Stat index={3} label="Output tokens" value={t.output} format={tokens} sub={t.requests ? `${tokens(t.output / t.requests)} a reply` : 'nothing back yet'} icon={<BoltIcon />} tone="var(--success)" />
           </div>
 
+          {t.saved > 0.005 && (
+            <p className="usage-saved" data-saved={t.saved.toFixed(4)}>
+              Prompt caching saved <strong>{formatCost(t.saved)}</strong> in this range. Without it, these requests would have cost {formatCost(t.cost + t.saved)}.
+            </p>
+          )}
+
           <section className="ins-card">
             <div className="panel-head">
               <h3 className="ins-card-title">

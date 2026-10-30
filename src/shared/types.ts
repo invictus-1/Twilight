@@ -9,6 +9,7 @@ import type { HubModel, HubVariant, LocalModelOptions, LocalState } from './loca
 import type { GeneratedImage, ImageConfig, McpServerInput, McpServerView, ToolApproval, ToolApprovalResponse, ToolStep } from './mcp'
 import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
+import type { BranchMap } from './branchMap'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
 import type { JudgeInput, Judgment, JudgmentSummary, Leaderboard, Rubric } from './judge'
 import type { Library, Persona, SavedPrompt } from './library'
@@ -192,6 +193,8 @@ export interface UsageTotals {
   cost: number
   /** Requests whose model has no price (they add tokens but nothing to cost). */
   unpriced: number
+  /** USD prompt caching saved over the priced requests (see cacheSaved). */
+  saved: number
 }
 
 /** One bar of the chart: a day, or a month for 12 months and all time. */
@@ -537,6 +540,8 @@ export interface TwilightApi {
   searchAll(query: string): Promise<SearchResults>
   /** Makes a message part of the chat's shown thread (switching versions above it as needed). */
   revealMessage(id: string, nodeId: string): Promise<ConversationView>
+  /** The chat's whole tree of messages, laid out for the branch map. */
+  branchMap(id: string): Promise<BranchMap>
 
   listProviders(): Promise<ProviderConfig[]>
   saveProvider(config: ProviderConfig, apiKey?: string): Promise<ProviderConfig[]>

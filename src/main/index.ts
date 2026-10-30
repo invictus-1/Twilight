@@ -366,6 +366,7 @@ function registerIpc(): void {
     renameDocFolder: (_e, path: string, name: string) => docs.renameDocFolder(path, name),
     trashDocPath: (_e, path: string, kind: 'doc' | 'folder') => docs.trashDocPath(path, kind),
     revealMessage: (_e, id: string, nodeId: string) => chat.revealMessage(id, nodeId),
+    branchMap: (_e, id: string) => chat.branchMap(id),
     listProviders: () => providers.getProviders(),
     saveProvider: (_e, config, apiKey?: string) => providers.saveProvider(config, apiKey),
     deleteProvider: (_e, id: string) => providers.deleteProvider(id),

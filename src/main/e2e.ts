@@ -6,6 +6,7 @@ import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promi
 import { logsFolder } from './logs'
 import { join } from 'node:path'
 import * as chat from './chat'
+import { layoutBranchMap } from '@shared/branchMap'
 import * as code from './code/agent'
 import * as mcp from './mcp'
 import { contextMenuItems, setSpellcheck, showContextMenus } from './contextMenu'
@@ -42,7 +43,7 @@ import * as workspaces from './workspaces'
 import { searchAll } from './search'
 import { backgroundVersion, setBackgroundFile } from './background'
 import { THEMES } from '@shared/themes'
-import { BUILT_IN_PRICES, costOf, setCustomPrices } from '@shared/pricing'
+import { BUILT_IN_PRICES, cacheSaved, costOf, setCustomPrices } from '@shared/pricing'
 import * as providers from './providers'
 import * as updates from './updates'
 import * as insights from './insights'
@@ -3268,7 +3269,19 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           Math.abs(priced.chats[0].cost - hand('all', (r) => r.chat === binned).cost) < 1e-9,
         [brief(priced.totals), hand('all')]
       )
-      setCustomPrices([])
+      // What prompt caching saved: each reply priced as if every prompt token were plain input.
+      const read1m = cacheSaved('claude-opus-5-5', { input: 0, output: 0, cacheRead: 1_000_000, cacheWrite: 0, ms: 1 }, false)
+      const write1m = cacheSaved('claude-opus-5-5', { input: 0, output: 0, cacheRead: 0, cacheWrite: 1_000_000, ms: 1 }, false)
+      check(
+        'cache savings: a million tokens read from cache save the difference, a write costs a little more',
+        read1m !== null && Math.abs(read1m - 3.8) < 1e-9 && write1m !== null && Math.abs(write1m + 1) < 1e-9 && cacheSaved('mystery-model', { input: 1, output: 1, cacheRead: 5, cacheWrite: 0, ms: 1 }, false) === null,
+        { read1m, write1m }
+      )
+      const savedByHand = handRows.reduce((a, r) => a + (cacheSaved(r.model, r.u, localProvider(r.provider)) ?? 0), 0)
+      check('Usage adds up what caching saved over every priced reply', savedByHand > 0 && Math.abs(priced.totals.saved - savedByHand) < 1e-9, { saved: priced.totals.saved, savedByHand })
+      // Priced high for the page below, so the saving is large enough to show.
+      setCustomPrices([{ model: 'mock-*', input: 300, output: 15 }])
+      const savedShown = usageStats('all').totals.saved
 
       await js(`document.activeElement?.blur()`)
       await key('K', ['control'])
@@ -3298,6 +3311,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         out.chats = [...document.querySelectorAll('.usage-chats tbody tr')].map((r) => r.dataset.chat)
         out.trashed = [...document.querySelectorAll('.usage-chats tr[data-trashed="1"]')].map((r) => r.dataset.chat)
         out.unpriced = document.querySelector('.usage-unpriced')?.textContent
+        out.saved = document.querySelector('.usage-saved')?.dataset.saved
+        out.savedText = document.querySelector('.usage-saved')?.textContent
         ;[...document.querySelectorAll('.usage-section .ins-card .tw-seg button')].find((b) => b.textContent === 'Spend')?.click()
         await wait(200)
         out.axis = [...document.querySelectorAll('.usage-section .ins-bars-axis span')].map((e) => e.textContent).join(' ')
@@ -3326,6 +3341,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           (usageUi.trashed as string[] | undefined)?.join() === binned,
         usageUi
       )
+      setCustomPrices([])
+      check('the Usage page shows what prompt caching saved', usageUi.saved === savedShown.toFixed(4) && /^Prompt caching saved \$[\d,.]+ in this range\./.test(String(usageUi.savedText)), [usageUi.saved, savedShown, usageUi.savedText])
       check('the Usage page says plainly what has no price', usageUi.unpriced === '1 request has no price: add one in Prices.', usageUi.unpriced)
       check('the Usage chart switches to spend', /\$/.test(String(usageUi.axis)) && usageUi.chartTitle === 'Spend per month', [usageUi.axis, usageUi.chartTitle])
       check('a chat in the Usage list opens it', usageOpened === 'Usage ledger', usageOpened)
@@ -5308,6 +5325,57 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('with "open the last chat" on, the Chats button goes back to the chat you were on', chats50.msgs > 0 && !!chats50.before && chats50.kept === chats50.before, chats50)
       check('by default the Chats button opens a new chat, and General has the switch', chats50.box && chats50.stored === '0' && chats50.fresh === 0 && chats50.empty, chats50)
+
+      // 51. The branch map: straight runs fold, forks and branch ends are drawn.
+      const row51 = (id: string, parentId: string | null, i: number) => ({ id, parentId, role: (i % 2 ? 'assistant' : 'user') as 'user' | 'assistant', text: 'Message ' + id, createdAt: i })
+      const line51 = Array.from({ length: 10 }, (_, i) => row51('m' + i, i ? 'm' + (i - 1) : 'root', i))
+      const straight51 = layoutBranchMap(line51, line51.map((r) => r.id))
+      check(
+        'the branch map folds a straight chat into its first and last messages',
+        straight51.nodes.map((n) => n.id).join() === 'm0,m9' && straight51.nodes[1].folded === 8 && straight51.branches === 1 && straight51.columns === 1 && straight51.total === 10 && straight51.current === 'm9',
+        straight51
+      )
+      const fork51 = layoutBranchMap(
+        [row51('A', 'root', 0), row51('B', 'A', 1), row51('C', 'B', 2), row51('D1', 'C', 3), row51('D2', 'C', 5), row51('E', 'D2', 6), row51('F', 'E', 7)],
+        ['A', 'B', 'C', 'D2', 'E', 'F']
+      )
+      const at51 = (id: string) => fork51.nodes.find((n) => n.id === id)
+      check(
+        'the branch map draws forks, the first message down each branch and every end',
+        fork51.nodes.map((n) => n.id).join() === 'A,C,D1,D2,F' &&
+          at51('C')?.folded === 1 && at51('F')?.folded === 1 && at51('F')?.parentId === 'D2' &&
+          fork51.branches === 2 && fork51.columns === 2 && at51('C')?.x === 0.5 &&
+          !at51('D1')?.onPath && !!at51('F')?.onPath && at51('D1')?.leaf === true,
+        fork51.nodes.map((n) => [n.id, n.parentId, n.folded, n.x, n.y, n.onPath])
+      )
+      const map51 = chat.branchMap(c48)
+      const other51 = map51.nodes.find((n) => n.leaf && !n.onPath)
+      const ui51 = await js<{ button: boolean; nodes: number; current: boolean; detail: string; closed: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Library chat')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.branch-open'); ) await wait(25)
+        const button = !!document.querySelector('.branch-open')
+        document.querySelector('.branch-open')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.branch-svg'); ) await wait(25)
+        const out = {
+          button,
+          nodes: document.querySelectorAll('.branch-node').length,
+          current: !!document.querySelector('.branch-node.is-current.on-path'),
+          detail: document.querySelector('.branch-detail-meta')?.textContent ?? '',
+          closed: false
+        }
+        document.querySelector('.branch-node[data-node="${other51?.id}"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelector('.branch-panel'); ) await wait(25)
+        out.closed = !document.querySelector('.branch-panel')
+        await wait(300)
+        return out
+      })()`)
+      check(
+        'Branches opens the map with every drawn message, the one shown now marked',
+        ui51.button && ui51.nodes === map51.nodes.length && map51.branches >= 2 && ui51.current && ui51.detail.includes('Shown now'),
+        { ui51, nodes: map51.nodes.length, branches: map51.branches }
+      )
+      check('clicking a branch on the map shows that branch', !!other51 && ui51.closed && chat.view(c48).path.some((n) => n.id === other51.id), { other: other51?.id })
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {

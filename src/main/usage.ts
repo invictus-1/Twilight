@@ -1,4 +1,4 @@
-import { costOf } from '@shared/pricing'
+import { cacheSaved, costOf } from '@shared/pricing'
 import type { Usage, UsageBucket, UsageRange, UsageStats, UsageTotals } from '@shared/types'
 import * as db from './db'
 import { getProviders } from './providers'
@@ -8,9 +8,9 @@ import { isLocal } from './providers/openai'
 // Costs are worked out here, request by request, with today's price list (yours included), so
 // changing a price re-prices the past as well.
 
-const zero = (): UsageTotals => ({ requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, unpriced: 0 })
+const zero = (): UsageTotals => ({ requests: 0, input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, unpriced: 0, saved: 0 })
 
-function add(t: UsageTotals, u: Usage, cost: number | null): void {
+function add(t: UsageTotals, u: Usage, cost: number | null, saved: number | null): void {
   t.requests++
   t.input += u.input + u.cacheRead + u.cacheWrite
   t.output += u.output
@@ -18,6 +18,7 @@ function add(t: UsageTotals, u: Usage, cost: number | null): void {
   t.cacheWrite += u.cacheWrite
   if (cost === null) t.unpriced++
   else t.cost += cost
+  t.saved += saved ?? 0
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0')
@@ -89,17 +90,19 @@ export function usageStats(range: UsageRange): UsageStats {
     } catch {
       continue
     }
-    const cost = costOf(row.m ?? undefined, u, local.get(row.p ?? '') ?? false)
-    add(totals, u, cost)
+    const isLocal = local.get(row.p ?? '') ?? false
+    const cost = costOf(row.m ?? undefined, u, isLocal)
+    const saved = cacheSaved(row.m ?? undefined, u, isLocal)
+    add(totals, u, cost, saved)
     const modelKey = `${row.p ?? ''}\n${row.m ?? ''}`
     let model = models.get(modelKey)
     if (!model) models.set(modelKey, (model = { ...zero(), providerId: row.p ?? '', modelId: row.m ?? '' }))
-    add(model, u, cost)
+    add(model, u, cost, saved)
     if (row.c) {
       let c = chats.get(row.c)
       if (!c) chats.set(row.c, (c = zero()))
-      add(c, u, cost)
-    } else add(judge, u, cost)
+      add(c, u, cost, saved)
+    } else add(judge, u, cost, saved)
     const key = keyOf(row.t)
     let b = buckets.get(key)
     if (!b) buckets.set(key, (b = { key, requests: 0, tokens: 0, cost: 0 }))

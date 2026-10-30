@@ -7,7 +7,7 @@ import { ChatSettingsPanel } from './ChatSettingsPanel'
 import { CompactBar } from './Compaction'
 import { Composer } from './Composer'
 import { DeletedPanel } from './DeletedPanel'
-import { SidebarIcon, SlidersIcon, SplitIcon, StarIcon, TrashIcon } from './Icons'
+import { BranchIcon, SidebarIcon, SlidersIcon, SplitIcon, StarIcon, TrashIcon } from './Icons'
 import { nextBookmark, useBookmarks } from '../bookmarks'
 import { DiffSummary, DiffToggle } from './SplitDiff'
 import { SplitView } from './SplitView'
@@ -96,6 +96,9 @@ export function ChatView() {
   const chosen = current?.settings.modelId ?? fallback ?? null
   const ready = chosen && models.some((m) => m.id === chosen) ? modelName(models, chosen) : null
 
+  // Any other branch leaves the thread shown somewhere, where a message there has versions.
+  const branched = !!current?.path.some((n) => n.siblingCount > 1)
+
   return (
     <main className="chat">
       <header className="chat-head drag">
@@ -116,6 +119,16 @@ export function ChatView() {
         {split && <DiffToggle />}
         {split && <JudgeSplitButton />}
         <BookmarkJump />
+        {branched && (
+          <button
+            className="tw-btn tw-btn-ghost tw-btn-sm no-drag branch-open"
+            title="Branch map: every version of this chat, drawn (Ctrl+Shift+B)"
+            onClick={() => useStore.getState().setOverlay('branches')}
+          >
+            <BranchIcon />
+            Branches
+          </button>
+        )}
         {deleted > 0 && (
           <button
             className="tw-btn tw-btn-ghost tw-btn-sm no-drag"

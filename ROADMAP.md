@@ -125,21 +125,21 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
 - [x] **Chats opens a new chat** · Chat — the Chats button starts at a new chat, or the last one you were on if you choose
+- [x] **Branch map** · Chat — the whole conversation tree, drawn, with straight runs folded; click a message to show its branch
+- [x] **Cache savings meter** · Chat — what prompt caching saved, under each chat and in Usage
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story
 - [x] **Retrieval research** · Writing — for 2.0, first: looked beyond graph RAG; the answer is a story ledger behind a context scout, judged on your own questions before anything bigger is built
-- [~] **Context scout** · Writing — for 2.0: a small, fast model reads each message first and picks what the main model needs, as whole scenes in story order; with a test of your own questions against plain search
+- [x] **Context scout** · Writing — for 2.0: a small, fast model reads each message first and picks what the main model needs, as whole scenes in story order; with a test of your own questions against plain search
 - [ ] **Story bible** · Writing — for 2.0: characters, places, relationships and facts pulled from the manuscript and chats into pages you can read and edit
 - [ ] **Continuity watcher** · Writing — for 2.0: flags where a reply or a draft contradicts the story bible
-- [~] **Local models, made easy** · Core — for 2.0: search and download models from Hugging Face, each size checked against what this PC can run, llama.cpp fetched and run for you with each model's own context and graphics card settings, what's loaded and Unload, and good first models, simple enough for anyone
+- [x] **Local models, made easy** · Core — for 2.0: search and download models from Hugging Face, each size checked against what this PC can run, llama.cpp fetched and run for you with each model's own context and graphics card settings, what's loaded and Unload, and good first models, simple enough for anyone
 - [~] **Better retrieval underneath** · Writing — for 2.0: passages indexed with the headings they sit under, and chosen passages widened into whole scenes
 
 ## Ideas
 - **Ghost text** · Writing — autocomplete in the editor from a small local model
 - **Multiverse drafts** · Chat — several continuations at once, kept as branches
 - **Blind arena** · Judge — split compare with hidden names and a personal leaderboard
-- **Branch map** · Chat — the whole conversation tree, drawn
 - **Local-model power tools** · Chat — a confidence heatmap from logprobs, branching from any word, more samplers
 - **Offline voice** · Core — dictation and read-aloud without the cloud
-- **Cache savings meter** · Chat — what prompt caching saved you

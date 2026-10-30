@@ -91,6 +91,15 @@ export const COMMANDS: Command[] = [
     when: () => s().mode === 'chat' && !s().settingsOpen && !!s().current?.path.length,
     run: () => void (split() ? s().closeSplit('a') : s().cloneIntoSplit())
   },
+  {
+    id: 'branches',
+    title: 'Branch map',
+    group: 'Chat',
+    keys: 'Ctrl+Shift+B',
+    hint: 'tree versions regenerations branches map',
+    when: () => s().mode === 'chat' && !!s().current?.path.length,
+    run: () => s().setOverlay('branches')
+  },
   { id: 'target-a', title: 'Send to pane A', group: 'Chat', keys: 'Alt+1', when: split, run: () => s().setTarget('a') },
   { id: 'target-b', title: 'Send to pane B', group: 'Chat', keys: 'Alt+2', when: split, run: () => s().setTarget('b') },
   { id: 'target-both', title: 'Send to both panes', group: 'Chat', keys: 'Alt+3', when: split, run: () => s().setTarget('both') },

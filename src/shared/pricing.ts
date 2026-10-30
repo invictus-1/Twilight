@@ -67,6 +67,18 @@ export function costOf(modelId: string | undefined, usage: Usage | undefined, lo
   return tokens === null ? null : tokens + (usage.webSearches ?? 0) * WEB_SEARCH_USD
 }
 
+/**
+ * What prompt caching saved on one response, in USD: its price with every prompt token billed as
+ * plain input, less what it did cost. A write costs more than plain input, so a response that
+ * only wrote the cache saved a little less than nothing. Null when the model's price is unknown.
+ */
+export function cacheSaved(modelId: string | undefined, usage: Usage | undefined, local: boolean): number | null {
+  if (!usage || !(usage.cacheRead || usage.cacheWrite)) return usage ? 0 : null
+  const actual = tokenCost(modelId, usage, local)
+  const plain = tokenCost(modelId, { ...usage, input: usage.input + usage.cacheRead + usage.cacheWrite, cacheRead: 0, cacheWrite: 0 }, local)
+  return actual === null || plain === null ? null : plain - actual
+}
+
 function tokenCost(modelId: string | undefined, usage: Usage, local: boolean): number | null {
   const writeMultiplier = usage.cacheTtl === '1h' ? 2 : 1.25
   const mine = customPriceFor(modelId)

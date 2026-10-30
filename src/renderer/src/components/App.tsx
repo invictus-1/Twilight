@@ -43,6 +43,7 @@ import { recordingKeys } from './ShortcutsSection'
 import { CommandMenu, ShortcutSheet } from './CommandMenu'
 import { SearchPanel } from './SearchPanel'
 import { PersonaChooser } from './PersonaChooser'
+import { BranchMapPanel } from './BranchMap'
 
 /** Your background, under everything, with the night laid over it so text stays readable. */
 function Backdrop() {
@@ -192,6 +193,7 @@ export function App() {
       {overlay === 'shortcuts' && <ShortcutSheet />}
       {overlay === 'search' && <SearchPanel />}
       {overlay === 'personas' && <PersonaChooser />}
+      {overlay === 'branches' && <BranchMapPanel />}
       {unlocked.length > 0 && !undo && !error && (
         <div className="toast toast-info ach-toast" role="status">
           {constellations && unlocked.length === 1 ? <Constellation name={unlocked[0]} /> : <TrophyIcon size={16} />}

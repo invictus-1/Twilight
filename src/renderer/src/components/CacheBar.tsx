@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { formatTokens } from '@shared/pricing'
+import { cacheSaved, formatCost, formatTokens } from '@shared/pricing'
 import type { ChatSettings, ModelInfo, ModelOptions, NodeView, Usage } from '@shared/types'
 import { optionsFor, paneOf, useStore } from '../store'
 import { readHidden, writeHidden } from './ChatSettingsPanel'
@@ -65,6 +65,18 @@ export function ContextMeter({ path, settings }: { path: NodeView[]; settings: C
   )
 }
 
+/** What prompt caching has saved over this chat's replies on the branch shown, in USD (null with no price). */
+export function chatSaved(path: NodeView[], models: ModelInfo[]): number | null {
+  let saved: number | null = null
+  for (const n of path) {
+    if (n.role !== 'assistant' || !n.usage) continue
+    const local = models.find((m) => m.id === n.modelId && m.providerId === n.providerId)?.local ?? false
+    const s = cacheSaved(n.modelId, n.usage, local)
+    if (s !== null) saved = (saved ?? 0) + s
+  }
+  return saved
+}
+
 /** Under a single-pane chat. (Split panes show the same status in their footers.) */
 export function CacheBar() {
   const [hidden, setHidden] = useState(readHidden)
@@ -82,10 +94,16 @@ export function CacheBar() {
   const { settings, path } = paneOf(current, 'a')
   const last = path.findLast((n) => n.role === 'assistant' && n.status !== 'streaming')
   const status = cacheStatus(last?.usage, settings, optionsFor(models, providers, settings.providerId, settings.modelId))
+  const saved = chatSaved(path, models)
   return (
     <div className={`cache-bar cache-${status.tone}`} role="status">
       <span className="cache-dot" aria-hidden="true" />
       <span className="cache-text">{status.text}</span>
+      {saved !== null && saved >= 0.005 && (
+        <span className="cache-saved" title="What prompt caching has saved over this chat's replies, against sending every token at the full price">
+          {formatCost(saved)} saved
+        </span>
+      )}
       <ContextMeter path={path} settings={settings} />
       <button
         className="tw-btn tw-btn-ghost tw-btn-icon"

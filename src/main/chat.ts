@@ -21,6 +21,7 @@ import { keepFresh, librarySettings, searchLibrary } from './docLibrary'
 import { scout, scoutOn } from './scout'
 import { LIBRARY_OPEN, libraryBlock } from '@shared/docLibrary'
 import { modelInfo } from './providers'
+import { layoutBranchMap, type BranchMap } from '@shared/branchMap'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -495,6 +496,19 @@ export function revealMessage(id: string, nodeId: string): ConversationView {
   const nodes = db.loadNodes(id)
   for (let n = nodes.get(nodeId); n?.parent_id; n = nodes.get(n.parent_id)) db.setActiveChild(n.parent_id, n.id)
   return view(id)
+}
+
+/** The chat's whole tree of messages, laid out for the branch map (pane A's thread marked). */
+export function branchMap(id: string): BranchMap {
+  const conv = db.getConversation(id)
+  const nodes = db.loadNodes(id)
+  const rows = [...nodes.values()]
+    .filter((n) => n.role !== 'root')
+    .map((n) => ({ id: n.id, parentId: n.parent_id, role: n.role as 'user' | 'assistant', text: n.text, createdAt: n.created_at, modelId: n.model ?? undefined }))
+  return layoutBranchMap(
+    rows,
+    db.activePath(conv, nodes).slice(1).map((n) => n.id)
+  )
 }
 
 export function closeSplit(id: string, keep: Pane): ConversationView {
