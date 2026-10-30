@@ -1,3 +1,4 @@
+import { ExtrasSettings } from './ExtrasSettings'
 import { ThemePicker } from './ThemePicker'
 import { BackgroundPicker, ChatTextPicker, MotionPicker, ScrollFxPicker, ThemeBuilder } from './LookSettings'
 import { useEffect, useMemo, useState } from 'react'
@@ -30,7 +31,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'appearance', group: 'App', label: 'Appearance', description: 'How Twilight looks: the theme, a background, motion, the size of chat text and the colour of bold words.' },
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats and settings, backups you can go back to, moving it all, and request logs.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
-  { id: 'extras', group: 'App', label: 'Extras', description: "Just for fun: little extras that don't change how anything works. All of them start off." },
+  { id: 'extras', group: 'App', label: 'Extras', description: "Just for fun: the sky through the day, small motions and celebrations. None of them change how anything works; each has its own switch." },
   { id: 'library', group: 'Writing', label: 'Personas and prompts', description: 'Your personas and prompts. A persona starts a chat with its instructions; a prompt goes into the message box from the composer.' },
   { id: 'writing', group: 'Writing', label: 'Documents', description: 'Where your documents live, and the document library that finds passages for your messages. Point it at an Obsidian vault and both apps edit the same files.' },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
@@ -584,12 +585,7 @@ function WritingSection() {
 
 /** Extras: things for fun that have no other home. */
 function ExtrasSection() {
-  return (
-    <div className="settings-card">
-      <h3 className="t-heading">Scroll particles</h3>
-      <ScrollFxPicker />
-    </div>
-  )
+  return <ExtrasSettings />
 }
 
 function AboutSection() {

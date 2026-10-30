@@ -178,6 +178,7 @@ const useFresh = (node: NodeView): boolean => useState(() => Date.now() - node.c
 function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: boolean }) {
   const pane = usePane()
   const fresh = useFresh(node)
+  const slide = useSlideIn()
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
   const long = node.text.length > COLLAPSE_AT
@@ -191,7 +192,7 @@ function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: bool
   }
   return (
     <div
-      className={`msg msg-user-row ${fresh ? 'msg-enter' : ''}`}
+      className={`msg msg-user-row ${fresh ? 'msg-enter' : ''} ${slide}`}
       data-node={node.id}
       style={{ containIntrinsicSize: `auto ${estimateHeight(long && !expanded ? node.text.slice(0, 1200) : node.text, 28)}px` }}
     >
@@ -269,10 +270,18 @@ function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: bool
   )
 }
 
+// The last ‹ › click, so the version it brings in can slide in from that side (Extras).
+let lastSwitch = { direction: 1 as -1 | 1, at: 0 }
+/** The class that slides a message in, when it's just been switched to. */
+const useSlideIn = (): string => useState(() => (Date.now() - lastSwitch.at < 600 ? (lastSwitch.direction > 0 ? 'fx-from-right' : 'fx-from-left') : ''))[0]
+
 function BranchSwitcher({ node }: { node: NodeView }) {
   const pane = usePane()
   if (node.siblingCount < 2) return null
-  const switchBranch = (direction: -1 | 1): void => void useStore.getState().switchBranch(node.id, direction, pane)
+  const switchBranch = (direction: -1 | 1): void => {
+    lastSwitch = { direction, at: Date.now() }
+    void useStore.getState().switchBranch(node.id, direction, pane)
+  }
   return (
     <span className="tw-branch" role="group" aria-label={`Version ${node.siblingIndex + 1} of ${node.siblingCount}`}>
       <button
@@ -526,6 +535,10 @@ function StreamingBody({ nodeId }: { nodeId: string }) {
         </div>
       )}
       {approval && <ApprovalCard key={approval.id} approval={approval} />}
+      {/* A small sun rising on the horizon while the reply comes in (Extras). */}
+      <div className="sun-progress" aria-hidden="true">
+        <span />
+      </div>
       {text || approval ? null : activity.length > 0 ? null : (
         <div className="msg-pending">
           <span className="tw-spin" /> {thinking ? 'Thinking' : 'Waiting for the first token'}
@@ -593,6 +606,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
   const models = useStore((s) => s.models)
   const [editing, setEditing] = useState(false)
   const fresh = useFresh(node)
+  const slide = useSlideIn()
   const diffed = useDiffed(pane, node.id)
   const streaming = node.status === 'streaming'
   if (editing) {
@@ -604,7 +618,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
     )
   }
   return (
-    <div className={`msg tw-msg-ai ${fresh ? 'msg-enter' : ''}`} data-node={node.id} style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
+    <div className={`msg tw-msg-ai ${fresh ? 'msg-enter' : ''} ${slide}`} data-node={node.id} style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
       <div className="tw-msg-head">
         {modelName(models, node.modelId)}
         {node.usage && <span className="msg-time">· {(node.usage.ms / 1000).toFixed(1)}s</span>}

@@ -27,7 +27,7 @@ function CopyButton({ text, label = 'Copy' }: { text: string; label?: string }) 
 export function ChatTop() {
   return (
     <div className="thread-top">
-      <EmptySky />
+      <EmptySky session />
       <SystemPromptCard />
     </div>
   )

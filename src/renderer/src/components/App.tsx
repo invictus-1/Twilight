@@ -1,3 +1,5 @@
+import { Constellation, WritingGlow } from './Delights'
+import { useExtras } from '../extras'
 import { FindBar } from './FindBar'
 import { lazy, Suspense, useEffect, useState, type ComponentType } from 'react'
 import { useStore } from '../store'
@@ -74,6 +76,7 @@ export function App() {
   const undo = useStore((s) => s.undo)
   const latestUpdate = useStore((s) => s.updates?.latest ?? null)
   const unlocked = useInsights((s) => s.unlocked)
+  const constellations = useExtras().constellations
   useEffect(() => void useInsights.getState().init(), [])
   const [noticed, setNoticed] = useState(() => {
     try {
@@ -184,13 +187,14 @@ export function App() {
         </Suspense>
       )}
       <FindBar />
+      <WritingGlow />
       {overlay === 'commands' && <CommandMenu />}
       {overlay === 'shortcuts' && <ShortcutSheet />}
       {overlay === 'search' && <SearchPanel />}
       {overlay === 'personas' && <PersonaChooser />}
       {unlocked.length > 0 && !undo && !error && (
         <div className="toast toast-info ach-toast" role="status">
-          <TrophyIcon size={16} />
+          {constellations && unlocked.length === 1 ? <Constellation name={unlocked[0]} /> : <TrophyIcon size={16} />}
           <span>
             {unlocked.length === 1 ? `Achievement unlocked: ${unlocked[0]}` : `${unlocked.length} achievements unlocked: ${unlocked.slice(0, 3).join(', ')}${unlocked.length > 3 ? '…' : ''}`}
           </span>

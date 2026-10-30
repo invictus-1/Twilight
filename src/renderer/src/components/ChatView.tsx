@@ -144,7 +144,7 @@ export function ChatView() {
         <SplitView key={current.id} />
       ) : empty ? (
         <div className="empty">
-          <EmptySky />
+          <EmptySky watch />
           <div className="empty-copy">
             <h2 className="t-display empty-title">{greeting()}</h2>
             <p className="empty-sub">{ready ? `${ready} is ready. Start typing.` : 'Pick a model below and start typing.'}</p>

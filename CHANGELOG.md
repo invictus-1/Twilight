@@ -4,6 +4,17 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+**Extras: the sky, small motions and celebrations** (Settings → Extras, each its own switch; Gentle or Off motion stills them all)
+- **A sky that follows the clock:** the sky behind an empty chat and above every chat goes from dawn to day, dusk and night as the hours pass, with a moon after dark. Or hold it at the time of day you like.
+- **Night falls on a long session:** the top of a chat slowly darkens over a few hours of writing.
+- **Seasons** (off at first): snow in winter, petals in spring, fireflies in summer, leaves in autumn, bats and an orange sun around Halloween, and fireworks for the new year.
+- **Surprises** (off at first): sit and watch an empty chat for a while, and every so often something crosses the sky.
+- **Small motions:** the rail's highlight glides to the section you pick; your message lifts into place when you send it; versions slide in from the side you went; a choice card's options fan in; buttons give a little under a click and menus rise into place; the spinner is a small moon on its orbit.
+- **A sun that rises while a reply streams** and **a sweep for a new theme** (both off at first).
+- **Constellations:** an achievement's notice draws its own small constellation.
+- **A glow for a good day's writing:** a warm light rises from the bottom of the window when the day's words pass 250, 500, 1,000 and on.
+- **Warmer light late at night** (off at first): between midnight and 5 am, the colours warm slightly, like a reading lamp.
+
 - **Bookmarks:** star a reply (a turn in the story, a fact worth keeping) and a star in the chat's header jumps between your bookmarks on that branch.
 - **What a big message costs, before you send it:** once what's in the box and attached passes about 8k tokens, a line above it gives the size and, for a priced model, roughly what it costs to send (and that it's cached after).
 - **Continue:** a reply that stopped at the max output tokens says so, with a Continue button that asks for the rest in a new message, so everything before stays cached.

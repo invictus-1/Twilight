@@ -83,6 +83,15 @@ export function Rail() {
   const [settle, setSettle] = useState<{ mode: Mode; offset: number } | null>(null)
   const dragged = useRef(false)
   const list = useRef<HTMLDivElement>(null)
+  // The highlight that glides to the section you pick (Extras): placed beside the selected one.
+  const glide = useRef<HTMLSpanElement>(null)
+  useLayoutEffect(() => {
+    const bar = glide.current
+    const item = list.current?.querySelector<HTMLElement>('.rail-item[aria-selected="true"]')
+    if (!bar) return
+    bar.style.opacity = item ? '1' : '0'
+    if (item) bar.style.transform = `translate(${item.offsetLeft - 6}px, ${item.offsetTop + 10}px)`
+  })
   useLayoutEffect(() => {
     if (!settle) return
     const frame = requestAnimationFrame(() => setSettle(null))
@@ -152,6 +161,7 @@ export function Rail() {
         <Mark />
       </div>
       <div className={`rail-items ${drag ? 'rail-dragging' : ''}`} role="tablist" aria-orientation="vertical" ref={list}>
+        <span className="rail-glide" ref={glide} aria-hidden="true" />
         {drag && <span className="rail-drop" aria-hidden="true" style={{ top: drag.top + drag.over * drag.slot, height: drag.height }} />}
         {order.map((m, i) => {
           const s = SECTIONS.find((x) => x.mode === m)!

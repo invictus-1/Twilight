@@ -48,6 +48,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { placement } from './windowState'
 import { shouldSignal } from './doneNotice'
+import { clockTime, seasonFor } from '@shared/sky'
 import { modelKey, pickModelDefaults } from '@shared/modelDefaults'
 
 // Dev-only end-to-end check, run with TWILIGHT_E2E=<output folder> (and a throwaway profile, see
@@ -3204,6 +3205,64 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('chat text is medium by default, a step up from the interface, and can be set larger', sizeUi.before === 'medium' && sizeUi.medium === '15px' && sizeUi.large === '17px' && sizeUi.box === '15px', sizeUi)
       check('Settings opens on General', sizeUi.opensOnGeneral, sizeUi.opensOnGeneral)
       check('bold text can take any colour, and go back to the theme', sizeUi.tint === '#ff00aa' && sizeUi.tintBack === '', { tint: sizeUi.tint, back: sizeUi.tintBack })
+      // Extras: the sky follows the clock or holds a time; seasons; the gliding rail; every switch shows on the page.
+      check(
+        'the sky knows the time of day and the season from the date',
+        clockTime(new Date(2026, 0, 1, 6, 30)) === 'dawn' && clockTime(new Date(2026, 0, 1, 12)) === 'day' && clockTime(new Date(2026, 0, 1, 18)) === 'dusk' && clockTime(new Date(2026, 0, 1, 23)) === 'night' &&
+          seasonFor(new Date(2026, 9, 29)) === 'halloween' && seasonFor(new Date(2026, 11, 31)) === 'newyear' && seasonFor(new Date(2026, 0, 15)) === 'snow' &&
+          seasonFor(new Date(2026, 3, 10)) === 'petals' && seasonFor(new Date(2026, 6, 10)) === 'fireflies' && seasonFor(new Date(2026, 8, 10)) === 'leaves'
+      )
+      await key(',', ['control'])
+      const extrasUi = await js<{ switches: number; held: string; season: string | null; clock: string; warm: boolean; warmOff: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Extras')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('[aria-label="Time of day in the sky"]'); ) await wait(25)
+        const switches = document.querySelectorAll('.extras-switch input[type="checkbox"]').length
+        const pick = (label) => [...document.querySelectorAll('[aria-label="Time of day in the sky"] button')].find((b) => b.textContent === label)?.click()
+        const box = (label) => [...document.querySelectorAll('.extras-switch label')].find((l) => l.textContent.includes(label))?.querySelector('input')
+        pick('Night'); box('Seasons').click(); box('Warmer light').click()
+        await wait(100)
+        const warm = document.documentElement.hasAttribute('data-fx-warm-night')
+        box('Warmer light').click()
+        await wait(50)
+        const warmOff = !document.documentElement.hasAttribute('data-fx-warm-night')
+        document.querySelector('.chat-head button')?.click()
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+        return { switches, warm, warmOff, held: '', season: null, clock: '' }
+      })()`)
+      await key('Escape')
+      await key('N', ['control'])
+      await new Promise((r) => setTimeout(r, 500))
+      Object.assign(extrasUi, await js<{ held: string; season: string | null }>(`({ held: document.querySelector('.empty .empty-sky')?.dataset.sky ?? '', season: document.querySelector('.empty .sky-season')?.className ?? null })`))
+      await key(',', ['control'])
+      await js(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Extras')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('[aria-label="Time of day in the sky"]'); ) await wait(25)
+        ;[...document.querySelectorAll('[aria-label="Time of day in the sky"] button')].find((b) => b.textContent === 'Follow the clock')?.click()
+        ;[...document.querySelectorAll('.extras-switch label')].find((l) => l.textContent.includes('Seasons'))?.querySelector('input').click()
+        await wait(50)
+      })()`)
+      await key('Escape')
+      await new Promise((r) => setTimeout(r, 400))
+      extrasUi.clock = await js<string>(`document.querySelector('.empty .empty-sky')?.dataset.sky ?? ''`)
+      check(
+        'Extras: the sky holds a time you pick or follows the clock, seasons show, and the warm light switches on and off',
+        extrasUi.switches === 12 && extrasUi.held === 'night' && /sky-halloween|sky-snow|sky-petals|sky-fireflies|sky-leaves|sky-newyear/.test(extrasUi.season ?? '') && extrasUi.clock === clockTime() && extrasUi.warm && extrasUi.warmOff,
+        extrasUi
+      )
+      const glideUi = await js<{ shown: boolean; matches: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('.rail-item[data-mode="judge"]')?.click()
+        await wait(400)
+        const bar = document.querySelector('.rail-glide')
+        const item = document.querySelector('.rail-item[data-mode="judge"]')
+        const out = { shown: !!bar && getComputedStyle(bar).display !== 'none', matches: !!bar && !!item && Math.abs(bar.getBoundingClientRect().top - (item.getBoundingClientRect().top + 10)) < 3 }
+        document.querySelector('.rail-item[data-mode="chat"]')?.click()
+        await wait(300)
+        return out
+      })()`)
+      check("the rail's highlight glides to the section you pick", glideUi.shown && glideUi.matches, glideUi)
       await shot('e2e-emptysky.png')
       const enterUi = await js<{ fresh: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
@@ -3672,8 +3731,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       for (let i = 0; i < 24; i++) {
         const q = `Question ${i} about the lamps`
         const a = `Lamp ${i} burns through the night. `.repeat(40)
-        const u = db.insertNode({ id: randomUUID(), conversation_id: sm, parent_id: smParent, role: 'user', text: q, content: JSON.stringify([{ type: 'text', text: q }]), thinking: null, model: null, provider_id: null, usage: null, status: 'done', error: null })
-        smParent = db.insertNode({ id: randomUUID(), conversation_id: sm, parent_id: u.id, role: 'assistant', text: a, content: JSON.stringify([{ type: 'text', text: a }]), thinking: null, model: 'mock-a', provider_id: 'mock', usage: null, status: 'done', error: null }).id
+        const u = db.insertNode({ id: randomUUID(), conversation_id: sm, parent_id: smParent, role: 'user', text: q, content: JSON.stringify([{ type: 'text', text: q }]), thinking: null, model: null, provider_id: null, usage: null, status: 'done', error: null , created_at: Date.now() - 3600_000 + i * 2 })
+        smParent = db.insertNode({ id: randomUUID(), conversation_id: sm, parent_id: u.id, role: 'assistant', text: a, content: JSON.stringify([{ type: 'text', text: a }]), thinking: null, model: 'mock-a', provider_id: 'mock', usage: null, status: 'done', error: null , created_at: Date.now() - 3600_000 + i * 2 + 1 }).id
       }
       db.updateConversation(sm, { started: 1, title: 'Long harbour log' })
       await reloadUi()
@@ -3695,6 +3754,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         const node = mark.dataset.node
         await open('Keepers on the web')
         await open('Long harbour log')
+        await wait(1000)
         const el = document.querySelector('[data-node="' + node + '"]')
         const offset = el ? Math.round(Math.abs(el.getBoundingClientRect().top - sc().getBoundingClientRect().top)) : 9999
         sc().scrollTop = sc().scrollHeight

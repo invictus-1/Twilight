@@ -1,12 +1,71 @@
+import { useEffect, useState } from 'react'
+import { clockTime, seasonFor } from '@shared/sky'
+import { useExtras, type SkyTime } from '../extras'
+
+// When this session began, for the sky that drifts toward night over a long one.
+const sessionStart = Date.now()
+
+/** The sky's time of day, kept current while it's on screen (checked once a minute). */
+function useSkyTime(): Exclude<SkyTime, 'clock'> {
+  const { sky } = useExtras()
+  const [now, setNow] = useState(() => clockTime())
+  useEffect(() => {
+    if (sky !== 'clock') return
+    const timer = setInterval(() => setNow(clockTime()), 60_000)
+    return () => clearInterval(timer)
+  }, [sky])
+  return sky === 'clock' ? now : sky
+}
+
+// The rare things that cross the sky if you sit and watch.
+const EGGS = ['ufo', 'comet', 'satellite', 'lantern'] as const
+/** After a while with no keys or pointer, one of them crosses once; then it waits for the next quiet spell. */
+function useEasterEgg(watching: boolean): string | null {
+  const [egg, setEgg] = useState<string | null>(null)
+  useEffect(() => {
+    if (!watching) return
+    let quiet: ReturnType<typeof setTimeout>
+    let shown = 0
+    const wait = (): void => {
+      clearTimeout(quiet)
+      quiet = setTimeout(() => {
+        setEgg(EGGS[shown++ % EGGS.length])
+        quiet = setTimeout(() => (setEgg(null), wait()), 14_000)
+      }, 45_000)
+    }
+    const stir = (): void => {
+      setEgg(null)
+      wait()
+    }
+    wait()
+    window.addEventListener('pointermove', stir, { passive: true })
+    window.addEventListener('keydown', stir)
+    return () => {
+      clearTimeout(quiet)
+      window.removeEventListener('pointermove', stir)
+      window.removeEventListener('keydown', stir)
+    }
+  }, [watching])
+  return egg
+}
+
 /**
- * The evening behind an empty chat, drawn retro: a deep field of stars and a band of the galaxy,
- * a striped sun on the horizon and a glowing grid running toward you. The field is one static SVG,
- * so it costs a single paint; only a few stars twinkle, the grid's drift is a transform, and both
- * stop under Gentle and Off motion.
+ * The sky behind an empty chat and above every chat, drawn retro: a deep field of stars and a band
+ * of the galaxy, a striped sun on the horizon and a glowing grid running toward you. It follows
+ * the clock (dawn, day, dusk, night) unless held at one time in Extras. The field is one static
+ * SVG, so it costs a single paint; the few things that move are transforms and stop under Gentle
+ * and Off motion. `watch` is the empty chat, where surprises may cross if you sit and look;
+ * `session` is the top of a chat, which darkens toward night over a long session.
  */
-export function EmptySky() {
+export function EmptySky({ watch = false, session = false }: { watch?: boolean; session?: boolean }) {
+  const extras = useExtras()
+  const time = useSkyTime()
+  const egg = useEasterEgg(watch && extras.easterEggs)
+  const season = extras.seasons ? seasonFor() : null
+  // Up to most of the way to night over three hours.
+  const late = session && extras.sessionSky ? Math.min(0.75, (Date.now() - sessionStart) / (3 * 60 * 60 * 1000)) : 0
   return (
-    <div className="empty-sky is-retro" aria-hidden="true">
+    <div className="empty-sky is-retro" data-sky={time} aria-hidden="true" style={late ? ({ '--session-night': late.toFixed(2) } as React.CSSProperties) : undefined}>
       <span className="empty-galaxy" />
       <svg className="empty-field" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice">
         {FIELD.map((s, i) => (
@@ -17,6 +76,14 @@ export function EmptySky() {
         <span key={i} className={`empty-star ${s.big ? 'is-big' : ''}`} style={{ left: `${s.x}%`, top: `${s.y}%`, animationDelay: `${s.d}s` }} />
       ))}
       <span className="empty-shooting" />
+      {season && (
+        <div className={`sky-season sky-${season}`}>
+          {SEASON.map((p, i) => (
+            <span key={i} style={{ left: `${p.x}%`, animationDelay: `${p.d}s`, animationDuration: `${p.t}s` }} />
+          ))}
+        </div>
+      )}
+      {egg && <span className={`sky-egg sky-egg-${egg}`} />}
       <span className="empty-sun" />
       <span className="empty-horizon" />
       <div className="empty-floor">
@@ -24,6 +91,7 @@ export function EmptySky() {
           <span className="empty-grid" />
         </div>
       </div>
+      {late > 0 && <span className="sky-late" />}
     </div>
   )
 }
@@ -53,3 +121,6 @@ const FIELD = Array.from({ length: 220 }, () => {
   }
 })
 const STARS = Array.from({ length: 16 }, (_, i) => ({ x: (i * 37.7 + 6) % 100, y: (i * 23.3 + 4) % 50, d: (i % 8) * 0.55, big: i % 5 === 0 }))
+// A dozen pieces of the season: where each starts across the sky, its delay and how long it takes.
+const SEASON = Array.from({ length: 12 }, () => ({ x: Math.round(rand() * 96 + 2), d: Math.round(rand() * 120) / 10, t: Math.round(90 + rand() * 80) / 10 }))
+

@@ -1,0 +1,135 @@
+/* ——— Extras (Settings → Extras) ———
+   Each switch shows on <html> as data-fx-*; a style here applies only while its switch is on.
+   Everything moving is a transform or opacity, and Gentle or Off motion stills all of it. */
+
+/* —— The sky through the day ——
+   Dusk is the sky as drawn in app.css; dawn, day and night lift or lower the sun, wash the sky
+   and fade the stars, all in the theme's own colours. */
+.empty-sky::before { content: ''; position: absolute; inset: 0; pointer-events: none; transition: background 600ms ease; }
+.empty-sky .empty-field, .empty-sky .empty-galaxy, .empty-sky .empty-star, .empty-sky .empty-horizon { transition: opacity 600ms ease; }
+.is-retro .empty-sun { transition: translate 900ms ease, scale 900ms ease; }
+
+.empty-sky[data-sky='dawn']::before { background: linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--horizon) 10%, transparent) 40%, color-mix(in srgb, var(--horizon) 28%, transparent) var(--horizon-at), transparent calc(var(--horizon-at) + 1%)); }
+.empty-sky[data-sky='dawn'] .empty-field { opacity: .5; }
+.empty-sky[data-sky='dawn'] .empty-galaxy { opacity: .35; }
+.empty-sky[data-sky='dawn'] .empty-sun { translate: 0 30%; }
+
+.empty-sky[data-sky='day']::before { background: linear-gradient(180deg, color-mix(in srgb, var(--iris) 14%, transparent) 0%, color-mix(in srgb, var(--iris) 8%, transparent) 45%, color-mix(in srgb, var(--horizon-soft) 80%, transparent) var(--horizon-at), transparent calc(var(--horizon-at) + 1%)); }
+.empty-sky[data-sky='day'] .empty-field { opacity: .12; }
+.empty-sky[data-sky='day'] .empty-galaxy, .empty-sky[data-sky='day'] .empty-star, .empty-sky[data-sky='day'] .empty-shooting { opacity: 0; }
+.empty-sky[data-sky='day'] .empty-sun { translate: 0 -55%; scale: .8; -webkit-mask-image: none; mask-image: none; }
+
+.empty-sky[data-sky='night']::before { background: linear-gradient(180deg, color-mix(in srgb, var(--night) 35%, transparent), color-mix(in srgb, var(--night) 20%, transparent) var(--horizon-at), transparent calc(var(--horizon-at) + 1%)); }
+.empty-sky[data-sky='night'] .empty-horizon { opacity: .45; }
+/* At night the sun is a pale moon, high and small. */
+.empty-sky[data-sky='night'] .empty-sun { translate: 0 -70%; scale: .42; -webkit-mask-image: none; mask-image: none; background: radial-gradient(circle at 38% 36%, color-mix(in srgb, #fff 70%, var(--ink)) 0%, color-mix(in srgb, var(--ink) 75%, var(--iris)) 70%, color-mix(in srgb, var(--ink) 45%, var(--dusk)) 100%); box-shadow: 0 0 60px 10px color-mix(in srgb, var(--ink) 18%, transparent); }
+
+/* A long session: the top of the chat has slowly gone toward night. */
+.sky-late { position: absolute; inset: 0; pointer-events: none; background: color-mix(in srgb, var(--night) calc(var(--session-night) * 100%), transparent); }
+
+/* —— Seasons —— a dozen pieces drifting through the sky, picked by the date. */
+.sky-season { position: absolute; inset: 0 0 calc(100% - var(--horizon-at)) 0; overflow: hidden; pointer-events: none; }
+.sky-season span { position: absolute; top: -6%; width: 6px; height: 6px; border-radius: 50%; animation: sky-fall linear infinite both; }
+.sky-snow span { background: color-mix(in srgb, var(--ink) 80%, transparent); box-shadow: 0 0 4px color-mix(in srgb, var(--ink) 40%, transparent); }
+.sky-petals span { width: 7px; height: 5px; border-radius: 60% 0; background: color-mix(in srgb, var(--horizon) 55%, var(--ink)); }
+.sky-leaves span { width: 9px; height: 6px; border-radius: 0 70%; background: color-mix(in srgb, var(--horizon) 80%, var(--dusk)); }
+.sky-fireflies span { top: auto; bottom: 8%; width: 4px; height: 4px; background: color-mix(in srgb, var(--horizon) 60%, #fff); box-shadow: 0 0 8px 2px color-mix(in srgb, var(--horizon) 60%, transparent); animation-name: sky-float; animation-timing-function: ease-in-out; }
+/* Halloween: bats cross, and the sun burns orange. */
+.sky-halloween span { top: 18%; left: -8% !important; width: 16px; height: 7px; border-radius: 0; background: var(--night); clip-path: polygon(0 20%, 25% 0, 40% 45%, 50% 30%, 60% 45%, 75% 0, 100% 20%, 80% 60%, 60% 100%, 50% 80%, 40% 100%, 20% 60%); animation-name: sky-across; animation-timing-function: linear; }
+.sky-halloween span:nth-child(n + 5) { display: none; }
+.sky-halloween span:nth-child(2) { top: 28%; }
+.sky-halloween span:nth-child(3) { top: 12%; }
+.sky-halloween span:nth-child(4) { top: 34%; }
+.empty-sky:has(.sky-halloween) .empty-sun { background: linear-gradient(180deg, #ffb35c 0%, #f2711c 55%, #b33a12 100%); }
+/* New Year's: fireworks in the theme's colours. */
+.sky-newyear span { top: auto; width: 60px; height: 60px; border-radius: 50%; background: radial-gradient(circle, transparent 30%, var(--horizon) 32%, transparent 36%), radial-gradient(circle, transparent 55%, var(--iris) 57%, transparent 61%); animation-name: sky-burst; animation-timing-function: ease-out; }
+.sky-newyear span:nth-child(odd) { margin-top: 8%; }
+.sky-newyear span:nth-child(3n) { margin-top: 18%; }
+
+@keyframes sky-fall { 0% { transform: translate(0, 0) rotate(0); opacity: 0; } 8% { opacity: .9; } 100% { transform: translate(60px, 60vh) rotate(300deg); opacity: 0; } }
+@keyframes sky-float { 0%, 100% { transform: translate(0, 0); opacity: .15; } 50% { transform: translate(24px, -40px); opacity: 1; } }
+@keyframes sky-across { from { transform: translateX(0) scaleY(1); } 50% { transform: translateX(60vw) scaleY(.6); } to { transform: translateX(120vw) scaleY(1); } }
+@keyframes sky-burst { 0% { transform: scale(.1); opacity: 0; } 10% { opacity: 1; } 55% { transform: scale(1); opacity: .9; } 100% { transform: scale(1.15); opacity: 0; } }
+
+/* —— Easter eggs —— one crosses after a quiet while, once. */
+.sky-egg { position: absolute; pointer-events: none; z-index: 0; }
+.sky-egg-ufo { top: 18%; left: -6%; width: 34px; height: 9px; border-radius: 50%; background: color-mix(in srgb, var(--ink) 70%, var(--iris)); box-shadow: 0 0 12px color-mix(in srgb, var(--iris) 60%, transparent); animation: egg-ufo 14s linear both; }
+.sky-egg-ufo::before { content: ''; position: absolute; left: 10px; top: -6px; width: 14px; height: 8px; border-radius: 8px 8px 0 0; background: color-mix(in srgb, var(--horizon) 50%, var(--ink)); }
+.sky-egg-ufo::after { content: ''; position: absolute; left: 12px; top: 9px; width: 10px; height: 40px; background: linear-gradient(180deg, color-mix(in srgb, var(--horizon) 35%, transparent), transparent); clip-path: polygon(35% 0, 65% 0, 100% 100%, 0 100%); animation: egg-beam 14s linear both; }
+.sky-egg-comet { top: 6%; left: 70%; width: 180px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 85%, var(--horizon))); rotate: 160deg; transform-origin: right center; animation: egg-comet 6s ease-in both; }
+.sky-egg-satellite { top: 10%; left: -2%; width: 3px; height: 3px; border-radius: 50%; background: var(--ink); animation: egg-sat 14s linear both, egg-blink 1.2s steps(2) infinite; }
+.sky-egg-lantern { top: 58%; left: 62%; width: 7px; height: 9px; border-radius: 3px; background: #ffb35c; box-shadow: 0 0 14px 4px color-mix(in srgb, #ffb35c 55%, transparent); animation: egg-lantern 14s ease-out both; }
+@keyframes egg-ufo { 0% { transform: translate(0, 0); } 30% { transform: translate(42vw, 6px); } 45% { transform: translate(44vw, 0); } 60% { transform: translate(46vw, 6px); } 100% { transform: translate(110vw, -40px); } }
+@keyframes egg-beam { 0%, 32% { opacity: 0; } 38%, 56% { opacity: 1; } 62%, 100% { opacity: 0; } }
+@keyframes egg-comet { from { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateX(-60vw); opacity: 0; } }
+@keyframes egg-sat { from { transform: translateX(0); } to { transform: translateX(105vw); } }
+@keyframes egg-blink { 50% { opacity: .2; } }
+@keyframes egg-lantern { from { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } to { transform: translate(-30px, -48vh); opacity: 0; } }
+
+/* —— The sun rising under a streaming reply —— */
+.sun-progress { display: none; }
+:root[data-fx-sun-progress] .sun-progress { display: block; position: relative; width: 120px; height: 14px; overflow: hidden; border-bottom: 1px solid color-mix(in srgb, var(--horizon) 60%, transparent); }
+.sun-progress span { position: absolute; left: 50%; bottom: -10px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: var(--horizon); box-shadow: 0 0 10px color-mix(in srgb, var(--horizon) 60%, transparent); animation: sun-up 40s cubic-bezier(.15, .7, .3, 1) forwards; }
+@keyframes sun-up { to { transform: translateY(-11px); } }
+
+/* —— The rail's highlight glides to the section you pick —— */
+.rail-glide { display: none; }
+:root[data-fx-gliding-rail] .rail-glide { display: block; position: absolute; left: 0; top: 0; width: 3px; height: 20px; border-radius: 0 3px 3px 0; background: var(--iris); transition: transform 240ms cubic-bezier(.3, .8, .2, 1); pointer-events: none; }
+:root[data-fx-gliding-rail] .rail-item[aria-selected='true']::before { display: none; }
+
+/* —— Small touches —— */
+/* Your message lifts out of the box into its place. */
+:root[data-fx-touches] .msg-user-row.msg-enter { animation: fx-lift 260ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes fx-lift { from { opacity: .3; transform: translateY(32px) scale(.97); } to { opacity: 1; transform: none; } }
+/* Switching versions slides the reply the way you went. */
+:root[data-fx-touches] .msg.fx-from-right { animation: fx-from-right 220ms cubic-bezier(.2, .8, .2, 1) both; }
+:root[data-fx-touches] .msg.fx-from-left { animation: fx-from-left 220ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes fx-from-right { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes fx-from-left { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+/* A choice card's options fan in one after another. */
+:root[data-fx-touches] .choice-card:not(.choice-answered) .choice-list > li { animation: fx-fan 260ms cubic-bezier(.2, .8, .2, 1) both; }
+:root[data-fx-touches] .choice-list > li:nth-child(2) { animation-delay: 45ms; }
+:root[data-fx-touches] .choice-list > li:nth-child(3) { animation-delay: 90ms; }
+:root[data-fx-touches] .choice-list > li:nth-child(4) { animation-delay: 135ms; }
+:root[data-fx-touches] .choice-list > li:nth-child(n + 5) { animation-delay: 180ms; }
+@keyframes fx-fan { from { opacity: 0; transform: translateY(8px) rotate(-1deg); } to { opacity: 1; transform: none; } }
+
+/* Buttons give a little under a click; menus rise into place. */
+:root[data-fx-presses] .tw-btn { transition: transform 90ms ease, background 120ms ease, color 120ms ease; }
+:root[data-fx-presses] .tw-btn:active:not(:disabled) { transform: scale(.95); }
+:root[data-fx-presses] .tw-menu, :root[data-fx-presses] .panel { animation: ov-rise 150ms cubic-bezier(.2, .8, .2, 1); }
+
+/* The spinner as a small moon on its orbit. */
+:root[data-fx-moon] .tw-spin { position: relative; border: 1px solid var(--dusk-soft); animation: tw-spin 1400ms linear infinite; }
+:root[data-fx-moon] .tw-spin::after { content: ''; position: absolute; top: -3px; left: 50%; width: 5px; height: 5px; margin-left: -2.5px; border-radius: 50%; background: var(--dusk); box-shadow: 0 0 5px var(--dusk); }
+
+/* A sweep down the window when the theme changes (a view transition: the page is a picture while it runs). */
+::view-transition-old(root) { animation: none; }
+::view-transition-new(root) { animation: fx-wipe 650ms cubic-bezier(.4, 0, .2, 1); }
+@keyframes fx-wipe { from { clip-path: inset(0 0 100% 0); } to { clip-path: inset(0); } }
+
+/* —— Constellations —— an achievement draws its own. */
+.ach-constellation { flex: none; width: 56px; height: 32px; }
+.ach-constellation line { stroke: color-mix(in srgb, var(--horizon) 70%, transparent); stroke-width: 1; stroke-dasharray: 40; stroke-dashoffset: 40; animation: fx-draw 900ms ease-out forwards; }
+.ach-constellation circle { fill: var(--ink); opacity: 0; animation: fx-star 300ms ease-out forwards; }
+@keyframes fx-draw { to { stroke-dashoffset: 0; } }
+@keyframes fx-star { to { opacity: 1; } }
+
+/* —— A glow along the bottom when a day's writing passes a milestone —— */
+.writing-glow { position: fixed; left: 0; right: 0; bottom: 0; height: 120px; pointer-events: none; z-index: 40; background: linear-gradient(0deg, color-mix(in srgb, var(--horizon) 35%, transparent), transparent); animation: fx-glow 2600ms ease-out both; }
+@keyframes fx-glow { 0% { opacity: 0; } 20% { opacity: 1; } 100% { opacity: 0; } }
+
+/* —— Warmer light after midnight, like a reading lamp —— */
+:root[data-fx-warm-night][data-late-hours] body::after { content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 9999; background: rgba(255, 150, 60, .07); }
+
+/* Gentle and Off: nothing moves. */
+:root[data-motion='reduced'] .sky-season, :root[data-motion='off'] .sky-season,
+:root[data-motion='reduced'] .sky-egg, :root[data-motion='off'] .sky-egg { display: none; }
+:root[data-motion='reduced'] .msg.fx-from-right, :root[data-motion='reduced'] .msg.fx-from-left,
+:root[data-motion='reduced'] .choice-list > li, :root[data-motion='reduced'] .msg-user-row.msg-enter { animation-name: fade-only; }
+:root[data-motion='reduced'] .tw-btn:active:not(:disabled) { transform: none; }
+:root[data-motion='reduced'] .rail-glide { transition: none; }
+
+/* The Extras page: each switch with its line beneath. */
+.extras-switch { display: flex; flex-direction: column; gap: 2px; margin-top: var(--space-2); }
+.extras-switch .field-note { margin: 0 0 0 26px; }

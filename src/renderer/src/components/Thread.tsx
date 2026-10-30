@@ -63,13 +63,25 @@ export function Thread() {
     // Messages above lay out at their real height over the next moments (they start as estimates),
     // which moves things; place it again as they settle, unless the chat has been scrolled since
     // (by you or anything else). The listener lives only for that first second.
+    // The browser nudges the view itself as heights settle (a few pixels); a move further than that
+    // is someone scrolling.
     let yours = false
     const mine = (): void => {
-      if (Math.abs(el.scrollTop - placed) > 2) yours = true
+      if (Math.abs(el.scrollTop - placed) > 120) yours = true
     }
+    const hand = (): void => void (yours = true)
     el.addEventListener('scroll', mine, { passive: true })
-    const timers = [0, 120, 350, 800].map((ms) => setTimeout(() => !yours && place(), ms))
-    timers.push(setTimeout(() => el.removeEventListener('scroll', mine), 900))
+    el.addEventListener('wheel', hand, { passive: true })
+    el.addEventListener('pointerdown', hand)
+    // The last one comes after the idle pass that lays every message out for good (Thread, below).
+    const timers = [0, 120, 350, 800, 1300].map((ms) => setTimeout(() => !yours && place(), ms))
+    timers.push(
+      setTimeout(() => {
+        el.removeEventListener('scroll', mine)
+        el.removeEventListener('wheel', hand)
+        el.removeEventListener('pointerdown', hand)
+      }, 1400)
+    )
     const leave = (): void => {
       if (atBottom.current) return saveSpot(spotKey, null)
       const top = el.getBoundingClientRect().top
@@ -80,6 +92,8 @@ export function Thread() {
     return () => {
       timers.forEach(clearTimeout)
       el.removeEventListener('scroll', mine)
+      el.removeEventListener('wheel', hand)
+      el.removeEventListener('pointerdown', hand)
       window.removeEventListener('beforeunload', leave)
       leave()
     }

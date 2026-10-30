@@ -1,3 +1,4 @@
+import { readExtras } from './extras'
 import { isTheme, type Theme as BuiltIn } from '@shared/themes'
 import { injectCustom } from './customTheme'
 
@@ -26,11 +27,19 @@ export function applyTheme(theme: Theme): Record<string, string> | null {
 
 /** Switches theme now, remembers it, and has the window's title bar match. */
 export function setTheme(theme: Theme): void {
-  const tokens = applyTheme(theme)
+  // With the theme wipe on (Extras) and motion at Full, the new colours sweep down the window.
+  const wipe = readExtras().themeWipe && !document.documentElement.dataset.motion && 'startViewTransition' in document
+  let tokens: ReturnType<typeof applyTheme> = null
+  // The frame takes the theme's colours once they're in place (a wipe applies them a moment later).
+  const frame = (): void => void window.twilight.setWindowTheme(theme, tokens ? { night: tokens['--night'], symbol: tokens['--ink-muted'] } : undefined)
+  if (wipe) void document.startViewTransition(() => void (tokens = applyTheme(theme))).updateCallbackDone.then(frame)
+  else {
+    tokens = applyTheme(theme)
+    frame()
+  }
   try {
     localStorage.setItem(KEY, theme)
   } catch {
     // Storage unavailable: the theme holds for this session.
   }
-  void window.twilight.setWindowTheme(theme, tokens ? { night: tokens['--night'], symbol: tokens['--ink-muted'] } : undefined)
 }
