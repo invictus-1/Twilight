@@ -474,8 +474,10 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       }
       const words = reply.split(/(?<= )/)
       res.writeHead(200, { 'content-type': 'text/event-stream' })
-      for (const w of words) {
-        await new Promise((r) => setTimeout(r, 8))
+      for (const [i, w] of words.entries()) {
+        // Paced like a model at first; a long echo (a message carrying library passages) then goes
+        // out at once, so it doesn't run past the wait for a reply.
+        if (i < 300) await new Promise((r) => setTimeout(r, 8))
         entry.firstTokenAt ??= Date.now()
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: w } }] })}\n\n`)
       }
