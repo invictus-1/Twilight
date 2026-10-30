@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import type { Attachment, ChatSettings, ConversationView, DeletionView, Pane, SendTarget, StreamEvent } from '@shared/types'
+import type { Attachment, ChatSettings, ConversationView, DeletionView, Pane, SendTarget, StreamEvent, Usage } from '@shared/types'
 import { modelKey, pickModelDefaults, type ModelDefaults } from '@shared/modelDefaults'
 import * as db from './db'
 import { signalDone } from './doneNotice'
@@ -916,8 +916,10 @@ async function compactNow(id: string, pane: Pane, signal: AbortSignal): Promise<
   const cfg = compactionSettings()
   let block: Record<string, unknown>
   let text: string
+  // What it cost, kept on the summary so Usage counts it like any reply.
+  let usage: Usage
   if (config.kind === 'anthropic') {
-    ;({ block, text } = await compactAnthropic({ config, apiKey, system, history, settings, options, instructions: cfg.instructions, signal }))
+    ;({ block, text, usage } = await compactAnthropic({ config, apiKey, system, history, settings, options, instructions: cfg.instructions, signal }))
   } else {
     // The model writes it, as a reply to one more message that asks for it (never stored).
     const ask = cfg.instructions.trim() || LOCAL_SUMMARY
@@ -936,6 +938,7 @@ async function compactNow(id: string, pane: Pane, signal: AbortSignal): Promise<
     if (result.error || !result.text.trim()) throw new Error(result.error ?? 'No summary came back. Try again in a moment.')
     block = { type: 'compaction', local: true }
     text = result.text.trim()
+    usage = result.usage
   }
   const carried = cfg.keepDocs ? carriedBlocks(history) : []
   const row = db.insertNode(
@@ -949,7 +952,7 @@ async function compactNow(id: string, pane: Pane, signal: AbortSignal): Promise<
       thinking: null,
       model: settings.modelId,
       provider_id: settings.providerId,
-      usage: null,
+      usage: JSON.stringify({ ...usage, cacheTtl: settings.cacheTtl }),
       status: 'done',
       error: null
     },

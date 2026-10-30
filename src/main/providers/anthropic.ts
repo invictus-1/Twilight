@@ -1,6 +1,6 @@
 import { compactionOf, summaryText } from './compactionBlocks'
 import Anthropic from '@anthropic-ai/sdk'
-import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig } from '@shared/types'
+import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig, Usage } from '@shared/types'
 import type { NodeRow } from '../db'
 import { CHOICES_TOOL } from '@shared/choices'
 import { isContextText } from '@shared/attachments'
@@ -19,6 +19,9 @@ const SUPPORTS_FALLBACK = /^claude-(opus-5|opus-5-5|fable-5-1|sonnet-5-5)$/
 
 type Block = { type: string; [key: string]: unknown }
 type Message = { role: 'user' | 'assistant'; content: Block[] }
+
+/** The beta for Claude's compaction: on the request for a summary and every request that carries one. */
+export const COMPACTION_BETA = 'compact-2026-09-04'
 
 /**
  * Results of Anthropic's server tools: web search and fetch, and the code the newer versions run
@@ -318,6 +321,9 @@ export function anthropicRequest(req: Pick<GenerateRequest, 'system' | 'history'
   // the JSON before streaming it) is worth more here than eager input streaming.
   if (tools.length) body.tools = tools
   const betas: string[] = []
+  // A compacted chat's summary block is only understood with the compaction beta, on every request
+  // that carries it (without it the API rejects the block as an unknown type).
+  if ((body.messages as Message[]).some((m) => m.content.some((b) => b.type === 'compaction'))) betas.push(COMPACTION_BETA)
   if (SUPPORTS_FALLBACK.test(model)) {
     betas.push('server-side-fallback-2026-07-01')
     body.fallbacks = 'default'
@@ -505,7 +511,8 @@ export async function compactAnthropic(req: {
   instructions: string
   /** Stops it (Cancel beside Compacting…). */
   signal?: AbortSignal
-}): Promise<{ block: Block; text: string }> {
+}): Promise<{ block: Block; text: string; usage: Usage }> {
+  const started = Date.now()
   const { body, betas } = anthropicRequest(req)
   // The summary gets the model's whole output allowance, not the chat's own limit: with thinking
   // counted against it, a big chat's summary ran out of room at a reply-sized limit.
@@ -516,9 +523,9 @@ export async function compactAnthropic(req: {
   // Streamed, as a long summary on a big chat can run past what an unstreamed call may take.
   const res = (await explainKey(req.apiKey, () =>
     client.beta.messages
-      .stream({ ...body, betas: [...betas, 'compact-2026-09-04'], compaction: { type: 'summarize', ...(instructions ? { instructions } : {}) } } as unknown as Parameters<typeof client.beta.messages.stream>[0], { signal: req.signal })
+      .stream({ ...body, betas: [...new Set([...betas, COMPACTION_BETA])], compaction: { type: 'summarize', ...(instructions ? { instructions } : {}) } } as unknown as Parameters<typeof client.beta.messages.stream>[0], { signal: req.signal })
       .finalMessage()
-  )) as unknown as { content: Block[]; stop_reason: string | null }
+  )) as unknown as { content: Block[]; stop_reason: string | null; usage?: CompactionUsage }
   const raw = res.content.find((b) => b.type === 'compaction')
   // A compaction block with no content is the API's way of saying the summary failed.
   const text = raw && typeof raw.content === 'string' ? raw.content : ''
@@ -538,7 +545,19 @@ export async function compactAnthropic(req: {
   }
   const { type: _type, ...rest } = raw
   // Kept with its type first (how Twilight finds it again) and otherwise exactly as it came.
-  return { block: { type: 'compaction', ...rest }, text }
+  return { block: { type: 'compaction', ...rest }, text, usage: compactionUsage(res.usage, Date.now() - started) }
+}
+
+type CompactionUsage = { iterations?: { input_tokens?: number; output_tokens?: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }[] }
+
+/**
+ * What the summary cost, in Twilight's usage shape: billed like any request, and reported under
+ * usage.iterations (the top-level counts are zero, since no reply was written).
+ */
+function compactionUsage(u: CompactionUsage | undefined, ms: number): Usage {
+  const sum = (key: 'input_tokens' | 'output_tokens' | 'cache_read_input_tokens' | 'cache_creation_input_tokens'): number =>
+    (u?.iterations ?? []).reduce((n, it) => n + (it[key] ?? 0), 0)
+  return { input: sum('input_tokens'), output: sum('output_tokens'), cacheRead: sum('cache_read_input_tokens'), cacheWrite: sum('cache_creation_input_tokens'), ms }
 }
 
 export const ANTHROPIC_DEFAULT_URL = 'https://api.anthropic.com'

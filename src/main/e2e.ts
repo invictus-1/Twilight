@@ -1090,6 +1090,15 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           compMsgs[1]?.role === 'user' && JSON.stringify(compMsgs[1].content).includes('Lamps.md') && JSON.stringify(compMsgs[1].content).includes('Next evening') && !JSON.stringify(compMsgs).includes('First light'),
         compMsgs
       )
+      // Every request that carries a summary block sends the compaction beta; others don't.
+      const claudeSettings = { ...chat.getDefaults(), providerId: 'anthropic', modelId: 'claude-opus-5-5' }
+      const withSummary = anthropicRequest({ system: 'You are a test.', history: compRows, settings: claudeSettings })
+      const withoutSummary = anthropicRequest({ system: 'You are a test.', history: compRows.slice(1), settings: claudeSettings })
+      check(
+        'a request carrying a summary block sends the compaction beta, and others do not',
+        withSummary.betas.includes('compact-2026-09-04') && !withoutSummary.betas.includes('compact-2026-09-04'),
+        { withSummary: withSummary.betas, withoutSummary: withoutSummary.betas }
+      )
       // Keeping the latest exchange: the summary goes first, then that exchange word for word (its thinking left out).
       const keptRows = sinceCompaction([
         cRow('user', 'First light', [doc, { type: 'text', text: 'First light' }]),
@@ -1119,7 +1128,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const afterReq = JSON.stringify(log.slice(beforeAfter).find((r) => r.messages.at(-1)?.content === 'After the summary')?.messages ?? [])
       check(
         'compacting with another model leaves a summary node, and later requests start from it with the documents again',
-        !!marker?.compaction && marker.compaction.local && marker.compaction.carried === 1 && marker.compaction.kept === 2 && afterReq.includes('conversation_summary') && afterReq.includes('Nine lamps on the quay.') &&
+        !!marker?.compaction && marker.compaction.local && marker.compaction.carried === 1 && marker.compaction.kept === 2 && (marker.usage?.output ?? 0) > 0 && afterReq.includes('conversation_summary') && afterReq.includes('Nine lamps on the quay.') &&
           afterReq.indexOf('conversation_summary') < afterReq.indexOf('Second evening') && !afterReq.includes('First light on the quay'),
         { marker: marker?.compaction, sent: afterReq.slice(0, 300) }
       )

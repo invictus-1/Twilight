@@ -1594,3 +1594,5 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .passage-old { white-space: pre-wrap; font-size: 13px; color: var(--ink-faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 50%, transparent); }
 .passage-new { white-space: pre-wrap; font-size: 14px; line-height: 22px; color: var(--ink); padding-left: var(--space-2); border-left: 2px solid var(--horizon); }
 .passage-error { margin: 0; font-size: 12px; color: var(--danger); }
+
+.compaction-cost { font-weight: 400; color: var(--ink-faint); }

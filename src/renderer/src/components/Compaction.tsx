@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { NodeView } from '@shared/types'
-import { formatTokens } from '@shared/pricing'
+import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import { useStore } from '../store'
 import { contextUse } from './CacheBar'
 
@@ -130,10 +130,23 @@ export function CompactBar() {
 export function CompactionMarker({ node }: { node: NodeView }) {
   const words = node.text.split(/\s+/).filter(Boolean).length
   const carried = node.compaction?.carried ?? 0
+  // The summary is billed like any request; its cost shows here and counts in Usage.
+  const models = useStore((s) => s.models)
+  const local = models.find((m) => m.id === node.modelId && m.providerId === node.providerId)?.local ?? false
+  const cost = node.usage ? costOf(node.modelId, node.usage, local) : null
   return (
     <div className="msg compaction-marker" data-node={node.id}>
       <div className="compaction-line">
-        <span>Compacted here</span>
+        <span>
+          Compacted here
+          {node.usage && (
+            <span className="compaction-cost">
+              {' '}
+              · {formatTokens(node.usage.input + node.usage.cacheRead + node.usage.cacheWrite)} read, {formatTokens(node.usage.output)} written
+              {cost !== null ? ` · ${formatCost(cost)}` : ''}
+            </span>
+          )}
+        </span>
       </div>
       <details className="compaction-summary">
         <summary>
