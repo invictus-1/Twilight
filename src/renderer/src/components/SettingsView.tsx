@@ -18,12 +18,13 @@ import { UpdatesSection } from './UpdatesSection'
 import { ToolsSection } from './ToolsSection'
 import { DataSection } from './DataSection'
 import { LibraryCard } from './LibraryCard'
+import { LocalModelsSection } from './LocalModelsSection'
 import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIcon } from './Icons'
 
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'tools' | 'prices' | 'usage' | 'general' | 'appearance' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
+type Section = 'providers' | 'local' | 'tools' | 'prices' | 'usage' | 'general' | 'appearance' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
 
 // Grouped by what people come looking for: how the app behaves and looks, what you write with,
 // the models, and Twilight itself. Each page holds one kind of thing, named the way you'd ask for it.
@@ -36,6 +37,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'library', group: 'Writing', label: 'Personas and prompts', description: 'Your personas and prompts. A persona starts a chat with its instructions; a prompt goes into the message box from the composer.' },
   { id: 'writing', group: 'Writing', label: 'Documents', description: 'Where your documents live, and the document library that finds passages for your messages. Point it at an Obsidian vault and both apps edit the same files.' },
   { id: 'providers', group: 'Models', label: 'Model providers', description: 'Connect cloud APIs and local servers, test them, and choose which models appear in the picker.' },
+  { id: 'local', group: 'Models', label: 'Models on this PC', description: 'Find models on Hugging Face, see which sizes this PC can run, download them, and run them with llama.cpp. Nothing leaves this PC once a model is here.' },
   { id: 'tools', group: 'Models', label: 'Tools', description: 'MCP servers that give chats tools, and the model that makes pictures. Each is switched on per chat in the Tools menu.' },
   { id: 'prices', group: 'Models', label: 'Prices', description: 'What replies cost: your own prices per model, and the built-in ones. A cost the provider reports itself comes first.' },
   { id: 'usage', group: 'Models', label: 'Usage', description: 'Tokens and spend over time, by model and by chat, counted from every reply and Judge run.' },
@@ -686,6 +688,7 @@ export function SettingsView() {
           <h2 className="t-title">{current.label}</h2>
           <p className="section-description">{current.description}</p>
           {section === 'providers' && <ProvidersSection />}
+          {section === 'local' && <LocalModelsSection />}
           {section === 'tools' && <ToolsSection />}
           {section === 'prices' && <PricesSection />}
           {section === 'usage' && <UsageSection />}

@@ -18,6 +18,7 @@ import { generateImage, imageConfig, IMAGE_TOOL_DEF } from './images'
 import type { McpCallResult } from './mcp/client'
 import type { ClientCall, ClientOutcome, ClientToolDef } from './providers/types'
 import { keepFresh, librarySettings, searchLibrary } from './docLibrary'
+import { scout, scoutOn } from './scout'
 import { LIBRARY_OPEN, libraryBlock } from '@shared/docLibrary'
 import { modelInfo } from './providers'
 
@@ -534,20 +535,37 @@ const LIBRARY_TOOL = {
 
 /**
  * Before a reply: the library's best passages for your message go into it, once (a regenerate
- * reuses them, so the request stays the same and the cache holds).
+ * reuses them, so the request stays the same and the cache holds). With a scout model chosen, the
+ * scout picks them; if it fails, plain search does.
  */
-async function addLibraryPassages(conversationId: string, userNodeId: string, settings: ChatSettings): Promise<boolean> {
+async function addLibraryPassages(conversationId: string, userNodeId: string, settings: ChatSettings, activity: (label: string) => void, signal: AbortSignal): Promise<boolean> {
   if (!settings.library || !librarySettings().folders.length) return false
   keepFresh()
-  const row = db.loadNodes(conversationId).get(userNodeId)
+  const nodes = db.loadNodes(conversationId)
+  const row = nodes.get(userNodeId)
   if (!row || row.role !== 'user') return false
   const blocks = row.content ? (JSON.parse(row.content) as { type: string; text?: string }[]) : [{ type: 'text', text: row.text }]
   if (blocks.some((b) => b.type === 'text' && b.text?.startsWith(LIBRARY_OPEN)) || !row.text.trim()) return false
-  const hits = await searchLibrary(row.text)
-  if (!hits.length) return false
+  let block: string | null = null
+  if (scoutOn()) {
+    activity('Scouting your library')
+    const parent = row.parent_id ? nodes.get(row.parent_id) : undefined
+    try {
+      const found = await scout(row.text, parent?.role === 'assistant' ? parent.text : '', signal)
+      // The scout may find that nothing bears on this message; then nothing goes in.
+      block = found.hits.length ? libraryBlock(found.hits, true) : ''
+    } catch {
+      if (signal.aborted) return false
+    }
+  }
+  if (block === null) {
+    const hits = await searchLibrary(row.text)
+    block = hits.length ? libraryBlock(hits) : ''
+  }
+  if (!block) return false
   // Just before what you typed, after any other context.
   const at = blocks.length && blocks.at(-1)?.type === 'text' && !isContextText(blocks.at(-1)?.text ?? '') ? blocks.length - 1 : blocks.length
-  blocks.splice(at, 0, { type: 'text', text: libraryBlock(hits) })
+  blocks.splice(at, 0, { type: 'text', text: block })
   db.updateNode(userNodeId, { content: JSON.stringify(blocks) })
   return true
 }
@@ -697,7 +715,7 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
     let thinking = ''
     try {
       if (after) await after
-      const askedChanged = await addLibraryPassages(conversationId, userNodeId, settings).catch(() => false)
+      const askedChanged = await addLibraryPassages(conversationId, userNodeId, settings, (label) => emit({ kind: 'activity', conversationId, nodeId: assistant.id, label }), controller.signal).catch(() => false)
       if (askedChanged) asked = true
       const nodes = db.loadNodes(conversationId)
       // From the newest summary on, once the chat has been compacted.

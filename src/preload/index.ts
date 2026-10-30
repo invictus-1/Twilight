@@ -3,13 +3,14 @@ import type { InsightsEvent, StreamEvent, TwilightApi, UpdateState } from '@shar
 import type { CodeEvent } from '@shared/code'
 import type { McpServerView } from '@shared/mcp'
 import type { LibraryStatus } from '@shared/docLibrary'
+import type { LocalState } from '@shared/localModels'
 
 const invoke =
   (name: keyof TwilightApi) =>
   (...args: unknown[]) =>
     ipcRenderer.invoke(`twilight:${name}`, ...args)
 
-const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights' | 'onCode' | 'onMcp' | 'onDocLibrary'>[] = [
+const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights' | 'onCode' | 'onMcp' | 'onDocLibrary' | 'onLocalModels'>[] = [
   'listRubrics',
   'saveRubric',
   'deleteRubric',
@@ -83,6 +84,20 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'removeDocLibraryFolder',
   'reindexDocLibrary',
   'searchDocLibrary',
+  'scoutDocLibrary',
+  'testScout',
+  'getLocalModels',
+  'searchHubModels',
+  'hubModelVariants',
+  'downloadLocalModel',
+  'cancelLocalDownload',
+  'removeLocalModel',
+  'chooseModelsFolder',
+  'openModelsFolder',
+  'installLlama',
+  'startLlama',
+  'stopLlama',
+  'setLlamaAutoStart',
   'getSpellcheck',
   'editPassage',
   'compactChat',
@@ -187,6 +202,12 @@ api.onDocLibrary = (listener: (status: LibraryStatus) => void) => {
   const handler = (_e: unknown, status: LibraryStatus): void => listener(status)
   ipcRenderer.on('twilight:library', handler)
   return () => ipcRenderer.removeListener('twilight:library', handler)
+}
+
+api.onLocalModels = (listener: (state: LocalState) => void) => {
+  const handler = (_e: unknown, state: LocalState): void => listener(state)
+  ipcRenderer.on('twilight:localModels', handler)
+  return () => ipcRenderer.removeListener('twilight:localModels', handler)
 }
 
 api.onMcp = (listener: (servers: McpServerView[]) => void) => {

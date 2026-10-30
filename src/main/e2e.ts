@@ -2,7 +2,7 @@ import { app, clipboard, type BrowserWindow } from 'electron'
 import { createServer, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { appendFileSync, writeFileSync } from 'node:fs'
-import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rename, stat, writeFile } from 'node:fs/promises'
 import { logsFolder } from './logs'
 import { join } from 'node:path'
 import * as chat from './chat'
@@ -10,7 +10,14 @@ import * as code from './code/agent'
 import * as mcp from './mcp'
 import { contextMenuItems, setSpellcheck, showContextMenus } from './contextMenu'
 import { codeWebTools } from './code/llm'
-import { chunk, libraryStatus, reindex as reindexLibrary, searchLibrary, setLibrarySettings } from './docLibrary'
+import { chunk, gather, libraryStatus, reindex as reindexLibrary, searchLibrary, setLibrarySettings } from './docLibrary'
+import { parseScoutCases, scout, testScout } from './scout'
+import * as local from './localModels'
+import { pickEngine } from './localModels'
+import { fitFor, quantOf, type Hardware } from '@shared/localModels'
+
+// A PC for the fit checks: 32 GB of memory and an 8 GB graphics card.
+const HW49: Hardware = { memory: 32 * 1024 ** 3, gpu: { name: 'Test card', memory: 8 * 1024 ** 3 }, cpus: 8 }
 import Database from 'better-sqlite3'
 import { applyPendingRestore, backupDue, backupSettings, createBackup, listBackups, pruneBackups, setBackupSettings, stageRestore, takeRestoredWindowSettings } from './backups'
 import { checkTarget, resolveDataFolder, stageMove } from './location'
@@ -74,6 +81,63 @@ const bump = (v: string, by: number): string => {
   return b + by < 0 ? `${a - 1}.${10 + b + by}.0` : `${a}.${b + by}.0`
 }
 const installerBytes = (version: string): Buffer => Buffer.from(`MZ fake installer for ${version}`.repeat(4000))
+
+/**
+ * Hugging Face's stand-in: a search with two GGUF repositories, one repository's files (two
+ * single-file sizes, one in two parts, and a vision add-on to leave out), and the files themselves,
+ * with Range for a resumed download.
+ */
+const HUB_FILES: Record<string, number> = { 'tiny-Q4_K_M.gguf': 2000, 'tiny-Q8_0.gguf': 4000, 'big/tiny-F16-00001-of-00002.gguf': 3000, 'big/tiny-F16-00002-of-00002.gguf': 3000, 'mmproj-F16.gguf': 500 }
+function mockHub(url: string, headers: import('node:http').IncomingHttpHeaders, res: import('node:http').ServerResponse): void {
+  const path = url.replace(/^\/hf/, '')
+  if (path.startsWith('/api/models?')) {
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify([
+      { id: 'wren/tiny-GGUF', downloads: 12_400, likes: 3, pipeline_tag: 'text-generation', gguf: { total: 1_540_000_000, context_length: 8192, architecture: 'llama', chat_template: 'x'.repeat(2000) } },
+      { id: 'rowan/locked-GGUF', downloads: 90, likes: 0, gated: 'manual', gguf: { total: 70_000_000_000 } }
+    ]))
+    return
+  }
+  if (path.startsWith('/api/models/wren/tiny-GGUF/tree/main')) {
+    res.setHeader('content-type', 'application/json')
+    res.end(JSON.stringify([{ type: 'directory', path: 'big', size: 0 }, { type: 'file', path: 'README.md', size: 40 }, ...Object.entries(HUB_FILES).map(([p, size]) => ({ type: 'file', path: p, size: 130, lfs: { size } }))]))
+    return
+  }
+  const file = /^\/wren\/tiny-GGUF\/resolve\/main\/(.+)$/.exec(path)?.[1]
+  const size = file ? HUB_FILES[decodeURIComponent(file)] : undefined
+  if (!size) {
+    res.statusCode = 404
+    res.end()
+    return
+  }
+  const from = Number(/bytes=(\d+)-/.exec(String(headers.range ?? ''))?.[1] ?? 0)
+  res.writeHead(from ? 206 : 200, { 'content-type': 'application/octet-stream', 'content-length': String(size - from) })
+  res.end(Buffer.alloc(size - from, 7))
+}
+
+/** llama.cpp's stand-in for test runs: a router over the models folder that answers health, models and chat. */
+const FAKE_LLAMA = `
+const http = require('http'), fs = require('fs')
+const arg = (n) => process.argv[process.argv.indexOf(n) + 1]
+const dir = arg('--models-dir')
+http.createServer((req, res) => {
+  if (req.url === '/health') return res.end('{"status":"ok"}')
+  if (req.url === '/v1/models') {
+    const data = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.name.endsWith('.gguf')).map((e) => ({ id: e.name.replace(/\\.gguf$/, ''), object: 'model' }))
+    res.setHeader('content-type', 'application/json')
+    return res.end(JSON.stringify({ data }))
+  }
+  let body = ''
+  req.on('data', (c) => (body += c))
+  req.on('end', () => {
+    const model = JSON.parse(body || '{}').model
+    res.writeHead(200, { 'content-type': 'text/event-stream' })
+    res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: 'Hello from this PC, ' + model } }] }) + '\\n\\n')
+    res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }) + '\\n\\n')
+    res.end('data: [DONE]\\n\\n')
+  })
+}).listen(Number(arg('--port')), arg('--host'))
+`
 
 function mockGithub(url: string, base: string, res: import('node:http').ServerResponse): void {
   const current = app.getVersion()
@@ -200,6 +264,25 @@ function mockMcpHttp(req: import('node:http').IncomingMessage, res: import('node
 }
 
 /**
+ * The context scout's stand-in: it picks the candidates from keeper.md and the saga's fourth part,
+ * asks for one more search ("ferry") the first time, and answers with nonsense when the message
+ * says SCOUTFAIL, so the fallback to plain search can be seen.
+ */
+function scoutReply(messages: { role: string; content: unknown }[], res: import('node:http').ServerResponse): void {
+  const user = messages.filter((m) => m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n')
+  const listed = [...user.matchAll(/\[(\d+)\] ([^\n,]+)/g)].map((m) => ({ id: Number(m[1]), where: m[2] }))
+  const final = user.includes('no more searches')
+  const pick = listed.filter((c) => c.where.includes('keeper.md') || c.where.includes('Part four') || (final && c.where.includes('harbour.md'))).map((c) => c.id)
+  const answer = user.includes('SCOUTFAIL') ? 'I would rather not.' : JSON.stringify({ pick, search: final ? [] : ['ferry'] })
+  const send = (o: unknown): void => void res.write(`data: ${JSON.stringify(o)}\n\n`)
+  res.writeHead(200, { 'content-type': 'text/event-stream' })
+  send({ choices: [{ delta: { content: answer } }] })
+  send({ choices: [{ delta: {}, finish_reason: 'stop' }] })
+  send({ choices: [], usage: { prompt_tokens: Math.ceil(user.length / 4), completion_tokens: 20 } })
+  res.end('data: [DONE]\n\n')
+}
+
+/**
  * The Code tab's scripted agent. The request names a script; each tool result moves it one call
  * on, and after the last call it replies with every result it got, so a check can see them.
  */
@@ -272,6 +355,7 @@ function codeAgentReply(messages: { role: string; content: string | null }[], re
 function startMockServer(log: LoggedRequest[]): Promise<Server> {
   const server = createServer((req, res) => {
     if (req.url?.startsWith('/gh/')) return mockGithub(req.url, `http://${req.headers.host}/gh`, res)
+    if (req.url?.startsWith('/hf/')) return mockHub(req.url, req.headers, res)
     if (req.url?.endsWith('/images/generations')) {
       res.setHeader('content-type', 'application/json')
       res.end(JSON.stringify({ data: [{ b64_json: TINY_PNG }] }))
@@ -291,6 +375,7 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       const entry: LoggedRequest = { model: parsed.model, messages: parsed.messages, body: parsed, startedAt: Date.now() }
       log.push(entry)
       if (parsed.messages[0]?.content?.startsWith('You are a careful coding agent')) return codeAgentReply(parsed.messages, res)
+      if (parsed.messages[0]?.content?.startsWith('You are the context scout')) return scoutReply(parsed.messages, res)
       const lastUser =[...parsed.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
       const toolResult = parsed.messages.at(-1)?.role === 'tool' ? parsed.messages.at(-1)?.content : null
       if (!toolResult && lastUser.includes('TOOLCHOICE') && (parsed as { tools?: unknown[] }).tools?.length) {
@@ -4841,7 +4926,147 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('Settings → Writing shows the library and lets you try a search', /4 files · \d+ passages · \d+ searchable by meaning/.test(card48.status) && card48.hits[0]?.startsWith('library-docs/harbour.md'), card48)
       await shot('e2e-library.png')
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
-      setLibrarySettings({ folders: [], embedProviderId: null, embedModelId: null })
+
+      // 48b. The scout: passages remember the headings they sit under, chosen passages grow into
+      // whole stretches in story order, and a small model picks what a message needs (with plain
+      // search when it fails), judged by a test file of questions.
+      const parts48b = chunk('# Part one\n\nOpening.\n\n## The storm\n\nRain on the glass.\n\n# Part two\n\nSun on the quay.\n')
+      check('passages remember the headings above them', parts48b.find((p) => p.text.includes('Rain'))?.section === 'Part one › The storm' && parts48b.find((p) => p.text.includes('Sun'))?.section === 'Part two', parts48b.map((p) => [p.section, p.text]))
+      const para48 = (n: number): string => `Saga part ${n}. ` + `The keeper walks the long stair, counting steps ${n}. `.repeat(18)
+      await mkdir(join(lib48, 'saga'), { recursive: true })
+      await writeFile(join(lib48, 'saga', 'chapter 10.md'), '# Part four\n\n' + [4, 5, 6].map(para48).join('\n\n') + '\n')
+      await writeFile(join(lib48, 'saga', 'chapter 2.md'), '# Part one\n\n' + [1, 2, 3].map(para48).join('\n\n') + '\n')
+      setLibrarySettings({ embedProviderId: null, embedModelId: null })
+      await reindexLibrary()
+      const sagaIds48 = (await searchLibrary('saga keeper stair counting steps', 30)).filter((h) => h.source.includes('saga/')).sort((a, b) => a.source.localeCompare(b.source, undefined, { numeric: true }) || a.line - b.line)
+      const five48 = sagaIds48.find((h) => h.text.startsWith('Saga part 5'))
+      const two48 = sagaIds48.find((h) => h.text.startsWith('Saga part 2'))
+      const wide48 = gather([five48?.id ?? -1, two48?.id ?? -1], 100_000)
+      const tight48 = gather([five48?.id ?? -1, two48?.id ?? -1], (five48?.text.length ?? 0) + (two48?.text.length ?? 0) + 10)
+      check(
+        'chosen passages grow into whole stretches, joined and in story order',
+        sagaIds48.length === 6 && wide48.length === 2 && wide48[0].source.endsWith('chapter 2.md') && wide48[0].text.includes('Saga part 1') && wide48[0].text.includes('Saga part 3') && wide48[1].text.includes('Saga part 6'),
+        wide48.map((h) => [h.source, h.line, h.text.length])
+      )
+      check('the budget keeps the picks and drops the widening', tight48.length === 2 && tight48[0].text.startsWith('Saga part 2') && tight48[1].text.startsWith('Saga part 5') && !tight48[0].text.includes('Saga part 1'), tight48.map((h) => h.text.slice(0, 14)))
+      setLibrarySettings({ scoutProviderId: 'mock', scoutModelId: 'mock-a', scoutWords: 4000 })
+      const scout48 = await scout('Who trims the lamps, and when does the ferry come?', '')
+      check(
+        'the scout picks passages, searches for what is missing, and brings whole stretches',
+        scout48.searches.join() === 'ferry' && scout48.read > 0 && scout48.hits.some((h) => h.source.endsWith('keeper.md')) && scout48.hits.some((h) => h.section === 'Part four'),
+        { searches: scout48.searches, hits: scout48.hits.map((h) => h.source) }
+      )
+      const before48s = log.length
+      chat.send(contents, c48, 'Who trims the lamps each evening, scout?')
+      await idle(c48)
+      const toModel48s = log.slice(before48s).find((r) => !String(r.messages[0]?.content ?? '').startsWith('You are the context scout'))
+      const sent48s = String(toModel48s?.messages.at(-1)?.content ?? '')
+      check('with a scout chosen, the message carries its picks in story order', sent48s.includes('chosen for this message and given in story order') && sent48s.includes('library-docs/keeper.md') && log.slice(before48s).some((r) => String(r.messages[0]?.content ?? '').startsWith('You are the context scout')), sent48s.slice(0, 240))
+      const before48f = log.length
+      chat.send(contents, c48, 'SCOUTFAIL who trims the lamps?')
+      await idle(c48)
+      const sent48f = String(log.slice(before48f).find((r) => !String(r.messages[0]?.content ?? '').startsWith('You are the context scout'))?.messages.at(-1)?.content ?? '')
+      check('when the scout fails, plain search still brings passages', sent48f.includes('most relevant first') && sent48f.includes('keeper.md'), sent48f.slice(0, 240))
+      const test48 = await testScout(parseScoutCases(JSON.stringify([{ ask: 'Who trims the lamps?', expect: ['trims the wicks', 'Thursdays'] }, { ask: 'the ferry', expect: ['lantern oil'] }, { nonsense: true }])), new AbortController().signal, () => undefined)
+      check(
+        'the scout test runs each question through plain search and the scout',
+        test48.length === 2 && test48[0].expect === 2 && test48[0].plain.found >= 1 && 'found' in test48[0].scout && test48[0].scout.found === 2,
+        test48
+      )
+      await key(',', ['control'])
+      const card48s = await js<{ hits: string[]; note: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Documents')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.library-scout-try'); ) await wait(50)
+        const input = document.querySelector('.library-try input')
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        set.call(input, 'who trims the lamps')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(100)
+        document.querySelector('.library-scout-try')?.click()
+        for (let end = Date.now() + 4000; Date.now() < end && !document.querySelector('.library-scouted'); ) await wait(50)
+        return { note: document.querySelector('.library-scouted')?.textContent ?? '', hits: [...document.querySelectorAll('.library-hit-source')].map((e) => e.textContent) }
+      })()`)
+      check('Settings lets you try the scout and shows what it read and searched for', /^Read \d+ candidates, searched for “ferry”/.test(card48s.note) && card48s.hits.some((h) => h.includes('keeper.md')), card48s)
+      await shot('e2e-scout.png')
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+      setLibrarySettings({ folders: [], embedProviderId: null, embedModelId: null, scoutProviderId: null, scoutModelId: null })
+
+      // 49. Models on this PC: what this PC can run, a Hugging Face search whose sizes say whether
+      // they fit, a download (in parts, too) into the models folder, and llama.cpp started over
+      // that folder as the This PC provider (here a stand-in that answers like it).
+      check('a model that fits the graphics card says so', fitFor(4e9, HW49) === 'gpu' && fitFor(9e9, HW49) === 'split' && fitFor(9e9, { ...HW49, gpu: null }) === 'cpu' && fitFor(40e9, HW49) === 'no')
+      check('quantizations are read from file names', quantOf('Qwen3-8B-Q4_K_M.gguf') === 'Q4_K_M' && quantOf('UD-IQ2_XXS/model-UD-IQ2_XXS-00001-of-00003.gguf') === 'UD-IQ2_XXS' && quantOf('gemma-4-12b-it-BF16.gguf') === 'BF16')
+      const pick49 = pickEngine(
+        [
+          { tag_name: 'b2', assets: [{ name: 'llama-b2-bin-ubuntu-x64.tar.gz', size: 1, browser_download_url: 'u0' }] },
+          { tag_name: 'b1', assets: [{ name: 'llama-b1-bin-win-cpu-x64.zip', size: 2, browser_download_url: 'u1' }, { name: 'llama-b1-bin-win-vulkan-x64.zip', size: 3, browser_download_url: 'u2' }, { name: 'cudart-llama-bin-win-cuda-12.4-x64.zip', size: 4, browser_download_url: 'u3' }] }
+        ],
+        true
+      )
+      check('the newest Windows build of llama.cpp is picked: Vulkan with a graphics card', pick49?.tag === 'b1' && pick49.kind === 'vulkan' && pick49.url === 'u2', pick49)
+      const fake49 = join(outDir, 'fake-llama.cjs')
+      writeFileSync(fake49, FAKE_LLAMA)
+      local.useTestEndpoints(`http://127.0.0.1:${port}/hf`, `http://127.0.0.1:${port}/gh/none`, { command: process.execPath, args: [fake49], env: { ELECTRON_RUN_AS_NODE: '1' } }, HW49)
+      const found49 = await local.searchHub('tiny')
+      check('a search lists GGUF models with their size and downloads', found49.length === 2 && found49[0].id === 'wren/tiny-GGUF' && found49[0].params === 1_540_000_000 && found49[1].gated, found49.map((m) => [m.id, m.params, m.gated]))
+      const sizes49 = await local.hubVariants('wren/tiny-GGUF')
+      check(
+        "a model's sizes, smallest first, with parts joined and vision add-ons left out",
+        sizes49.map((v) => `${v.name}:${v.size}:${v.files.length}`).join() === 'Q4_K_M:2000:1,Q8_0:4000:1,F16:6000:2' && sizes49.every((v) => v.fit === 'gpu'),
+        sizes49
+      )
+      await local.startEngine()
+      const state49 = await local.localState()
+      const pc49 = providers.getProviders().find((p) => p.id === 'thispc')
+      check('llama.cpp starts over the models folder and becomes the This PC provider', state49.engine.running && !!pc49?.baseUrl?.startsWith('http://127.0.0.1:'), { engine: state49.engine, pc49 })
+      await local.downloadModel('wren/tiny-GGUF', sizes49[0])
+      await local.downloadModel('wren/tiny-GGUF', sizes49[2])
+      const after49 = await local.localState()
+      const pcAfter49 = providers.getProviders().find((p) => p.id === 'thispc')
+      check(
+        'downloads land in the models folder, a model in parts in a folder of its own',
+        after49.models.map((m) => `${m.name}:${m.size}`).join() === 'tiny-F16:6000,tiny-Q4_K_M.gguf:2000' && after49.models.every((m) => m.repo === 'wren/tiny-GGUF') && !after49.downloads.length,
+        after49.models
+      )
+      check('a downloaded model shows in the model picker', !!pcAfter49?.shownModels?.includes('tiny-Q4_K_M') && !!pcAfter49.shownModels.includes('tiny-F16'), pcAfter49?.shownModels)
+      await writeFile(join(after49.folder, 'tiny-Q8_0.gguf.part'), Buffer.alloc(1500, 7))
+      await local.downloadModel('wren/tiny-GGUF', sizes49[1])
+      check('a stopped download picks up where it left off', (await stat(join(after49.folder, 'tiny-Q8_0.gguf'))).size === 4000)
+      const c49 = chat.create().id
+      chat.updateSettings(c49, { providerId: 'thispc', modelId: 'tiny-Q4_K_M', library: false, choiceCards: false })
+      chat.send(contents, c49, 'Hello?')
+      await idle(c49)
+      check('a chat runs on a downloaded model through This PC', chat.view(c49).path.at(-1)?.text === 'Hello from this PC, tiny-Q4_K_M', chat.view(c49).path.at(-1)?.text)
+      await key(',', ['control'])
+      const page49 = await js<{ hardware: string; models: string[]; fits: string[]; running: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Models on this PC')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.local-hardware'); ) await wait(50)
+        const input = document.querySelector('.local-search .library-try input')
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set
+        set.call(input, 'tiny')
+        input.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(100)
+        document.querySelector('.local-search .library-try button').click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.hub-model-head'); ) await wait(50)
+        document.querySelector('.hub-model-head')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.hub-variant'); ) await wait(50)
+        return {
+          hardware: document.querySelector('.local-hardware')?.textContent ?? '',
+          models: [...document.querySelectorAll('.local-model .local-name')].map((e) => e.textContent),
+          fits: [...document.querySelectorAll('.hub-variant .fit-badge')].map((e) => e.textContent),
+          running: document.querySelector('.local-engine-status')?.textContent ?? ''
+        }
+      })()`)
+      check(
+        'Models on this PC shows the hardware, the models, and whether each size fits',
+        page49.hardware.includes('Test card, 8 GB') && page49.models.length === 3 && page49.fits.length === 3 && page49.fits.every((f) => f === 'Fits on your graphics card') && page49.running.startsWith('Running'),
+        page49
+      )
+      await shot('e2e-local-models.png')
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+      local.stopEngine()
 
       // 47. Spelling: Windows' own spellchecker marks a misspelled word as you type, offline, and a
       // right-click offers suggestions that replace it.

@@ -1419,6 +1419,12 @@ body.resizing .resize-handle { pointer-events: auto; }
 .library-try input { flex: 1; height: var(--control-md); background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0 var(--space-2); font: inherit; font-size: 13px; }
 .library-hits { margin: var(--space-2) 0 0; padding-left: var(--space-6); display: flex; flex-direction: column; gap: var(--space-2); font-size: 13px; }
 .library-hit-source { display: block; font-family: var(--font-mono); font-size: 12px; color: var(--dusk); }
+.library-scouted { margin-top: var(--space-2); }
+.scout-report { margin-top: var(--space-3); }
+.scout-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: var(--space-2); }
+.scout-table th, .scout-table td { text-align: left; padding: var(--space-1) var(--space-2); border-bottom: 1px solid var(--line); vertical-align: top; }
+.scout-table th { color: var(--dusk); font-weight: 500; }
+.scout-table td:not(:first-child), .scout-table th:not(:first-child) { width: 64px; font-variant-numeric: tabular-nums; }
 .library-hit-text { color: var(--ink-muted); }
 
 /* The Code header on a narrower window: the least needed pieces give way first (the folder and
@@ -1596,3 +1602,23 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .passage-error { margin: 0; font-size: 12px; color: var(--danger); }
 
 .compaction-cost { font-weight: 400; color: var(--ink-faint); }
+
+/* Models on this PC: the fit of each size, downloads, and Hugging Face results. */
+.local-hardware { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--ink); font-size: 13px; }
+.local-engine-status { display: flex; align-items: center; gap: var(--space-2); margin: 0; font-size: 13px; }
+.local-dot { width: 8px; height: 8px; border-radius: var(--radius-full); background: var(--ink-faint); }
+.local-dot.is-on { background: var(--success); box-shadow: 0 0 6px var(--success); }
+.local-name { font-family: var(--font-mono); font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+.local-model, .hub-variant { gap: var(--space-2); }
+.local-download { display: flex; flex-direction: column; gap: var(--space-1); }
+.fit-badge { flex: none; font-size: 12px; padding: 1px var(--space-2); border-radius: var(--radius-full); border: 1px solid currentColor; white-space: nowrap; }
+.fit-gpu { color: var(--success); }
+.fit-split { color: var(--warning); }
+.fit-cpu { color: var(--horizon); }
+.fit-no { color: var(--danger); }
+.hub-results { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; }
+.hub-model { border-bottom: 1px solid var(--line); }
+.hub-model-head { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: var(--space-2); width: 100%; padding: var(--space-2) 0; cursor: pointer; }
+.hub-model-head:focus-visible { box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
+.hub-model-head .field-note { flex: none; }
+.hub-variants { display: flex; flex-direction: column; gap: var(--space-1); padding: 0 0 var(--space-2) var(--space-6); }

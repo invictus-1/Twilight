@@ -46,6 +46,9 @@ import { applyPendingRestore, backupFolder, backupSettings, chooseBackupFolder, 
 import { attachContextMenu, setSpellcheck, spellcheckOn } from './contextMenu'
 import { doneNotificationOn, setDoneNotification } from './doneNotice'
 import { keepFresh, librarySettings, libraryStatus, reindex as reindexLibrary, searchLibrary, setLibrarySettings } from './docLibrary'
+import { parseScoutCases, scout, testScout } from './scout'
+import * as local from './localModels'
+import type { HubVariant } from '@shared/localModels'
 import type { LibrarySettings } from '@shared/docLibrary'
 import { checkTarget, isMoved, lastLocationChange, resolveDataFolder, stageMove, standardFolder } from './location'
 import { toRecycleBin } from './code/workspace'
@@ -440,6 +443,36 @@ function registerIpc(): void {
       return libraryStatus()
     },
     searchDocLibrary: (_e, query: string) => searchLibrary(query),
+    scoutDocLibrary: (_e, query: string) => scout(query, ''),
+    getLocalModels: () => local.localState(),
+    searchHubModels: (_e, query: string) => local.searchHub(query),
+    hubModelVariants: (_e, repo: string) => local.hubVariants(repo),
+    downloadLocalModel: (_e, repo: string, variant: HubVariant) => void local.downloadModel(repo, variant),
+    cancelLocalDownload: (_e, key: string) => local.cancelDownload(key),
+    removeLocalModel: (_e, name: string) => local.removeModel(name),
+    chooseModelsFolder: async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const options: Electron.OpenDialogOptions = { title: 'Choose a folder for models', defaultPath: local.modelsFolder(), properties: ['openDirectory', 'createDirectory'] }
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      if (!result.canceled && result.filePaths[0]) await local.setModelsFolder(result.filePaths[0])
+      return local.localState()
+    },
+    openModelsFolder: async () => {
+      await mkdir(local.modelsFolder(), { recursive: true })
+      await shell.openPath(local.modelsFolder())
+    },
+    installLlama: () => void local.installEngine(),
+    startLlama: () => local.startEngine(),
+    stopLlama: () => local.stopEngine(),
+    setLlamaAutoStart: (_e, on: boolean) => local.setAutoStart(on),
+    testScout: async (e) => {
+      const win = BrowserWindow.fromWebContents(e.sender)
+      const options: Electron.OpenDialogOptions = { title: 'Choose a scout test file', properties: ['openFile'], filters: [{ name: 'Scout tests', extensions: ['json'] }] }
+      const result = win ? await dialog.showOpenDialog(win, options) : await dialog.showOpenDialog(options)
+      if (result.canceled || !result.filePaths[0]) return null
+      const cases = parseScoutCases(await readFile(result.filePaths[0], 'utf8'))
+      return { file: basename(result.filePaths[0]), results: await testScout(cases, new AbortController().signal, () => undefined) }
+    },
     getSpellcheck: () => spellcheckOn(),
     editPassage: (_e, id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane?: Pane) => chat.editPassage(id, nodeId, passage, instruction, withChat, pane),
     compactChat: (_e, id: string, pane?: Pane) => chat.compact(id, pane),
@@ -571,6 +604,7 @@ app.whenReady().then(() => {
     startBackupSchedule()
     // The document library catches up with files changed while Twilight was closed.
     keepFresh()
+    local.initLocalModels()
   }
   if (selfTestDir) seedSelfTest()
   if (benchDir) seedBench()

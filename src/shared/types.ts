@@ -4,7 +4,8 @@ import type { AttachmentKind } from './attachments'
 import type { Theme } from './themes'
 import type { CodeEvent, CodeMode, CodeResponse, CodeSessionSummary, CodeSessionView } from './code'
 import type { BackupInfo, BackupSettings, DataInfo } from './backups'
-import type { LibraryHit, LibrarySettings, LibraryStatus } from './docLibrary'
+import type { LibraryHit, LibrarySettings, LibraryStatus, ScoutCaseResult, ScoutResult } from './docLibrary'
+import type { HubModel, HubVariant, LocalState } from './localModels'
 import type { GeneratedImage, ImageConfig, McpServerInput, McpServerView, ToolApproval, ToolApprovalResponse, ToolStep } from './mcp'
 import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
@@ -595,6 +596,29 @@ export interface TwilightApi {
   removeDocLibraryFolder(path: string): Promise<LibrarySettings>
   reindexDocLibrary(): Promise<LibraryStatus>
   searchDocLibrary(query: string): Promise<LibraryHit[]>
+  /** What the scout would bring for a message. */
+  scoutDocLibrary(query: string): Promise<ScoutResult>
+  /** Asks for a scout test file and runs it: plain search against the scout, question by question; null if cancelled. */
+  testScout(): Promise<{ file: string; results: ScoutCaseResult[] } | null>
+  // ——— Models on this PC ———
+  getLocalModels(): Promise<LocalState>
+  /** GGUF models on Hugging Face, most downloaded first. */
+  searchHubModels(query: string): Promise<HubModel[]>
+  /** A repository's sizes, each with how it would run on this PC. */
+  hubModelVariants(repo: string): Promise<HubVariant[]>
+  /** Starts a download; progress arrives through onLocalModels. */
+  downloadLocalModel(repo: string, variant: HubVariant): Promise<void>
+  cancelLocalDownload(key: string): Promise<void>
+  /** Sends a downloaded model to the Recycle Bin. */
+  removeLocalModel(name: string): Promise<void>
+  chooseModelsFolder(): Promise<LocalState>
+  openModelsFolder(): Promise<void>
+  /** Fetches llama.cpp from its official releases; progress arrives through onLocalModels. */
+  installLlama(): Promise<void>
+  startLlama(): Promise<void>
+  stopLlama(): Promise<void>
+  setLlamaAutoStart(on: boolean): Promise<void>
+  onLocalModels(listener: (state: LocalState) => void): () => void
   onDocLibrary(listener: (status: LibraryStatus) => void): () => void
   /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
   getSpellcheck(): Promise<boolean>
