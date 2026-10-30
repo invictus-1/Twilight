@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react'
 import { clockTime, seasonFor } from '@shared/sky'
 import { useExtras, type SkyTime } from '../extras'
+import balloon from '../assets/sky/balloon.webp'
+import lighthouse from '../assets/sky/lighthouse.webp'
+import platypus from '../assets/sky/platypus.webp'
+import ufo from '../assets/sky/ufo.webp'
+import whale from '../assets/sky/whale.webp'
 
 // When this session began, for the sky that drifts toward night over a long one.
 const sessionStart = Date.now()
@@ -17,24 +22,51 @@ function useSkyTime(): Exclude<SkyTime, 'clock'> {
   return sky === 'clock' ? now : sky
 }
 
-// The rare things that cross the sky if you sit and watch.
-const EGGS = ['ufo', 'comet', 'satellite', 'lantern'] as const
-/** After a while with no keys or pointer, one of them crosses once; then it waits for the next quiet spell. */
-function useEasterEgg(watching: boolean): string | null {
-  const [egg, setEgg] = useState<string | null>(null)
+// The rare things that cross the sky if you sit and watch, and how long each stays. The models are
+// low-poly renders from Blender, loops of a few dozen frames that load only when one appears.
+const EGGS = ['ufo', 'whale', 'comet', 'balloon', 'lighthouse', 'satellite', 'lantern'] as const
+type Egg = (typeof EGGS)[number] | 'platypus'
+const ART: Partial<Record<Egg, string>> = { ufo, whale, balloon, lighthouse, platypus }
+const STAYS: Record<Egg, number> = { ufo: 14_000, whale: 20_000, comet: 6_000, balloon: 16_000, lighthouse: 15_000, satellite: 14_000, lantern: 14_000, platypus: 4_200 }
+// Test runs (opened at #e2e) don't sit for 45 seconds.
+const QUIET = location.hash === '#e2e' ? 1_200 : 45_000
+
+/**
+ * After a while with no keys or pointer, one of them crosses once; then it waits for the next quiet
+ * spell. Moving clears the sky, except for Phosphor's own visitor: a small platypus that peeks over
+ * the horizon now and then, and ducks out of sight the moment you move.
+ */
+function useEasterEgg(watching: boolean): { name: Egg; ducking: boolean } | null {
+  const [egg, setEgg] = useState<{ name: Egg; ducking: boolean } | null>(null)
   useEffect(() => {
     if (!watching) return
     let quiet: ReturnType<typeof setTimeout>
     let shown = 0
+    let current: Egg | null = null
+    const show = (name: Egg | null, ducking = false): void => {
+      current = name
+      setEgg(name ? { name, ducking } : null)
+    }
     const wait = (): void => {
       clearTimeout(quiet)
       quiet = setTimeout(() => {
-        setEgg(EGGS[shown++ % EGGS.length])
-        quiet = setTimeout(() => (setEgg(null), wait()), 14_000)
-      }, 45_000)
+        // In Phosphor, every other visitor is the platypus.
+        const phosphor = document.documentElement.dataset.theme === 'phosphor'
+        const name: Egg = phosphor && shown % 2 === 0 ? 'platypus' : EGGS[Math.floor(shown / (phosphor ? 2 : 1)) % EGGS.length]
+        shown++
+        show(name)
+        quiet = setTimeout(() => (show(null), wait()), STAYS[name])
+      }, QUIET)
     }
     const stir = (): void => {
-      setEgg(null)
+      if (current === 'platypus') {
+        // Spotted: down it goes, quick, then it's gone.
+        clearTimeout(quiet)
+        show('platypus', true)
+        quiet = setTimeout(() => (show(null), wait()), 260)
+        return
+      }
+      if (current) show(null)
       wait()
     }
     wait()
@@ -83,7 +115,12 @@ export function EmptySky({ watch = false, session = false }: { watch?: boolean; 
           ))}
         </div>
       )}
-      {egg && <span className={`sky-egg sky-egg-${egg}`} />}
+      {egg && (
+        <span className={`sky-egg sky-egg-${egg.name} ${egg.ducking ? 'is-ducking' : ''}`}>
+          {egg.name === 'lighthouse' && <span className="sky-sweep" />}
+          {ART[egg.name] && <img src={ART[egg.name]} alt="" draggable={false} />}
+        </span>
+      )}
       <span className="empty-sun" />
       <span className="empty-horizon" />
       <div className="empty-floor">

@@ -3401,6 +3401,53 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check("the rail's highlight glides to the section you pick", glideUi.shown && glideUi.matches, glideUi)
+      // Surprises: in Phosphor a platypus peeks over the horizon and ducks when you move; then a model crosses.
+      await key(',', ['control'])
+      await js(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Extras')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.extras-switch'); ) await wait(25)
+        ;[...document.querySelectorAll('.extras-switch label')].find((l) => l.textContent.includes('Surprises'))?.querySelector('input').click()
+        await wait(50)
+      })()`)
+      await key('Escape')
+      await js(`document.documentElement.dataset.theme = 'phosphor'`)
+      await key('N', ['control'])
+      const eggUi = { ducked: false, next: '', loaded: 0, platypus: await js<number>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const egg = () => document.querySelector('.empty .sky-egg')
+        for (let end = Date.now() + 5000; Date.now() < end && !egg()?.querySelector('img')?.complete; ) await wait(50)
+        await wait(200)
+        return egg()?.classList.contains('sky-egg-platypus') ? egg().querySelector('img').naturalWidth : 0
+      })()`) }
+      await new Promise((r) => setTimeout(r, 1400))
+      await shot('e2e-platypus.png')
+      Object.assign(eggUi, await js<{ ducked: boolean; next: string; loaded: number }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const egg = () => document.querySelector('.empty .sky-egg')
+        window.dispatchEvent(new PointerEvent('pointermove'))
+        await wait(60)
+        const ducked = !!document.querySelector('.empty .sky-egg-platypus.is-ducking')
+        for (let end = Date.now() + 5000; Date.now() < end && !(egg() && !egg().classList.contains('sky-egg-platypus') && egg().querySelector('img')?.complete); ) await wait(50)
+        await wait(200)
+        return { ducked, next: egg()?.className ?? '', loaded: egg()?.querySelector('img')?.naturalWidth ?? 0 }
+      })()`))
+      await shot('e2e-sky-egg.png')
+      await js(`delete document.documentElement.dataset.theme`)
+      await key(',', ['control'])
+      await js(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Extras')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.extras-switch'); ) await wait(25)
+        ;[...document.querySelectorAll('.extras-switch label')].find((l) => l.textContent.includes('Surprises'))?.querySelector('input').click()
+        await wait(50)
+      })()`)
+      await key('Escape')
+      check(
+        "surprises: Phosphor's platypus peeks and ducks when you move, and a modelled visitor crosses with its picture loaded",
+        eggUi.platypus > 0 && eggUi.ducked && /sky-egg-ufo/.test(eggUi.next) && eggUi.loaded > 0,
+        eggUi
+      )
       await shot('e2e-emptysky.png')
       const enterUi = await js<{ fresh: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))

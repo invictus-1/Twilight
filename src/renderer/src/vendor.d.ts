@@ -16,3 +16,7 @@ declare module '*?raw' {
   export default text
 }
 declare module '@fontsource-variable/*'
+declare module '*.webp' {
+  const url: string
+  export default url
+}
