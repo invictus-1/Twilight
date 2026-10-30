@@ -10,6 +10,7 @@ import { THEMES } from '@shared/themes'
 import { setTheme } from './theme'
 import { chatInGameFormat } from './gameCopy'
 import { useWriting } from './writingStore'
+import { savedCount } from './components/Multiverse'
 
 // Every action the command menu (Ctrl+K) offers, with its keyboard shortcut. Shortcuts can be
 // rebound in Settings → Keyboard shortcuts; bindings are kept per install in localStorage.
@@ -99,6 +100,17 @@ export const COMMANDS: Command[] = [
     hint: 'tree versions regenerations branches map',
     when: () => s().mode === 'chat' && !!s().current?.path.length,
     run: () => s().setOverlay('branches')
+  },
+  {
+    id: 'multiverse',
+    title: 'Multiverse drafts of the last reply',
+    group: 'Chat',
+    hint: 'versions several drafts compare side by side regenerate',
+    when: () => s().mode === 'chat' && !s().current?.split && !!s().current?.path.some((n) => n.role === 'assistant'),
+    run: () => {
+      const last = s().current?.path.findLast((n) => n.role === 'assistant')
+      if (last) void s().openMultiverse(last.id, last.siblingCount > 1 ? undefined : savedCount())
+    }
   },
   { id: 'target-a', title: 'Send to pane A', group: 'Chat', keys: 'Alt+1', when: split, run: () => s().setTarget('a') },
   { id: 'target-b', title: 'Send to pane B', group: 'Chat', keys: 'Alt+2', when: split, run: () => s().setTarget('b') },

@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import type { Attachment, ChatSettings, ConversationView, DeletionView, Pane, SendTarget, StreamEvent, Usage } from '@shared/types'
+import type { Attachment, ChatSettings, ConversationView, DeletionView, NodeView, Pane, SendTarget, StreamEvent, Usage } from '@shared/types'
 import { modelKey, pickModelDefaults, type ModelDefaults } from '@shared/modelDefaults'
 import * as db from './db'
 import { signalDone } from './doneNotice'
@@ -82,12 +82,14 @@ interface SplitState {
   settings: ChatSettings
 }
 
-/** Running generations, keyed `${conversationId}:${pane}`. */
+/** Running generations, keyed `${conversationId}:${pane}`, and `…#n` for a pane's extra drafts. */
 const running = new Map<string, AbortController>()
 const runKey = (id: string, pane: Pane): string => `${id}:${pane}`
+const runsIn = (id: string, pane: Pane): AbortController[] =>
+  [...running.entries()].filter(([k]) => k === runKey(id, pane) || k.startsWith(`${runKey(id, pane)}#`)).map(([, c]) => c)
 
 export function isRunning(id: string, pane?: Pane): boolean {
-  return pane ? running.has(runKey(id, pane)) : running.has(runKey(id, 'a')) || running.has(runKey(id, 'b'))
+  return pane ? runsIn(id, pane).length > 0 : runsIn(id, 'a').length > 0 || runsIn(id, 'b').length > 0
 }
 
 export function getDefaults(): ChatSettings {
@@ -301,6 +303,28 @@ export function regenerate(contents: WebContents, id: string, nodeId: string, pa
   if (!userId) throw new Error('Nothing to regenerate.')
   generate(contents, id, userId, pane)
   return view(id)
+}
+
+/**
+ * Multiverse drafts: `count` new replies to one message at once, each its own version. The first
+ * leads (and is the one shown); the rest wait for its first token, by when the prompt is cached,
+ * so they read the same cache instead of each paying to write it.
+ */
+export function drafts(contents: WebContents, id: string, nodeId: string, count: number): ConversationView {
+  if (isRunning(id, 'a')) throw new Error('A reply is still streaming in this chat.')
+  const node = db.loadNodes(id).get(nodeId)
+  const userId = node?.role === 'user' ? node.id : node?.parent_id
+  if (!userId) throw new Error('Nothing to write drafts for.')
+  const n = Math.max(1, Math.min(6, Math.round(count)))
+  const lead = generate(contents, id, userId, 'a')
+  for (let i = 1; i < n; i++) void generate(contents, id, userId, 'a', lead, { slot: i, activate: false })
+  return view(id)
+}
+
+/** Every version of the reply to a message of yours, oldest first. */
+export function versions(id: string, userNodeId: string): NodeView[] {
+  const nodes = db.loadNodes(id)
+  return db.childrenOf(nodes, userNodeId).map((n) => db.toView(n, nodes))
 }
 
 // ——— Deleting, restoring and editing messages ———
@@ -681,14 +705,21 @@ function toolRunner(
 }
 
 export function stop(id: string, target: SendTarget = 'both'): void {
-  for (const pane of target === 'both' ? (['a', 'b'] as Pane[]) : [target]) running.get(runKey(id, pane))?.abort()
+  for (const pane of target === 'both' ? (['a', 'b'] as Pane[]) : [target]) runsIn(id, pane).forEach((c) => c.abort())
 }
 
 /**
  * Starts a reply to `userNodeId` as a new branch in `pane` and streams it to the renderer.
  * Resolves the returned promise at the first streamed token (or when the request ends).
  */
-function generate(contents: WebContents, conversationId: string, userNodeId: string, pane: Pane, after?: Promise<void>): Promise<void> {
+function generate(
+  contents: WebContents,
+  conversationId: string,
+  userNodeId: string,
+  pane: Pane,
+  after?: Promise<void>,
+  { slot = 0, activate = true }: { slot?: number; activate?: boolean } = {}
+): Promise<void> {
   const conv = db.getConversation(conversationId)
   const settings = settingsFor(conv, pane)
   const assistant = db.insertNode(
@@ -706,14 +737,15 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
       status: 'streaming',
       error: null
     },
-    { activate: pane === 'a' }
+    { activate: pane === 'a' && activate }
   )
   if (pane === 'b') {
     const split = splitOf(db.getConversation(conversationId))
     if (split) setSplit(conversationId, { ...split, leafId: assistant.id })
   }
   const controller = new AbortController()
-  running.set(runKey(conversationId, pane), controller)
+  const key = slot ? `${runKey(conversationId, pane)}#${slot}` : runKey(conversationId, pane)
+  running.set(key, controller)
 
   let markStarted!: () => void
   const started = new Promise<void>((resolve) => (markStarted = resolve))
@@ -811,7 +843,7 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
       db.updateNode(assistant.id, { text, thinking: thinking || null, status: 'error', error: message })
     } finally {
       markStarted()
-      running.delete(runKey(conversationId, pane))
+      running.delete(key)
       db.touchConversation(conversationId)
       const nodes = db.loadNodes(conversationId)
       const row = nodes.get(assistant.id)

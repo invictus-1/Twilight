@@ -5377,6 +5377,57 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       )
       check('clicking a branch on the map shows that branch', !!other51 && ui51.closed && chat.view(c48).path.some((n) => n.id === other51.id), { other: other51?.id })
 
+      // 52. Multiverse drafts: several replies at once, each a version; the first leads for the cache.
+      const c52 = chat.create().id
+      chat.send(contents, c52, 'Write one line about Wren at the harbour.')
+      await idle(c52)
+      const reply52 = chat.view(c52).path.at(-1)!
+      const before52 = log.length
+      const view52 = chat.drafts(contents, c52, reply52.id, 3)
+      const busy52 = chat.isRunning(c52, 'a')
+      await idle(c52)
+      const versions52 = chat.versions(c52, reply52.parentId!)
+      const sent52 = log.slice(before52)
+      check(
+        'multiverse writes several new versions of a reply at once, all finished',
+        busy52 && versions52.length === 4 && versions52.every((v) => v.status === 'done') && sent52.length === 3,
+        { versions: versions52.map((v) => v.status), requests: sent52.length }
+      )
+      check(
+        'the first draft leads and is shown; the others wait for its first token and send the same messages',
+        view52.path.at(-1)?.id === versions52[1].id &&
+          chat.view(c52).path.at(-1)?.id === versions52[1].id &&
+          sent52.slice(1).every((r) => r.startedAt >= (sent52[0].firstTokenAt ?? Infinity) && JSON.stringify(r.messages) === JSON.stringify(sent52[0].messages)),
+        sent52.map((r) => [r.startedAt, r.firstTokenAt])
+      )
+      const ui52 = await js<{ first: number; more: number; shown: number; closed: boolean; used: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const settled = async (n) => { for (let end = Date.now() + 8000; Date.now() < end && (document.querySelectorAll('.multiverse-draft').length < n || document.querySelector('.multiverse-draft[data-status="streaming"]')); ) await wait(40) }
+        const last = [...document.querySelectorAll('.tw-msg-ai')].at(-1)
+        const had = last?.querySelector('.tw-branch') ? 2 : 1
+        last?.querySelector('.multiverse-open')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.multiverse-panel'); ) await wait(25)
+        await settled(had === 1 ? 4 : 2)
+        const first = document.querySelectorAll('.multiverse-draft').length
+        ;[...document.querySelectorAll('.multiverse-write .tw-seg button')].find((b) => b.textContent === '2')?.click()
+        await wait(50)
+        document.querySelector('.multiverse-more')?.click()
+        await settled(first + 2)
+        const more = document.querySelectorAll('.multiverse-draft').length
+        const shown = document.querySelectorAll('.multiverse-draft.is-shown').length
+        const pick = [...document.querySelectorAll('.multiverse-draft:not(.is-shown)')][0]
+        const used = pick?.dataset.node ?? ''
+        pick?.querySelector('.multiverse-use')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && document.querySelector('.multiverse-panel'); ) await wait(25)
+        await wait(300)
+        return { first, more, shown, closed: !document.querySelector('.multiverse-panel'), used }
+      })()`)
+      check(
+        'the multiverse panel shows the versions side by side, writes more, and Use this shows one',
+        ui52.first >= 2 && ui52.more === ui52.first + 2 && ui52.shown === 1 && ui52.closed && !!ui52.used && chat.view(c48).path.some((n) => n.id === ui52.used),
+        ui52
+      )
+
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
       // What the mock server saw last, so a stalled reply shows whether its request ever arrived.

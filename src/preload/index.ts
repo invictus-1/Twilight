@@ -62,6 +62,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'updateChatSettings',
   'send',
   'regenerate',
+  'drafts',
+  'versions',
   'deleteMessage',
   'listDeletions',
   'viewDeletion',

@@ -15,8 +15,9 @@ import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
+import { savedCount } from './Multiverse'
 import { DiffBody, useDiffed } from './SplitDiff'
-import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
+import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, GridIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -678,6 +679,16 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
             >
               <RefreshIcon />
             </button>
+            {pane === 'a' && (
+              <button
+                className="tw-btn tw-btn-ghost tw-btn-icon multiverse-open"
+                aria-label="Multiverse drafts"
+                title={node.siblingCount > 1 ? 'Multiverse: every version of this reply side by side, and more at once' : 'Multiverse: write several versions at once and compare them side by side'}
+                onClick={() => void useStore.getState().openMultiverse(node.id, node.siblingCount > 1 ? undefined : savedCount())}
+              >
+                <GridIcon />
+              </button>
+            )}
             <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label="Edit" title="Edit (saves as a new version)" onClick={() => setEditing(true)}>
               <PenIcon />
             </button>

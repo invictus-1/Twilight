@@ -21,7 +21,7 @@ import { setCustomPrices, type CustomPrice } from '@shared/pricing'
 
 export type Mode = 'chat' | 'write' | 'judge' | 'insights' | 'code'
 /** A floating panel over everything: the command menu, the shortcut sheet, search or the persona chooser. */
-export type Overlay = 'commands' | 'shortcuts' | 'search' | 'personas' | 'branches' | null
+export type Overlay = 'commands' | 'shortcuts' | 'search' | 'personas' | 'branches' | 'multiverse' | null
 
 const api = window.twilight
 
@@ -64,6 +64,10 @@ interface State {
   /** What search opens with (from the command menu). */
   searchQuery: string
   setOverlay(overlay: Overlay, searchQuery?: string): void
+  /** The message of yours whose replies the multiverse panel shows side by side. */
+  multiverseFor: string | null
+  /** Opens the multiverse panel on a message (or a reply's message), writing `count` new drafts first if given. */
+  openMultiverse(nodeId: string, count?: number): Promise<void>
   updates: UpdateState | null
   error: string | null
   /** The current chat's recently deleted messages, newest first. */
@@ -160,6 +164,7 @@ export const useStore = create<State>((set, get) => {
     overlay: null,
     prices: [],
     searchQuery: '',
+    multiverseFor: null,
     flash: null,
     updates: null,
     error: null,
@@ -291,6 +296,13 @@ export const useStore = create<State>((set, get) => {
     },
 
     regenerate: (nodeId, pane) => withCurrent((id) => api.regenerate(id, nodeId, pane)),
+    async openMultiverse(nodeId, count) {
+      const node = get().current?.path.find((n) => n.id === nodeId)
+      const userId = node?.role === 'assistant' ? node.parentId : nodeId
+      if (!userId) return
+      set({ multiverseFor: userId, overlay: 'multiverse' })
+      if (count) await withCurrent((id) => api.drafts(id, userId, count))
+    },
     switchBranch: (nodeId, direction, pane) => withCurrent((id) => api.switchBranch(id, nodeId, direction, pane)),
 
     async deleteMessage(nodeId, kind, pane) {

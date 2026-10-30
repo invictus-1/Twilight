@@ -518,6 +518,10 @@ export interface TwilightApi {
   /** Saves a model's defaults, or clears them with null. */
   setModelDefaults(providerId: string, modelId: string, settings: Partial<ChatSettings> | null): Promise<Record<string, Partial<ChatSettings>>>
   regenerate(id: string, assistantNodeId: string, pane?: Pane): Promise<ConversationView>
+  /** Multiverse drafts: several new replies to a message at once (pane A), each kept as a version. */
+  drafts(id: string, nodeId: string, count: number): Promise<ConversationView>
+  /** Every version of the reply to a message of yours, oldest first. */
+  versions(id: string, userNodeId: string): Promise<NodeView[]>
   /** Deletes a message ("single": its replies move up to take its place) or it and everything below. */
   deleteMessage(id: string, nodeId: string, kind: 'single' | 'below', pane?: Pane): Promise<ConversationView>
   listDeletions(id: string): Promise<DeletionView[]>

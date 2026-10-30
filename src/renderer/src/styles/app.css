@@ -1166,6 +1166,17 @@ body.resizing .resize-handle { pointer-events: auto; }
 
 .search-panel { width: min(760px, calc(100vw - 32px)); }
 
+/* Multiverse drafts */
+.multiverse-panel { width: min(1280px, calc(100vw - 32px)); height: calc(100vh - 96px); max-height: none; }
+.multiverse-write { display: inline-flex; align-items: center; gap: var(--space-2); }
+.multiverse-grid { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(320px, 1fr); gap: var(--space-3); padding: var(--space-3); overflow-x: auto; }
+.multiverse-draft { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
+.multiverse-draft.is-shown { border-color: color-mix(in srgb, var(--iris) 60%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--iris) 30%, transparent); }
+.multiverse-draft-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); }
+.multiverse-draft-head strong { color: var(--ink); }
+.multiverse-draft-body { flex: 1; min-height: 0; overflow-y: auto; padding: var(--space-3); font-size: 14px; }
+.multiverse-draft-foot { display: flex; justify-content: flex-end; padding: var(--space-2) var(--space-3); border-top: 1px solid var(--line); }
+
 /* The branch map */
 .branch-panel { width: min(880px, calc(100vw - 32px)); height: min(720px, calc(100vh - 140px)); }
 .branch-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-3) var(--space-3) var(--space-3) var(--space-4); border-bottom: 1px solid var(--line); color: var(--ink-muted); }
