@@ -3433,6 +3433,22 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return { ducked, next: egg()?.className ?? '', loaded: egg()?.querySelector('img')?.naturalWidth ?? 0 }
       })()`))
       await shot('e2e-sky-egg.png')
+      // Next in Phosphor, the platypus strolls along the horizon; spotted, it bolts.
+      await js(`window.dispatchEvent(new PointerEvent('pointermove'))`)
+      const trot = await js<boolean>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.empty .sky-egg-platypus-trot img')?.complete; ) await wait(50)
+        return !!document.querySelector('.empty .sky-egg-platypus-trot')
+      })()`)
+      await new Promise((r) => setTimeout(r, 3000))
+      await shot('e2e-platypus-trot.png')
+      const bolt = await js<{ run: boolean; rate: number }>(`(async () => {
+        const egg = document.querySelector('.empty .sky-egg-platypus-trot')
+        window.dispatchEvent(new PointerEvent('pointermove'))
+        await new Promise((r) => setTimeout(r, 150))
+        return { run: /platypus-run/.test(egg?.querySelector('img')?.src ?? ''), rate: egg?.getAnimations()[0]?.playbackRate ?? 0 }
+      })()`)
+      check('in Phosphor the platypus also strolls along the horizon, and bolts when spotted', trot && bolt.run && bolt.rate === 9, { trot, ...bolt })
       await js(`delete document.documentElement.dataset.theme`)
       await key(',', ['control'])
       await js(`(async () => {

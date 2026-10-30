@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { clockTime, seasonFor } from '@shared/sky'
 import { useExtras, type SkyTime } from '../extras'
 import balloon from '../assets/sky/balloon.webp'
 import lighthouse from '../assets/sky/lighthouse.webp'
 import platypus from '../assets/sky/platypus.webp'
+import platypusRun from '../assets/sky/platypus-run.webp'
+import platypusTrot from '../assets/sky/platypus-trot.webp'
 import ufo from '../assets/sky/ufo.webp'
 import whale from '../assets/sky/whale.webp'
 
@@ -25,9 +27,11 @@ function useSkyTime(): Exclude<SkyTime, 'clock'> {
 // The rare things that cross the sky if you sit and watch, and how long each stays. The models are
 // low-poly renders from Blender, loops of a few dozen frames that load only when one appears.
 const EGGS = ['ufo', 'whale', 'comet', 'balloon', 'lighthouse', 'satellite', 'lantern'] as const
-type Egg = (typeof EGGS)[number] | 'platypus'
-const ART: Partial<Record<Egg, string>> = { ufo, whale, balloon, lighthouse, platypus }
-const STAYS: Record<Egg, number> = { ufo: 14_000, whale: 20_000, comet: 6_000, balloon: 16_000, lighthouse: 15_000, satellite: 14_000, lantern: 14_000, platypus: 4_200 }
+type Egg = (typeof EGGS)[number] | 'platypus' | 'platypus-trot'
+const ART: Partial<Record<Egg, string>> = { ufo, whale, balloon, lighthouse, platypus, 'platypus-trot': platypusTrot }
+const STAYS: Record<Egg, number> = { ufo: 14_000, whale: 20_000, comet: 6_000, balloon: 16_000, lighthouse: 15_000, satellite: 14_000, lantern: 14_000, platypus: 4_200, 'platypus-trot': 18_000 }
+// Phosphor's visitor takes turns: a peek over the horizon, then a stroll along it.
+const PLATYPUS: Egg[] = ['platypus', 'platypus-trot']
 // Test runs (opened at #e2e) don't sit for 45 seconds.
 const QUIET = location.hash === '#e2e' ? 1_200 : 45_000
 
@@ -38,6 +42,7 @@ const QUIET = location.hash === '#e2e' ? 1_200 : 45_000
  */
 function useEasterEgg(watching: boolean): { name: Egg; ducking: boolean } | null {
   const [egg, setEgg] = useState<{ name: Egg; ducking: boolean } | null>(null)
+  // `ducking` is the platypus spotted: the peeking one drops out of sight, the strolling one bolts.
   useEffect(() => {
     if (!watching) return
     let quiet: ReturnType<typeof setTimeout>
@@ -52,18 +57,18 @@ function useEasterEgg(watching: boolean): { name: Egg; ducking: boolean } | null
       quiet = setTimeout(() => {
         // In Phosphor, every other visitor is the platypus.
         const phosphor = document.documentElement.dataset.theme === 'phosphor'
-        const name: Egg = phosphor && shown % 2 === 0 ? 'platypus' : EGGS[Math.floor(shown / (phosphor ? 2 : 1)) % EGGS.length]
+        const name: Egg = phosphor && shown % 2 === 0 ? PLATYPUS[(shown / 2) % 2] : EGGS[Math.floor(shown / (phosphor ? 2 : 1)) % EGGS.length]
         shown++
         show(name)
         quiet = setTimeout(() => (show(null), wait()), STAYS[name])
       }, QUIET)
     }
     const stir = (): void => {
-      if (current === 'platypus') {
-        // Spotted: down it goes, quick, then it's gone.
+      if (current === 'platypus' || current === 'platypus-trot') {
+        // Spotted: down it goes, quick, or off at a sprint; then it's gone.
         clearTimeout(quiet)
-        show('platypus', true)
-        quiet = setTimeout(() => (show(null), wait()), 260)
+        show(current, true)
+        quiet = setTimeout(() => (show(null), wait()), current === 'platypus' ? 260 : 2_200)
         return
       }
       if (current) show(null)
@@ -79,6 +84,22 @@ function useEasterEgg(watching: boolean): { name: Egg; ducking: boolean } | null
     }
   }, [watching])
   return egg
+}
+
+/** One visitor in the sky. The strolling platypus, when spotted, bolts: its walk sped up ninefold from wherever it is. */
+function SkyEgg({ name, spotted }: { name: Egg; spotted: boolean }) {
+  const el = useRef<HTMLSpanElement>(null)
+  const bolting = spotted && name === 'platypus-trot'
+  useEffect(() => {
+    if (bolting) el.current?.getAnimations().forEach((a) => (a.playbackRate = 9))
+  }, [bolting])
+  const art = bolting ? platypusRun : ART[name]
+  return (
+    <span ref={el} className={`sky-egg sky-egg-${name} ${spotted ? 'is-ducking' : ''}`}>
+      {name === 'lighthouse' && <span className="sky-sweep" />}
+      {art && <img src={art} alt="" draggable={false} />}
+    </span>
+  )
 }
 
 /**
@@ -115,12 +136,7 @@ export function EmptySky({ watch = false, session = false }: { watch?: boolean; 
           ))}
         </div>
       )}
-      {egg && (
-        <span className={`sky-egg sky-egg-${egg.name} ${egg.ducking ? 'is-ducking' : ''}`}>
-          {egg.name === 'lighthouse' && <span className="sky-sweep" />}
-          {ART[egg.name] && <img src={ART[egg.name]} alt="" draggable={false} />}
-        </span>
-      )}
+      {egg && <SkyEgg name={egg.name} spotted={egg.ducking} />}
       <span className="empty-sun" />
       <span className="empty-horizon" />
       <div className="empty-floor">

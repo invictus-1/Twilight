@@ -65,9 +65,13 @@
 .sky-egg-lighthouse { top: calc(var(--horizon-at) - 92px); right: 9%; width: 64px; animation: egg-stay 15s ease both; }
 .sky-sweep { position: absolute; right: 30px; top: 16px; width: 70vw; height: 46px; margin-top: -23px; transform-origin: 100% 50%; background: linear-gradient(270deg, color-mix(in srgb, var(--horizon) 75%, #fff), color-mix(in srgb, var(--horizon) 25%, transparent) 35%, transparent 70%); clip-path: polygon(100% 45%, 0 0, 0 100%, 100% 55%); opacity: 0; animation: egg-sweep 7s ease-in-out 1s 2 both; }
 /* Phosphor's visitor: peeks over the horizon (the floor hides what's below it) and ducks when seen. */
-.sky-egg-platypus { top: calc(var(--horizon-at) - 32px); left: 22%; width: 64px; }
+.sky-egg-platypus { top: calc(var(--horizon-at) - 46px); left: 22%; width: 72px; }
 .sky-egg-platypus img { filter: none; transition: transform 180ms cubic-bezier(.5, 0, .9, .4); }
-.sky-egg-platypus.is-ducking img { transform: translateY(48px); }
+.sky-egg-platypus.is-ducking img { transform: translateY(56px); }
+/* The stroll: along the horizon, left to right; spotted, the same path at nine times the pace. */
+.sky-egg-platypus-trot { top: calc(var(--horizon-at) - 41px); left: -14%; width: 90px; animation: egg-trot 18s linear both; }
+.sky-egg-platypus-trot img { filter: none; }
+@keyframes egg-trot { from { transform: translateX(0); } to { transform: translateX(130vw); } }
 
 @keyframes egg-whale { 0% { transform: translate(0, 10px); } 25% { transform: translate(34vw, -6px); } 50% { transform: translate(68vw, 12px); } 75% { transform: translate(102vw, -4px); } 100% { transform: translate(136vw, 8px); } }
 @keyframes egg-balloon { 0% { transform: translate(0, 0); opacity: 0; } 8% { opacity: 1; } 92% { opacity: 1; } 100% { transform: translate(14vw, -70vh); opacity: 0; } }
