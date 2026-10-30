@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import type { Attachment, ChatSettings, ConversationView, DeletionView, Pane, SendTarget, StreamEvent } from '@shared/types'
 import { modelKey, pickModelDefaults, type ModelDefaults } from '@shared/modelDefaults'
 import * as db from './db'
+import { signalDone } from './doneNotice'
 import { getApiKey, getProvider, implFor, modelOptions } from './providers'
 import { appendLog } from './logs'
 import { describeAnthropicError } from './providers/anthropic'
@@ -783,6 +784,7 @@ function generate(contents: WebContents, conversationId: string, userNodeId: str
       if (row) {
         const askedRow = asked ? nodes.get(userNodeId) : undefined
         emit({ kind: 'done', conversationId, nodeId: assistant.id, node: db.toView(row, nodes), ...(askedRow ? { asked: db.toView(askedRow, nodes) } : {}) })
+        signalDone(contents, db.getConversation(conversationId).title, Date.now() - row.created_at)
         appendLog({
           kind: 'chat',
           conversationId,

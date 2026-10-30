@@ -236,7 +236,7 @@ export const openaiProvider: Provider = {
     const generated: { type: 'generated_image'; file: string; prompt: string }[] = []
     const pictures: string[] = []
     const sources: WebSource[] = []
-    const usage: { input: number; output: number; cacheRead: number; cacheWrite: number; ms: number; costUsd?: number } = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: 0 }
+    const usage: { input: number; output: number; cacheRead: number; cacheWrite: number; ms: number; costUsd?: number; cutOff?: boolean } = { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, ms: 0 }
     try {
       for (;;) {
         roundText = ''
@@ -276,10 +276,13 @@ export const openaiProvider: Provider = {
                   images?: { image_url?: { url?: string } }[]
                 }
                 message?: { annotations?: unknown; images?: { image_url?: { url?: string } }[] }
+                finish_reason?: string | null
               }[]
               usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number }
             }
             const delta = chunk.choices?.[0]?.delta
+            // "length": it hit the max output tokens mid-thought, so the reply can offer Continue.
+            if (chunk.choices?.[0]?.finish_reason === 'length') usage.cutOff = true
             addCitations(sources, delta?.annotations)
             addCitations(sources, chunk.choices?.[0]?.message?.annotations)
             // Pictures an image model answers with come as data: URLs beside the text.

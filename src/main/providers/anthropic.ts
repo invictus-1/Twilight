@@ -471,7 +471,8 @@ async function generateAnthropic(req: GenerateRequest): Promise<GenerateResult> 
       cacheRead: usage.cacheRead,
       cacheWrite: usage.cacheWrite,
       ms: Date.now() - started,
-      ...(usage.webSearches ? { webSearches: usage.webSearches } : {})
+      ...(usage.webSearches ? { webSearches: usage.webSearches } : {}),
+      ...(stopReason === 'max_tokens' ? { cutOff: true } : {})
     },
     error: stopReason === 'refusal' ? 'The model declined this request.' : undefined
   }

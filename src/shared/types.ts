@@ -169,6 +169,8 @@ export interface Usage {
   ttftMs?: number
   /** How long the model thought before its first words, when it thought. */
   thinkMs?: number
+  /** The reply stopped at the max output tokens, not where the model meant to end. */
+  cutOff?: boolean
   /** What the provider itself says the reply cost (OpenRouter), used before any price list. */
   costUsd?: number
   /** Web searches Claude ran for the reply, billed per search on top of tokens. */
@@ -594,6 +596,9 @@ export interface TwilightApi {
   onDocLibrary(listener: (status: LibraryStatus) => void): () => void
   /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
   getSpellcheck(): Promise<boolean>
+  /** A quiet Windows notification when a long reply finishes in the background (the taskbar glows either way). */
+  getDoneNotification(): Promise<boolean>
+  setDoneNotification(on: boolean): Promise<boolean>
   setSpellcheck(on: boolean): Promise<boolean>
   // ——— Data: backups and where it lives ———
   getDataInfo(): Promise<DataInfo>

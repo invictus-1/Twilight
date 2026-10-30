@@ -4,6 +4,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Continue:** a reply that stopped at the max output tokens says so, with a Continue button that asks for the rest in a new message, so everything before stays cached.
+- **Chats reopen where you left them:** come back to a chat and it's at the message you were reading; left at the newest message, it opens there. Remembered across restarts.
+- **A gentle signal when a long reply is ready:** if a reply takes 10 seconds or more and you're in another window when it finishes, Twilight's taskbar button glows until you come back. A quiet Windows notification can come too (Settings → General).
 - **Select and copy while a reply is still coming in:** the paragraphs a reply has finished are drawn once and left alone, so you can select and copy them mid-stream without flicker. While you're selecting, the chat stops following the new text; it carries on once you let go.
 - **Find on the page (Ctrl+F):** a small find bar lights up every match in the open chat (or Judge, Code, Settings), with "3 of 12", Enter and Shift+Enter to step through them and Esc to close. The writing editor keeps its own find.
 - **Choices in the middle of a reply:** when a model puts its numbered choices before other sections, the list still becomes a card, as long as it plainly is a decision (a title like Choices or What do you do?, or a Something else option). The sections after it stay in the reply. Rules drawn around a title ("—— CHOICES ——") are left off the card.

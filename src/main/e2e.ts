@@ -47,6 +47,7 @@ import { usageStats } from './usage'
 import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import { placement } from './windowState'
+import { shouldSignal } from './doneNotice'
 import { modelKey, pickModelDefaults } from '@shared/modelDefaults'
 
 // Dev-only end-to-end check, run with TWILIGHT_E2E=<output folder> (and a throwaway profile, see
@@ -390,6 +391,8 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         entry.firstTokenAt ??= Date.now()
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: w } }] })}\n\n`)
       }
+      // A reply that ran into the max output tokens says so.
+      if (lastUser.includes('CUTOFF')) res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'length' }] })}\n\n`)
       // A server that searched cites its sources as url_citation annotations.
       if (lastUser.includes('WEBCITE') && !toolResult) {
         const annotations = [{ type: 'url_citation', url_citation: { url: 'https://example.com/lamps', title: 'Lamps at dusk', start_index: 0, end_index: 5 } }]
@@ -3639,6 +3642,71 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         'text in a reply still streaming can be selected, and stays selected',
         streamSel.blocks >= 2 && streamSel.same && streamSel.selected === 'The first paragraph about Gull Point stays still.',
         streamSel
+      )
+      // Continue: a reply cut off at the max output tokens offers it, and it asks for the rest in a new message.
+      const cutChat = { id: chat.create().id }
+      chat.send(contents, cutChat.id, 'CUTOFF lamps')
+      await idle(cutChat.id)
+      await reloadUi()
+      const beforeCut = log.length
+      const contShown = await js<boolean>(`(async () => {
+        document.querySelector('[data-mode="chat"]')?.click()
+        await new Promise((r) => setTimeout(r, 200))
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'CUTOFF lamps')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.msg-continue'); ) await new Promise((r) => setTimeout(r, 25))
+        const shown = !!document.querySelector('.msg-continue')
+        document.querySelector('.msg-continue button')?.click()
+        return shown
+      })()`)
+      await until(() => log.slice(beforeCut).some((r) => r.messages.at(-1)?.content === 'Continue from exactly where you stopped.'))
+      await idle(cutChat.id)
+      const contView = chat.view(cutChat.id)
+      check(
+        'a reply cut off at the max output tokens offers Continue, which asks for the rest',
+        contShown && contView.path[1].usage?.cutOff === true && contView.path.at(-2)?.text === 'Continue from exactly where you stopped.',
+        { contShown, cutOff: contView.path[1].usage?.cutOff, asked: contView.path.at(-2)?.text }
+      )
+      // A chat reopens where you left it; one left at its newest message opens there.
+      const sm = chat.create().id
+      let smParent = db.getConversation(sm).root_id
+      for (let i = 0; i < 24; i++) {
+        const q = `Question ${i} about the lamps`
+        const a = `Lamp ${i} burns through the night. `.repeat(40)
+        const u = db.insertNode({ id: randomUUID(), conversation_id: sm, parent_id: smParent, role: 'user', text: q, content: JSON.stringify([{ type: 'text', text: q }]), thinking: null, model: null, provider_id: null, usage: null, status: 'done', error: null })
+        smParent = db.insertNode({ id: randomUUID(), conversation_id: sm, parent_id: u.id, role: 'assistant', text: a, content: JSON.stringify([{ type: 'text', text: a }]), thinking: null, model: 'mock-a', provider_id: 'mock', usage: null, status: 'done', error: null }).id
+      }
+      db.updateConversation(sm, { started: 1, title: 'Long harbour log' })
+      await reloadUi()
+      const spotUi = await js<{ atBottom0: boolean; offset: number; atBottom1: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="chat"]')?.click()
+        await wait(200)
+        const open = async (title) => {
+          ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === title)?.click()
+          await wait(500)
+        }
+        const sc = () => document.querySelector('.thread-scroll')
+        const bottom = () => sc().scrollHeight - sc().scrollTop - sc().clientHeight < 40
+        await open('Long harbour log')
+        const atBottom0 = bottom()
+        const mark = document.querySelectorAll('.thread .msg[data-node]')[10]
+        mark.scrollIntoView({ block: 'start' })
+        await wait(300)
+        const node = mark.dataset.node
+        await open('Keepers on the web')
+        await open('Long harbour log')
+        const el = document.querySelector('[data-node="' + node + '"]')
+        const offset = el ? Math.round(Math.abs(el.getBoundingClientRect().top - sc().getBoundingClientRect().top)) : 9999
+        sc().scrollTop = sc().scrollHeight
+        await wait(300)
+        await open('Keepers on the web')
+        await open('Long harbour log')
+        return { atBottom0, offset, atBottom1: bottom() }
+      })()`)
+      check('a chat reopens where you left it, and at its newest message when you left it there', spotUi.atBottom0 && spotUi.offset < 30 && spotUi.atBottom1, spotUi)
+      check(
+        'a long reply that finishes while you are in another window gets the done signal; a short one or one you watched does not',
+        shouldSignal(false, 12000) && !shouldSignal(true, 12000) && !shouldSignal(false, 3000)
       )
       // Bold words in a reply take the theme's colour, unless that's switched off.
       const boldUi = await js<{ on: string; off: string; plain: string; italic: string; italicOff: string }>(`(() => {

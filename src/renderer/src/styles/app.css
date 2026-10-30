@@ -1563,3 +1563,6 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 
 /* A streaming reply is drawn in blocks; they lay out as if the markdown were one piece. */
 .md-block { display: contents; }
+
+/* Continue, under a reply that stopped at the max output tokens. */
+.msg-continue { display: flex; align-items: center; gap: var(--space-2); }

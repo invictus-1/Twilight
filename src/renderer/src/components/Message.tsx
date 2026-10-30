@@ -622,6 +622,16 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
           </div>
         </div>
       )}
+      {/* It stopped at the max output tokens: Continue asks for the rest in a new message, so
+          everything before stays cached. */}
+      {!streaming && isLast && node.usage?.cutOff && (
+        <div className="msg-continue">
+          <span className="field-note">Stopped at the max output tokens.</span>
+          <button className="tw-btn tw-btn-sm tw-btn-primary" onClick={() => void useStore.getState().send('Continue from exactly where you stopped.', [], pane === 'b' ? 'b' : 'a')}>
+            Continue
+          </button>
+        </div>
+      )}
       {!streaming && (
         <div className="msg-foot">
           <div className="tw-msg-actions">

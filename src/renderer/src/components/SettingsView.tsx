@@ -449,6 +449,7 @@ function GeneralSection() {
           Show the prompt cache status line under chats
         </label>
       </div>
+      <DoneSignal />
       <SpellcheckSwitch />
       <div className="settings-card">
         <h3 className="t-heading">Game Format</h3>
@@ -523,6 +524,23 @@ function RequestLogsCard() {
         </div>
       )}
     </>
+  )
+}
+
+/** When a long reply finishes while you're in another window. */
+function DoneSignal() {
+  const [on, setOn] = useState<boolean | null>(null)
+  useEffect(() => void window.twilight.getDoneNotification().then(setOn), [])
+  if (on === null) return null
+  return (
+    <div className="settings-card">
+      <h3 className="t-heading">When a long reply is ready</h3>
+      <p className="field-note">If a reply takes 10 seconds or more and you&apos;re in another window when it finishes, Twilight&apos;s taskbar button glows until you come back.</p>
+      <label className="check">
+        <input type="checkbox" checked={on} onChange={(e) => void window.twilight.setDoneNotification(e.target.checked).then(setOn)} />
+        Also show a quiet Windows notification
+      </label>
+    </div>
   )
 }
 

@@ -44,6 +44,7 @@ import { searchAll } from './search'
 import * as code from './code/agent'
 import { applyPendingRestore, backupFolder, backupSettings, chooseBackupFolder, createBackup, listBackups, setBackupSettings, stageRestore, startBackupSchedule, takeRestoredWindowSettings } from './backups'
 import { attachContextMenu, setSpellcheck, spellcheckOn } from './contextMenu'
+import { doneNotificationOn, setDoneNotification } from './doneNotice'
 import { keepFresh, librarySettings, libraryStatus, reindex as reindexLibrary, searchLibrary, setLibrarySettings } from './docLibrary'
 import type { LibrarySettings } from '@shared/docLibrary'
 import { checkTarget, isMoved, lastLocationChange, resolveDataFolder, stageMove, standardFolder } from './location'
@@ -440,6 +441,8 @@ function registerIpc(): void {
     },
     searchDocLibrary: (_e, query: string) => searchLibrary(query),
     getSpellcheck: () => spellcheckOn(),
+    getDoneNotification: () => doneNotificationOn(),
+    setDoneNotification: (_e, on: boolean) => setDoneNotification(on),
     setSpellcheck: (e, on: boolean) => setSpellcheck(BrowserWindow.fromWebContents(e.sender), on),
     getDataInfo: () => dataInfo(),
     listBackups: () => listBackups(),

@@ -12,19 +12,76 @@ import { attachScrollFx } from '../scrollFx'
 // messages skip layout and paint, and the thread is a plain block (not flex) so a message
 // coming into view lays out alone. Measured with `TWILIGHT_SELFTEST` (src/main/selftest.ts).
 
+// Where each chat was left: the message at the top of the view and how far into it, so it reopens
+// there, or at the newest message when it was left at the bottom. Kept across restarts.
+const SPOTS_KEY = 'twilight.chatSpots'
+type Spot = { node: string; offset: number }
+const readSpots = (): Record<string, Spot> => {
+  try {
+    return JSON.parse(localStorage.getItem(SPOTS_KEY) ?? '{}') as Record<string, Spot>
+  } catch {
+    return {}
+  }
+}
+function saveSpot(key: string, spot: Spot | null): void {
+  try {
+    const all = readSpots()
+    delete all[key]
+    if (spot) all[key] = spot
+    // The 200 chats seen most recently are plenty.
+    const keys = Object.keys(all)
+    for (const k of keys.slice(0, Math.max(0, keys.length - 200))) delete all[k]
+    localStorage.setItem(SPOTS_KEY, JSON.stringify(all))
+  } catch {
+    // Storage unavailable: the chat opens at its newest message.
+  }
+}
+
 export function Thread() {
   const pane = usePane()
   const path = useStore((s) => paneOf(s.current!, pane).path)
+  const spotKey = useStore((s) => `${s.current!.id}:${pane}`)
   const scroller = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const sentinel = useRef<HTMLDivElement>(null)
   const atBottom = useRef(true)
 
-  // Open at the newest message.
+  // Open where it was left, or at the newest message; and remember the place when leaving it.
   useLayoutEffect(() => {
     const el = scroller.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [])
+    if (!el) return
+    const spot = readSpots()[spotKey]
+    const target = spot ? el.querySelector<HTMLElement>(`[data-node="${spot.node}"]`) : null
+    const place = (): void => {
+      if (target) el.scrollTop += target.getBoundingClientRect().top - el.getBoundingClientRect().top + spot!.offset
+      else el.scrollTop = el.scrollHeight
+    }
+    if (target) atBottom.current = false
+    place()
+    // Messages above lay out at their real height over the next moments (they start as estimates),
+    // which moves things; place it again as they settle, unless you've started scrolling yourself.
+    let yours = false
+    const mine = (): void => void (yours = true)
+    el.addEventListener('wheel', mine, { passive: true, once: true })
+    el.addEventListener('pointerdown', mine, { once: true })
+    el.addEventListener('keydown', mine, { once: true })
+    const timers = [0, 120, 350, 800].map((ms) => setTimeout(() => !yours && place(), ms))
+    const leave = (): void => {
+      if (atBottom.current) return saveSpot(spotKey, null)
+      const top = el.getBoundingClientRect().top
+      const msg = [...(content.current?.querySelectorAll<HTMLElement>('.msg[data-node]') ?? [])].find((m) => m.getBoundingClientRect().bottom > top)
+      saveSpot(spotKey, msg ? { node: msg.dataset.node!, offset: top - msg.getBoundingClientRect().top } : null)
+    }
+    window.addEventListener('beforeunload', leave)
+    return () => {
+      timers.forEach(clearTimeout)
+      el.removeEventListener('wheel', mine)
+      el.removeEventListener('pointerdown', mine)
+      el.removeEventListener('keydown', mine)
+      window.removeEventListener('beforeunload', leave)
+      leave()
+    }
+  }, [spotKey])
 
   // Track whether the reader is at the bottom without a scroll listener.
   useEffect(() => {
@@ -71,8 +128,10 @@ export function Thread() {
     return () => cancelIdleCallback(handle)
   }, [count])
 
-  // Scroll to a newly sent message.
+  // Scroll to a newly sent message (not on opening: that's the place it was left, above).
+  const opened = useRef(false)
   useEffect(() => {
+    if (!opened.current) return void (opened.current = true)
     const el = scroller.current
     if (el) el.scrollTop = el.scrollHeight
   }, [count])
