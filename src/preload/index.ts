@@ -92,6 +92,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'downloadLocalModel',
   'cancelLocalDownload',
   'removeLocalModel',
+  'setLocalModelOptions',
+  'unloadLocalModel',
   'chooseModelsFolder',
   'openModelsFolder',
   'installLlama',

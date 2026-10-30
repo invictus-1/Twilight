@@ -1,14 +1,15 @@
 import { useEffect, useState } from 'react'
-import { FIT_LABEL, paramsLabel, sizeLabel, type HubModel, type HubVariant, type LocalState, type ModelFit } from '@shared/localModels'
+import { bestStarter, CONTEXT_CHOICES, FIT_LABEL, fitFor, paramsLabel, serverId, sizeLabel, STARTERS, type HubModel, type HubVariant, type LocalModel, type LocalState, type ModelFit, type LocalModelOptions, type StarterModel } from '@shared/localModels'
 import { useStore } from '../store'
-import { ChevronDown, ChevronRight, ChipIcon, FolderIcon, SearchIcon, TrashIcon } from './Icons'
+import { ChevronDown, ChevronRight, ChipIcon, FolderIcon, SearchIcon, SlidersIcon, TrashIcon } from './Icons'
 
 // Settings → Models on this PC: what this computer can run, llama.cpp fetched and started for
-// you, the models you've downloaded, and a search of Hugging Face where every size says whether
-// it fits before you download it.
+// you, the models you've downloaded (each with settings of its own), a few good first models, and
+// a search of Hugging Face where every size says whether it fits before you download it.
 
 const api = window.twilight
 const count = (n: number): string => (n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}k` : String(n))
+const clean = (err: unknown): string => (err as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
 function Fit({ fit }: { fit: ModelFit }) {
   return <span className={`fit-badge fit-${fit}`}>{FIT_LABEL[fit]}</span>
@@ -23,6 +24,38 @@ function Progress({ done, total }: { done: number; total: number }) {
   )
 }
 
+/** A downloaded model's own settings: how much context, and how much of it on the graphics card. */
+function ModelSettings({ model, gpu }: { model: LocalModel; gpu: boolean }) {
+  const o: LocalModelOptions = model.options ?? { ctx: null, gpu: 'auto' }
+  const set = (patch: Partial<LocalModelOptions>): void => void api.setLocalModelOptions(model.name, { ...o, ...patch })
+  return (
+    <div className="local-options">
+      <label className="field-inline">
+        <span className="field-note">Context</span>
+        <select value={o.ctx ?? ''} onChange={(e) => set({ ctx: e.target.value ? Number(e.target.value) : null })}>
+          <option value="">The most that fits</option>
+          {CONTEXT_CHOICES.map((n) => (
+            <option key={n} value={n}>
+              {n.toLocaleString()} tokens
+            </option>
+          ))}
+        </select>
+      </label>
+      {gpu && (
+        <label className="field-inline">
+          <span className="field-note">Graphics card</span>
+          <select value={o.gpu} onChange={(e) => set({ gpu: e.target.value as LocalModelOptions['gpu'] })}>
+            <option value="auto">As much as fits</option>
+            <option value="all">All of it</option>
+            <option value="none">None: the processor only</option>
+          </select>
+        </label>
+      )}
+      <p className="field-note">A longer context remembers more of the chat and needs more memory. Changing these restarts llama.cpp.</p>
+    </div>
+  )
+}
+
 export function LocalModelsSection() {
   const [state, setState] = useState<LocalState | null>(null)
   const [query, setQuery] = useState('')
@@ -30,6 +63,8 @@ export function LocalModelsSection() {
   const [searching, setSearching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)
+  const [tuning, setTuning] = useState<string | null>(null)
+  const [starterError, setStarterError] = useState<string | null>(null)
   const [variants, setVariants] = useState<Record<string, HubVariant[] | 'loading' | { error: string }>>({})
   useEffect(() => {
     void api.getLocalModels().then(setState)
@@ -40,9 +75,15 @@ export function LocalModelsSection() {
       void api.listProviders().then((p) => useStore.getState().setProviders(p))
     })
   }, [])
-  if (!state) return null
+  // A chat loads a model without this page hearing of it, so while the server runs the page looks again every few seconds.
+  const running = !!state?.engine.running
+  useEffect(() => {
+    if (!running) return
+    const timer = setInterval(() => void api.getLocalModels().then(setState), 3000)
+    return () => clearInterval(timer)
+  }, [running])
+  if (!state) return <p className="field-note local-reading">Reading this PC…</p>
   const { hardware: hw, engine } = state
-  const clean = (err: unknown): string => (err as Error).message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
 
   const search = async (): Promise<void> => {
     setSearching(true)
@@ -67,6 +108,20 @@ export function LocalModelsSection() {
       setVariants((v) => ({ ...v, [repo]: { error: clean(err) } }))
     }
   }
+  const getStarter = async (s: StarterModel): Promise<void> => {
+    setStarterError(null)
+    try {
+      const v = (await api.hubModelVariants(s.repo)).find((x) => x.name === s.quant)
+      if (!v) throw new Error(`${s.label} has no ${s.quant} size on Hugging Face any more; search for it below.`)
+      await api.downloadLocalModel(s.repo, v)
+    } catch (err) {
+      setStarterError(clean(err))
+    }
+  }
+  const best = bestStarter(hw)
+  const starters = STARTERS.filter((s) => fitFor(s.size, hw) !== 'no')
+  const have = (repo: string, quant: string): boolean => state.models.some((m) => m.repo === repo && m.name.toUpperCase().includes(quant))
+  const busy = (repo: string, quant: string): boolean => state.downloads.some((d) => d.repo === repo && d.variant === quant && !d.error)
 
   return (
     <>
@@ -104,6 +159,24 @@ export function LocalModelsSection() {
               <span className={`local-dot ${engine.running ? 'is-on' : ''}`} />
               {engine.starting ? 'Starting…' : `${engine.running ? 'Running' : 'Stopped'} · llama.cpp${engine.version ? ` ${engine.version} (${engine.kind})` : ''}`}
             </p>
+            {engine.running && (
+              <div className="local-loaded">
+                {engine.loaded.map((m) => (
+                  <div key={m.id} className="field-inline local-loaded-model">
+                    <span className="local-name">{m.id}</span>
+                    <span className="field-note">
+                      {m.state === 'loading'
+                        ? 'Loading…'
+                        : [m.state === 'sleeping' ? 'Asleep' : '', m.ctx ? `${m.ctx.toLocaleString()} tokens of context` : '', m.gpu ? `${sizeLabel(m.gpu)} on the graphics card` : '', m.ram ? `${sizeLabel(m.ram)} in memory` : ''].filter(Boolean).join(' · ')}
+                    </span>
+                    <button className="tw-btn tw-btn-ghost tw-btn-sm local-unload" disabled={m.state === 'loading'} onClick={() => void api.unloadLocalModel(m.id).then(() => api.getLocalModels().then(setState))}>
+                      Unload
+                    </button>
+                  </div>
+                ))}
+                {!engine.loaded.length && <p className="field-note">No model loaded. A chat on This PC loads its model, which takes a few seconds the first time.</p>}
+              </div>
+            )}
             <div className="data-actions">
               {engine.running ? (
                 <button className="tw-btn tw-btn-sm local-stop" onClick={() => void api.stopLlama()}>
@@ -153,18 +226,56 @@ export function LocalModelsSection() {
           </div>
         ))}
         {state.models.map((m) => (
-          <div key={m.name} className="field-inline local-model">
-            <span className="local-name" title={m.repo ?? undefined}>
-              {m.name}
-            </span>
-            <span className="field-note">{sizeLabel(m.size)}</span>
-            <Fit fit={m.fit} />
-            <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label={`Move ${m.name} to the Recycle Bin`} title="Move to the Recycle Bin" onClick={() => void api.removeLocalModel(m.name)}>
-              <TrashIcon size={14} />
+          <div key={m.name} className="local-model-wrap">
+            <div className="field-inline local-model">
+              <span className="local-name" title={m.repo ?? undefined}>
+                {m.name}
+              </span>
+              <span className="field-note">
+                {sizeLabel(m.size)}
+                {m.options?.ctx ? ` · ${m.options.ctx.toLocaleString()} tokens` : ''}
+                {engine.loaded.some((l) => l.id === serverId(m.name) && l.state === 'loaded') ? ' · loaded' : ''}
+              </span>
+              <Fit fit={m.fit} />
+              <button
+                className={`tw-btn tw-btn-ghost tw-btn-icon local-tune ${m.options ? 'is-set' : ''}`}
+                aria-label={`Settings for ${m.name}`}
+                aria-expanded={tuning === m.name}
+                title="Context and graphics card"
+                onClick={() => setTuning((t) => (t === m.name ? null : m.name))}
+              >
+                <SlidersIcon size={14} />
+              </button>
+              <button className="tw-btn tw-btn-ghost tw-btn-icon" aria-label={`Move ${m.name} to the Recycle Bin`} title="Move to the Recycle Bin" onClick={() => void api.removeLocalModel(m.name)}>
+                <TrashIcon size={14} />
+              </button>
+            </div>
+            {tuning === m.name && <ModelSettings model={m} gpu={!!hw.gpu} />}
+          </div>
+        ))}
+        {!state.models.length && !state.downloads.length && <p className="sidebar-empty">No models yet. Pick a first one below, or search for one.</p>}
+      </div>
+
+      <div className="settings-card local-starters">
+        <h3 className="t-heading">Good first models</h3>
+        <p className="field-note">A few well-known models at the size most people pick, leaving out any too large for this PC.</p>
+        {starters.map((s) => (
+          <div key={s.repo} className="field-inline local-starter">
+            <div className="local-starter-text">
+              <span className="local-starter-name">
+                {s.label}
+                {best?.repo === s.repo && <span className="local-best">Best for this PC</span>}
+              </span>
+              <span className="field-note">{s.note}</span>
+            </div>
+            <span className="field-note">{sizeLabel(s.size)}</span>
+            <Fit fit={fitFor(s.size, hw)} />
+            <button className="tw-btn tw-btn-sm local-starter-get" disabled={have(s.repo, s.quant) || busy(s.repo, s.quant)} onClick={() => void getStarter(s)}>
+              {have(s.repo, s.quant) ? 'Downloaded' : busy(s.repo, s.quant) ? 'Downloading…' : 'Download'}
             </button>
           </div>
         ))}
-        {!state.models.length && !state.downloads.length && <p className="sidebar-empty">No models yet. Find one below.</p>}
+        {starterError && <p className="form-error">{starterError}</p>}
       </div>
 
       <div className="settings-card local-search">
@@ -182,7 +293,7 @@ export function LocalModelsSection() {
             {searching ? 'Searching…' : 'Search'}
           </button>
         </form>
-        <p className="field-note">GGUF models, most downloaded first. Open one to see its sizes; smaller sizes lose a little quality and need far less memory. Q4_K_M is the usual choice.</p>
+        <p className="field-note">GGUF models that can chat, most downloaded first. Open one to see its sizes; smaller sizes lose a little quality and need far less memory. Q4_K_M is the usual choice.</p>
         {error && <p className="form-error">{error}</p>}
         {results && (
           <ul className="hub-results">
@@ -203,22 +314,19 @@ export function LocalModelsSection() {
                       {v && typeof v === 'object' && 'error' in v && <p className="form-error">{v.error}</p>}
                       {Array.isArray(v) && !v.length && <p className="field-note">No GGUF files in this repository.</p>}
                       {Array.isArray(v) &&
-                        v.map((x) => {
-                          const busy = state.downloads.some((d) => d.repo === r.id && d.variant === x.name)
-                          return (
-                            <div key={x.name} className="field-inline hub-variant">
-                              <span className="local-name">{x.name}</span>
-                              <span className="field-note">
-                                {sizeLabel(x.size)}
-                                {x.files.length > 1 ? ` in ${x.files.length} parts` : ''}
-                              </span>
-                              <Fit fit={x.fit} />
-                              <button className="tw-btn tw-btn-sm hub-download" disabled={busy || r.gated || x.fit === 'no'} title={r.gated ? 'This model needs a Hugging Face account and accepted terms.' : undefined} onClick={() => void api.downloadLocalModel(r.id, x)}>
-                                {busy ? 'Downloading…' : 'Download'}
-                              </button>
-                            </div>
-                          )
-                        })}
+                        v.map((x) => (
+                          <div key={x.name} className="field-inline hub-variant">
+                            <span className="local-name">{x.name}</span>
+                            <span className="field-note">
+                              {sizeLabel(x.size)}
+                              {x.files.length > 1 ? ` in ${x.files.length} parts` : ''}
+                            </span>
+                            <Fit fit={x.fit} />
+                            <button className="tw-btn tw-btn-sm hub-download" disabled={busy(r.id, x.name) || r.gated || x.fit === 'no'} title={r.gated ? 'This model needs a Hugging Face account and accepted terms.' : undefined} onClick={() => void api.downloadLocalModel(r.id, x)}>
+                              {busy(r.id, x.name) ? 'Downloading…' : 'Download'}
+                            </button>
+                          </div>
+                        ))}
                     </div>
                   )}
                 </li>

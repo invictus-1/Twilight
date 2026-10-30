@@ -5,7 +5,7 @@ import type { Theme } from './themes'
 import type { CodeEvent, CodeMode, CodeResponse, CodeSessionSummary, CodeSessionView } from './code'
 import type { BackupInfo, BackupSettings, DataInfo } from './backups'
 import type { LibraryHit, LibrarySettings, LibraryStatus, ScoutCaseResult, ScoutResult } from './docLibrary'
-import type { HubModel, HubVariant, LocalState } from './localModels'
+import type { HubModel, HubVariant, LocalModelOptions, LocalState } from './localModels'
 import type { GeneratedImage, ImageConfig, McpServerInput, McpServerView, ToolApproval, ToolApprovalResponse, ToolStep } from './mcp'
 import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
@@ -611,6 +611,10 @@ export interface TwilightApi {
   cancelLocalDownload(key: string): Promise<void>
   /** Sends a downloaded model to the Recycle Bin. */
   removeLocalModel(name: string): Promise<void>
+  /** A model's own context and graphics card settings (null for llama.cpp's choice); llama.cpp restarts to take them. */
+  setLocalModelOptions(name: string, options: LocalModelOptions | null): Promise<void>
+  /** Frees the memory a loaded model holds. */
+  unloadLocalModel(id: string): Promise<void>
   chooseModelsFolder(): Promise<LocalState>
   openModelsFolder(): Promise<void>
   /** Fetches llama.cpp from its official releases; progress arrives through onLocalModels. */

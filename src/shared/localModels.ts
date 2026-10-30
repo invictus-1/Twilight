@@ -59,6 +59,15 @@ export interface HubVariant {
   fit: ModelFit
 }
 
+/** How llama.cpp runs one model: its context, and how much of it goes on the graphics card. */
+export interface LocalModelOptions {
+  /** Tokens of context; null lets llama.cpp take the most that fits. */
+  ctx: number | null
+  gpu: 'auto' | 'all' | 'none'
+}
+
+export const CONTEXT_CHOICES = [4096, 8192, 16384, 32768, 65536, 131072]
+
 /** A model downloaded into the models folder. */
 export interface LocalModel {
   /** The file (or folder, for a model in parts) inside the models folder. */
@@ -66,6 +75,17 @@ export interface LocalModel {
   size: number
   repo: string | null
   fit: ModelFit
+  /** Settings of its own; null runs it as llama.cpp chooses. */
+  options: LocalModelOptions | null
+}
+
+/** A model llama.cpp has loaded (or is loading), with the memory it took in bytes. */
+export interface LoadedModel {
+  id: string
+  state: 'loading' | 'loaded' | 'sleeping'
+  ctx: number | null
+  gpu: number
+  ram: number
 }
 
 export interface LocalDownload {
@@ -91,6 +111,7 @@ export interface LocalState {
     starting: boolean
     port: number | null
     error: string | null
+    loaded: LoadedModel[]
   }
   autoStart: boolean
 }
@@ -121,3 +142,36 @@ export function quantOf(path: string): string {
 
 /** A file's path without the "-00001-of-00003" that marks parts of one model. */
 export const shardBase = (path: string): string => path.replace(/-\d{5}-of-\d{5}(?=\.gguf$)/i, '')
+
+/** Files beside a model that aren't a model of their own: vision add-ons and draft heads. */
+export const isSidecar = (path: string): boolean => /^(mmproj|mtp|dflash|eagle|dspark)/i.test(path.split('/').pop() ?? path)
+
+/** A model's name as llama.cpp's router lists it: the file without .gguf, or its folder. */
+export const serverId = (name: string): string => name.replace(/\.gguf$/i, '')
+
+/** A model to start with, at the size most people pick. */
+export interface StarterModel {
+  repo: string
+  quant: string
+  label: string
+  note: string
+  size: number
+}
+
+const gib = (n: number): number => Math.round(n * 1024 ** 3)
+
+/** Good first models, smallest first; the page offers the ones this PC can run. */
+export const STARTERS: StarterModel[] = [
+  { repo: 'unsloth/Qwen3.5-4B-GGUF', quant: 'Q4_K_M', label: 'Qwen3.5 4B', note: 'Small and quick; runs on most laptops.', size: gib(2.55) },
+  { repo: 'unsloth/Qwen3.5-9B-GGUF', quant: 'Q4_K_M', label: 'Qwen3.5 9B', note: 'A capable all-rounder for an 8 GB graphics card.', size: gib(5.29) },
+  { repo: 'unsloth/gemma-4-12b-it-GGUF', quant: 'Q4_K_M', label: 'Gemma 4 12B', note: "Google's mid-size model, for a 12 GB graphics card.", size: gib(6.63) },
+  { repo: 'unsloth/Qwen3.8-27B-GGUF', quant: 'UD-Q4_K_M', label: 'Qwen3.8 27B', note: 'The most downloaded model of its size, for a 24 GB graphics card.', size: gib(15.33) },
+  { repo: 'unsloth/gemma-4-26B-A4B-it-GGUF', quant: 'UD-Q4_K_M', label: 'Gemma 4 26B A4B', note: 'Large but quick: only a small part of it works on each word.', size: gib(15.78) },
+  { repo: 'unsloth/Qwen3.6-35B-A3B-GGUF', quant: 'UD-Q4_K_M', label: 'Qwen3.6 35B A3B', note: 'Larger still, and quick for its size even partly in system memory.', size: gib(20.61) }
+]
+
+/** The starter to suggest: the largest that fits the graphics card, or without one, the largest that stays quick on the processor. */
+export function bestStarter(hw: Hardware): StarterModel | null {
+  const fits = STARTERS.filter((s) => (hw.gpu ? fitFor(s.size, hw) === 'gpu' : fitFor(s.size, hw) !== 'no' && s.size < gib(6)))
+  return fits.sort((a, b) => b.size - a.size)[0] ?? null
+}

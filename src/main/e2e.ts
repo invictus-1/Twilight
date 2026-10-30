@@ -14,7 +14,7 @@ import { chunk, gather, libraryStatus, reindex as reindexLibrary, searchLibrary,
 import { parseScoutCases, scout, testScout } from './scout'
 import * as local from './localModels'
 import { pickEngine } from './localModels'
-import { fitFor, quantOf, type Hardware } from '@shared/localModels'
+import { bestStarter, fitFor, quantOf, type Hardware } from '@shared/localModels'
 
 // A PC for the fit checks: 32 GB of memory and an 8 GB graphics card.
 const HW49: Hardware = { memory: 32 * 1024 ** 3, gpu: { name: 'Test card', memory: 8 * 1024 ** 3 }, cpus: 8 }
@@ -87,14 +87,15 @@ const installerBytes = (version: string): Buffer => Buffer.from(`MZ fake install
  * single-file sizes, one in two parts, and a vision add-on to leave out), and the files themselves,
  * with Range for a resumed download.
  */
-const HUB_FILES: Record<string, number> = { 'tiny-Q4_K_M.gguf': 2000, 'tiny-Q8_0.gguf': 4000, 'big/tiny-F16-00001-of-00002.gguf': 3000, 'big/tiny-F16-00002-of-00002.gguf': 3000, 'mmproj-F16.gguf': 500 }
+const HUB_FILES: Record<string, number> = { 'tiny-Q4_K_M.gguf': 2000, 'tiny-Q8_0.gguf': 4000, 'big/tiny-F16-00001-of-00002.gguf': 3000, 'big/tiny-F16-00002-of-00002.gguf': 3000, 'mmproj-F16.gguf': 500, 'MTP/mtp-tiny-Q4_0.gguf': 300 }
 function mockHub(url: string, headers: import('node:http').IncomingHttpHeaders, res: import('node:http').ServerResponse): void {
   const path = url.replace(/^\/hf/, '')
   if (path.startsWith('/api/models?')) {
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify([
       { id: 'wren/tiny-GGUF', downloads: 12_400, likes: 3, pipeline_tag: 'text-generation', gguf: { total: 1_540_000_000, context_length: 8192, architecture: 'llama', chat_template: 'x'.repeat(2000) } },
-      { id: 'rowan/locked-GGUF', downloads: 90, likes: 0, gated: 'manual', gguf: { total: 70_000_000_000 } }
+      { id: 'rowan/locked-GGUF', downloads: 90, likes: 0, gated: 'manual', gguf: { total: 70_000_000_000 } },
+      { id: 'wren/voice-GGUF', downloads: 50, likes: 0, pipeline_tag: 'text-to-speech', gguf: { total: 600_000_000 } }
     ]))
     return
   }
@@ -115,15 +116,29 @@ function mockHub(url: string, headers: import('node:http').IncomingHttpHeaders, 
   res.end(Buffer.alloc(size - from, 7))
 }
 
-/** llama.cpp's stand-in for test runs: a router over the models folder that answers health, models and chat. */
+/**
+ * llama.cpp's stand-in for test runs: a router over the models folder that answers health, the
+ * model lists (the router's own with what's loaded, its context from the presets file, and the
+ * memory it took), unload, and chat, which loads the model it names.
+ */
 const FAKE_LLAMA = `
 const http = require('http'), fs = require('fs')
-const arg = (n) => process.argv[process.argv.indexOf(n) + 1]
+const arg = (n) => (process.argv.includes(n) ? process.argv[process.argv.indexOf(n) + 1] : null)
 const dir = arg('--models-dir')
+const presets = arg('--models-preset') ? fs.readFileSync(arg('--models-preset'), 'utf8') : ''
+const ctxOf = (id) => Number(new RegExp('\\\\[' + id + '\\\\][^\\\\[]*?\\\\bc = (\\\\d+)').exec(presets)?.[1] ?? 8192)
+let loaded = null
+const ids = () => fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.name.endsWith('.gguf')).map((e) => e.name.replace(/\\.gguf$/, ''))
 http.createServer((req, res) => {
   if (req.url === '/health') return res.end('{"status":"ok"}')
-  if (req.url === '/v1/models') {
-    const data = fs.readdirSync(dir, { withFileTypes: true }).filter((e) => e.isDirectory() || e.name.endsWith('.gguf')).map((e) => ({ id: e.name.replace(/\\.gguf$/, ''), object: 'model' }))
+  if (req.url === '/args') return res.end(JSON.stringify(process.argv.slice(2)))
+  if (req.url === '/v1/models' || req.url === '/models') {
+    const data = ids().map((id) => ({
+      id,
+      object: 'model',
+      status: { value: id === loaded ? 'loaded' : 'unloaded' },
+      memory: { status: 'measured', effective: id === loaded ? { n_ctx: ctxOf(id), devices: [{ kind: 'device', name: 'Vulkan0', model: 1000, context: 200, compute: 50 }, { kind: 'host', name: 'Host', model: 10, context: 0, compute: 5 }] } : null }
+    }))
     res.setHeader('content-type', 'application/json')
     return res.end(JSON.stringify({ data }))
   }
@@ -131,6 +146,11 @@ http.createServer((req, res) => {
   req.on('data', (c) => (body += c))
   req.on('end', () => {
     const model = JSON.parse(body || '{}').model
+    if (req.url === '/models/unload') {
+      if (loaded === model) loaded = null
+      return res.end('{"success":true}')
+    }
+    loaded = model
     res.writeHead(200, { 'content-type': 'text/event-stream' })
     res.write('data: ' + JSON.stringify({ choices: [{ delta: { content: 'Hello from this PC, ' + model } }] }) + '\\n\\n')
     res.write('data: ' + JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }) + '\\n\\n')
@@ -5011,10 +5031,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       writeFileSync(fake49, FAKE_LLAMA)
       local.useTestEndpoints(`http://127.0.0.1:${port}/hf`, `http://127.0.0.1:${port}/gh/none`, { command: process.execPath, args: [fake49], env: { ELECTRON_RUN_AS_NODE: '1' } }, HW49)
       const found49 = await local.searchHub('tiny')
-      check('a search lists GGUF models with their size and downloads', found49.length === 2 && found49[0].id === 'wren/tiny-GGUF' && found49[0].params === 1_540_000_000 && found49[1].gated, found49.map((m) => [m.id, m.params, m.gated]))
+      check('a search lists GGUF models that can chat, with their size and downloads', found49.length === 2 && found49[0].id === 'wren/tiny-GGUF' && found49[0].params === 1_540_000_000 && found49[1].gated, found49.map((m) => [m.id, m.params, m.gated]))
       const sizes49 = await local.hubVariants('wren/tiny-GGUF')
       check(
-        "a model's sizes, smallest first, with parts joined and vision add-ons left out",
+        "a model's sizes, smallest first, with parts joined and vision add-ons and draft heads left out",
         sizes49.map((v) => `${v.name}:${v.size}:${v.files.length}`).join() === 'Q4_K_M:2000:1,Q8_0:4000:1,F16:6000:2' && sizes49.every((v) => v.fit === 'gpu'),
         sizes49
       )
@@ -5040,8 +5060,28 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       chat.send(contents, c49, 'Hello?')
       await idle(c49)
       check('a chat runs on a downloaded model through This PC', chat.view(c49).path.at(-1)?.text === 'Hello from this PC, tiny-Q4_K_M', chat.view(c49).path.at(-1)?.text)
+      const loaded49 = (await local.localState()).engine.loaded
+      check('the loaded model shows with its context and memory', loaded49.length === 1 && loaded49[0].id === 'tiny-Q4_K_M' && loaded49[0].state === 'loaded' && loaded49[0].ctx === 8192 && loaded49[0].gpu === 1250 && loaded49[0].ram === 15, loaded49)
+      await local.setModelOptions('tiny-Q4_K_M.gguf', { ctx: 16384, gpu: 'all' })
+      const presets49 = await readFile(join(app.getPath('userData'), 'llama.cpp', 'presets.ini'), 'utf8').catch(() => '')
+      const args49 = await fetch(`http://127.0.0.1:${(await local.localState()).engine.port}/args`).then((r) => r.json() as Promise<string[]>).catch((): string[] => [])
+      const opts49 = (await local.localState()).models.find((m) => m.name === 'tiny-Q4_K_M.gguf')?.options
+      check(
+        "a model's own context and graphics card settings go to llama.cpp as presets",
+        presets49.includes('[tiny-Q4_K_M]\nc = 16384\nn-gpu-layers = all') && args49.includes('--models-preset') && opts49?.ctx === 16384 && opts49.gpu === 'all',
+        { presets49, args49, opts49 }
+      )
+      chat.send(contents, c49, 'Again?')
+      await idle(c49)
+      const reloaded49 = (await local.localState()).engine.loaded
+      check('the model loads again with its own context', reloaded49[0]?.ctx === 16384, reloaded49)
+      await local.unloadModel('tiny-Q4_K_M')
+      check('Unload frees the model', (await local.localState()).engine.loaded.length === 0)
+      chat.send(contents, c49, 'Once more?')
+      await idle(c49)
+      check('starters: the largest that fits the graphics card is suggested, or a small one without a card', bestStarter(HW49)?.label === 'Qwen3.5 9B' && bestStarter({ ...HW49, gpu: null })?.label === 'Qwen3.5 9B' && bestStarter({ ...HW49, gpu: { name: 'Big card', memory: 24 * 1024 ** 3 } })?.label === 'Gemma 4 26B A4B', [bestStarter(HW49)?.label, bestStarter({ ...HW49, gpu: null })?.label])
       await key(',', ['control'])
-      const page49 = await js<{ hardware: string; models: string[]; fits: string[]; running: string }>(`(async () => {
+      const page49 = await js<{ hardware: string; models: string[]; fits: string[]; running: string; loaded: string; starters: number; best: string; options: number }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Models on this PC')?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.local-hardware'); ) await wait(50)
@@ -5054,11 +5094,17 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.hub-model-head'); ) await wait(50)
         document.querySelector('.hub-model-head')?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.hub-variant'); ) await wait(50)
+        ;[...document.querySelectorAll('.local-tune')].find((b) => b.getAttribute('aria-label').includes('tiny-Q4_K_M'))?.click()
+        await wait(150)
         return {
           hardware: document.querySelector('.local-hardware')?.textContent ?? '',
           models: [...document.querySelectorAll('.local-model .local-name')].map((e) => e.textContent),
           fits: [...document.querySelectorAll('.hub-variant .fit-badge')].map((e) => e.textContent),
-          running: document.querySelector('.local-engine-status')?.textContent ?? ''
+          running: document.querySelector('.local-engine-status')?.textContent ?? '',
+          loaded: document.querySelector('.local-loaded-model')?.textContent ?? '',
+          starters: document.querySelectorAll('.local-starter').length,
+          best: document.querySelector('.local-best')?.parentElement?.textContent ?? '',
+          options: document.querySelectorAll('.local-options select').length
         }
       })()`)
       check(
@@ -5066,7 +5112,25 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         page49.hardware.includes('Test card, 8 GB') && page49.models.length === 3 && page49.fits.length === 3 && page49.fits.every((f) => f === 'Fits on your graphics card') && page49.running.startsWith('Running'),
         page49
       )
+      check(
+        'the page shows the loaded model, good first models with the best for this PC, and a model’s settings',
+        page49.loaded.includes('tiny-Q4_K_M') && page49.loaded.includes('16,384 tokens of context') && page49.starters === 6 && page49.best.startsWith('Qwen3.5 9B') && page49.options === 2,
+        page49
+      )
       await shot('e2e-local-models.png')
+      await key('Escape')
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+      const find49 = await js<boolean>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.picker .tw-chip'); ) await wait(50)
+        document.querySelector('.picker .tw-chip')?.click()
+        for (let end = Date.now() + 2000; Date.now() < end && !document.querySelector('.picker-find'); ) await wait(50)
+        document.querySelector('.picker-find')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.local-hardware'); ) await wait(50)
+        return !!document.querySelector('.local-hardware')
+      })()`)
+      check('the model picker opens Models on this PC to find a model', find49)
+      await key('Escape')
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
       local.stopEngine()
 

@@ -48,7 +48,7 @@ import { doneNotificationOn, setDoneNotification } from './doneNotice'
 import { keepFresh, librarySettings, libraryStatus, reindex as reindexLibrary, searchLibrary, setLibrarySettings } from './docLibrary'
 import { parseScoutCases, scout, testScout } from './scout'
 import * as local from './localModels'
-import type { HubVariant } from '@shared/localModels'
+import type { HubVariant, LocalModelOptions } from '@shared/localModels'
 import type { LibrarySettings } from '@shared/docLibrary'
 import { checkTarget, isMoved, lastLocationChange, resolveDataFolder, stageMove, standardFolder } from './location'
 import { toRecycleBin } from './code/workspace'
@@ -450,6 +450,8 @@ function registerIpc(): void {
     downloadLocalModel: (_e, repo: string, variant: HubVariant) => void local.downloadModel(repo, variant),
     cancelLocalDownload: (_e, key: string) => local.cancelDownload(key),
     removeLocalModel: (_e, name: string) => local.removeModel(name),
+    setLocalModelOptions: (_e, name: string, options: LocalModelOptions | null) => local.setModelOptions(name, options),
+    unloadLocalModel: (_e, id: string) => local.unloadModel(id),
     chooseModelsFolder: async (e) => {
       const win = BrowserWindow.fromWebContents(e.sender)
       const options: Electron.OpenDialogOptions = { title: 'Choose a folder for models', defaultPath: local.modelsFolder(), properties: ['openDirectory', 'createDirectory'] }

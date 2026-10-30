@@ -4,7 +4,7 @@ import { createWriteStream, promises as fs } from 'node:fs'
 import { createServer } from 'node:net'
 import { cpus, totalmem } from 'node:os'
 import { basename, dirname, join, relative } from 'node:path'
-import { fitFor, quantOf, shardBase, THIS_PC, type Hardware, type HubModel, type HubVariant, type LocalDownload, type LocalModel, type LocalState } from '@shared/localModels'
+import { fitFor, isSidecar, quantOf, serverId, shardBase, THIS_PC, type Hardware, type HubModel, type HubVariant, type LoadedModel, type LocalDownload, type LocalModel, type LocalState, type LocalModelOptions } from '@shared/localModels'
 import { kvGet, kvSet } from './db'
 import { getProviders, saveProvider } from './providers'
 
@@ -30,8 +30,10 @@ interface Settings {
   engine: { version: string; kind: string; exe: string } | null
   /** Which repository each downloaded model came from, by its name in the folder. */
   sources: Record<string, string>
+  /** Each model's own settings, by its name in the folder. */
+  options: Record<string, LocalModelOptions>
 }
-const settings = (): Settings => ({ folder: null, autoStart: true, engine: null, sources: {}, ...kvGet<Partial<Settings>>('localModels') })
+const settings = (): Settings => ({ folder: null, autoStart: true, engine: null, sources: {}, options: {}, ...kvGet<Partial<Settings>>('localModels') })
 const save = (patch: Partial<Settings>): void => kvSet('localModels', { ...settings(), ...patch })
 export const modelsFolder = (): string => settings().folder ?? join(app.getPath('userData'), 'models')
 
@@ -39,33 +41,37 @@ export const modelsFolder = (): string => settings().folder ?? join(app.getPath(
 
 let hardwareCache: Promise<Hardware> | null = null
 
-/** Memory, and the graphics card with the most memory (Windows keeps its true size in the registry). */
+const reg = (args: string[]): Promise<string> => new Promise((resolve) => execFile('reg', ['query', ...args], { windowsHide: true, maxBuffer: 1024 * 1024 }, (err, out) => resolve(err ? '' : out)))
+
+/**
+ * Memory, and the graphics card with the most memory (Windows keeps its true size in the
+ * registry). Each card's key is read on its own: reading the whole display class at once takes
+ * most of a minute on some PCs.
+ */
 export function hardware(): Promise<Hardware> {
   if (hardwareOverride) return Promise.resolve(hardwareOverride)
-  hardwareCache ??= new Promise((resolve) => {
+  hardwareCache ??= (async () => {
     const base = { memory: totalmem(), cpus: cpus().length, gpu: null }
-    if (process.platform !== 'win32') return resolve(base)
+    if (process.platform !== 'win32') return base
     const key = 'HKLM\\SYSTEM\\ControlSet001\\Control\\Class\\{4d36e968-e325-11ce-bfc1-08002be10318}'
-    execFile('reg', ['query', key, '/s'], { windowsHide: true, maxBuffer: 8 * 1024 * 1024 }, (err, out) => {
-      if (err) return resolve(base)
-      const cards = new Map<string, { name?: string; memory?: number }>()
-      let at = ''
-      for (const line of out.split(/\r?\n/)) {
-        if (line.startsWith('HKEY_')) at = line.trim()
-        const v = /^\s+(\S[^\t]*?)\s+REG_(\w+)\s+(.*)$/.exec(line)
-        if (!v || !at) continue
-        const card = cards.get(at) ?? {}
-        if (v[1] === 'DriverDesc') card.name = v[3].trim()
-        if (v[1] === 'HardwareInformation.qwMemorySize') card.memory = Number(BigInt(v[3].trim()))
-        cards.set(at, card)
-      }
-      const best = [...cards.values()]
-        .filter((c): c is { name: string; memory: number } => !!c.name && !!c.memory && !/basic display|virtual|remote|indirect/i.test(c.name))
-        .sort((a, b) => b.memory - a.memory)[0]
-      // A card with under 2 GB of its own (most built-in graphics) won't hold a useful model.
-      resolve({ ...base, gpu: best && best.memory >= 2 * 1024 ** 3 ? best : null })
-    })
-  })
+    const subkeys = (await reg([key])).split(/\r?\n/).map((l) => l.trim()).filter((l) => /\\\d{4}$/.test(l))
+    const cards = await Promise.all(
+      subkeys.map(async (sub) => {
+        const card: { name?: string; memory?: number } = {}
+        for (const line of (await reg([sub])).split(/\r?\n/)) {
+          const v = /^\s+(\S[^\t]*?)\s+REG_(\w+)\s+(.*)$/.exec(line)
+          if (v?.[1] === 'DriverDesc') card.name = v[3].trim()
+          if (v?.[1] === 'HardwareInformation.qwMemorySize') card.memory = Number(BigInt(v[3].trim()))
+        }
+        return card
+      })
+    )
+    const best = cards
+      .filter((c): c is { name: string; memory: number } => !!c.name && !!c.memory && !/basic display|virtual|remote|indirect/i.test(c.name))
+      .sort((a, b) => b.memory - a.memory)[0]
+    // A card with under 2 GB of its own (most built-in graphics) won't hold a useful model.
+    return { ...base, gpu: best && best.memory >= 2 * 1024 ** 3 ? best : null }
+  })()
   return hardwareCache
 }
 
@@ -77,13 +83,16 @@ async function getJson<T>(url: string): Promise<T> {
   return (await res.json()) as T
 }
 
+const NOT_CHAT = /speech|text-to-audio|audio-to-audio|to-image|to-video|feature-extraction|sentence-similarity|object-detection|segmentation|classification|depth-estimation/
+
 /** GGUF models on Hugging Face matching a search, most downloaded first. */
 export async function searchHub(query: string): Promise<HubModel[]> {
-  const params = new URLSearchParams({ search: query.trim(), filter: 'gguf', sort: 'downloads', direction: '-1', limit: '30' })
+  const params = new URLSearchParams({ search: query.trim(), filter: 'gguf', sort: 'downloads', direction: '-1', limit: '40' })
   for (const e of ['gguf', 'downloads', 'likes', 'pipeline_tag', 'gated', 'lastModified']) params.append('expand[]', e)
   type Row = { id: string; downloads?: number; likes?: number; gated?: boolean | string; pipeline_tag?: string; lastModified?: string; gguf?: { total?: number; context_length?: number; architecture?: string } }
   const rows = await getJson<Row[]>(`${HUB}/api/models?${params}`)
-  return rows.map((r) => ({
+  // Speech, pictures, video and embeddings come as GGUF too, but can't hold a conversation.
+  return rows.filter((r) => !NOT_CHAT.test(r.pipeline_tag ?? '')).map((r) => ({
     id: r.id,
     downloads: r.downloads ?? 0,
     likes: r.likes ?? 0,
@@ -101,7 +110,7 @@ export async function hubVariants(repo: string): Promise<HubVariant[]> {
   const tree = await getJson<{ type: string; path: string; size: number; lfs?: { size: number } }[]>(`${HUB}/api/models/${repo}/tree/main?recursive=true`)
   const groups = new Map<string, { files: string[]; size: number }>()
   for (const f of tree) {
-    if (f.type !== 'file' || !/\.gguf$/i.test(f.path) || /^mmproj/i.test(basename(f.path))) continue
+    if (f.type !== 'file' || !/\.gguf$/i.test(f.path) || isSidecar(f.path)) continue
     const key = shardBase(f.path)
     const g = groups.get(key) ?? { files: [], size: 0 }
     g.files.push(f.path)
@@ -120,20 +129,20 @@ export async function hubVariants(repo: string): Promise<HubVariant[]> {
 export async function localModels(): Promise<LocalModel[]> {
   const folder = modelsFolder()
   const hw = await hardware()
-  const { sources } = settings()
+  const { sources, options } = settings()
   const entries = await fs.readdir(folder, { withFileTypes: true }).catch(() => [])
   const out: LocalModel[] = []
   for (const e of entries) {
     const full = join(folder, e.name)
-    if (e.isFile() && /\.gguf$/i.test(e.name) && !/^mmproj/i.test(e.name)) {
+    if (e.isFile() && /\.gguf$/i.test(e.name) && !isSidecar(e.name)) {
       const size = (await fs.stat(full)).size
-      out.push({ name: e.name, size, repo: sources[e.name] ?? null, fit: fitFor(size, hw) })
+      out.push({ name: e.name, size, repo: sources[e.name] ?? null, fit: fitFor(size, hw), options: options[e.name] ?? null })
     } else if (e.isDirectory()) {
-      const parts = (await fs.readdir(full).catch(() => [])).filter((f) => /\.gguf$/i.test(f) && !/^mmproj/i.test(f))
+      const parts = (await fs.readdir(full).catch(() => [])).filter((f) => /\.gguf$/i.test(f) && !isSidecar(f))
       if (!parts.length) continue
       let size = 0
       for (const p of parts) size += (await fs.stat(join(full, p))).size
-      out.push({ name: e.name, size, repo: sources[e.name] ?? null, fit: fitFor(size, hw) })
+      out.push({ name: e.name, size, repo: sources[e.name] ?? null, fit: fitFor(size, hw), options: options[e.name] ?? null })
     }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))
@@ -214,8 +223,41 @@ export async function removeModel(name: string): Promise<void> {
   const full = join(modelsFolder(), name)
   if (relative(modelsFolder(), full).startsWith('..')) throw new Error('That model is not in the models folder.')
   await shell.trashItem(full)
+  const { options } = settings()
+  if (options[name]) save({ options: Object.fromEntries(Object.entries(options).filter(([n]) => n !== name)) })
   if (engine) await restartEngine()
   announce()
+}
+
+/** One model's own settings; llama.cpp restarts to take them (unloading what it had loaded). */
+export async function setModelOptions(name: string, options: LocalModelOptions | null): Promise<void> {
+  const all = { ...settings().options }
+  if (options && (options.ctx || options.gpu !== 'auto')) all[name] = options
+  else delete all[name]
+  save({ options: all })
+  if (engine) await restartEngine()
+  announce()
+}
+
+const presetsFile = (): string => join(app.getPath('userData'), 'llama.cpp', 'presets.ini')
+
+/**
+ * llama.cpp's presets file: a section per model with settings of its own, named as the router
+ * lists the model. Without any, the file isn't used and llama.cpp fits each model itself.
+ */
+export async function writePresets(): Promise<string | null> {
+  const entries = Object.entries(settings().options)
+  if (!entries.length) return null
+  const lines = ['version = 1', '']
+  for (const [name, o] of entries) {
+    lines.push(`[${serverId(name)}]`)
+    if (o.ctx) lines.push(`c = ${o.ctx}`)
+    if (o.gpu !== 'auto') lines.push(`n-gpu-layers = ${o.gpu === 'all' ? 'all' : 0}`)
+    lines.push('')
+  }
+  await fs.mkdir(dirname(presetsFile()), { recursive: true })
+  await fs.writeFile(presetsFile(), lines.join('\n'))
+  return presetsFile()
 }
 
 export async function setModelsFolder(folder: string): Promise<void> {
@@ -323,7 +365,8 @@ export async function startEngine(): Promise<void> {
   try {
     await fs.mkdir(modelsFolder(), { recursive: true })
     port = await freePort(39281)
-    const args = ['--models-dir', modelsFolder(), '--host', '127.0.0.1', '--port', String(port), '--models-max', '1']
+    const presets = await writePresets()
+    const args = ['--models-dir', modelsFolder(), ...(presets ? ['--models-preset', presets] : []), '--host', '127.0.0.1', '--port', String(port), '--models-max', '1']
     const command = engineOverride?.command ?? s.engine?.exe ?? ''
     lastOutput = ''
     const child = spawn(command, [...(engineOverride?.args ?? []), ...args], { windowsHide: true, cwd: dirname(command), env: { ...process.env, ...engineOverride?.env } })
@@ -394,6 +437,31 @@ export function initLocalModels(): void {
   app.on('will-quit', () => engine?.kill())
 }
 
+type Device = { kind?: string; model?: number; context?: number; compute?: number }
+type RouterModel = { id: string; status?: { value?: string }; memory?: { effective?: { n_ctx?: number; devices?: Device[] } | null } }
+
+/** What the server has loaded, and the memory each took on the graphics card and in system memory. */
+async function loadedModels(): Promise<LoadedModel[]> {
+  if (!engine || starting || !port) return []
+  const list = await fetch(`http://127.0.0.1:${port}/models`, { signal: AbortSignal.timeout(1500) })
+    .then((r) => (r.ok ? (r.json() as Promise<{ data?: RouterModel[] }>) : { data: [] }))
+    .catch(() => ({ data: [] as RouterModel[] }))
+  const used = (devices: Device[], kind: string): number => devices.filter((d) => (d.kind === 'host') === (kind === 'host')).reduce((n, d) => n + (d.model ?? 0) + (d.context ?? 0) + (d.compute ?? 0), 0)
+  return (list.data ?? [])
+    .filter((m) => m.status?.value === 'loaded' || m.status?.value === 'loading' || m.status?.value === 'sleeping')
+    .map((m) => {
+      const eff = m.memory?.effective
+      return { id: m.id, state: m.status?.value as LoadedModel['state'], ctx: eff?.n_ctx ?? null, gpu: used(eff?.devices ?? [], 'device'), ram: used(eff?.devices ?? [], 'host') }
+    })
+}
+
+/** Frees the memory a loaded model holds; the next chat with it loads it again. */
+export async function unloadModel(id: string): Promise<void> {
+  if (!port) return
+  await fetch(`http://127.0.0.1:${port}/models/unload`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: id }) }).catch(() => undefined)
+  announce()
+}
+
 // ——— State for the window ———
 
 export async function localState(): Promise<LocalState> {
@@ -403,7 +471,7 @@ export async function localState(): Promise<LocalState> {
     folder: modelsFolder(),
     models: await localModels(),
     downloads: [...downloads.values()].map(({ controller: _, ...d }) => d),
-    engine: { version: s.engine?.version ?? null, kind: s.engine?.kind ?? null, installing, running: !!engine && !starting, starting, port, error: engineError },
+    engine: { version: s.engine?.version ?? null, kind: s.engine?.kind ?? null, installing, running: !!engine && !starting, starting, port, error: engineError, loaded: await loadedModels() },
     autoStart: s.autoStart
   }
 }

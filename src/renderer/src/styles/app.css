@@ -592,6 +592,7 @@ body.resizing .resize-handle { pointer-events: auto; }
 .tw-meta { margin-left: auto; font-size: 12px; color: var(--ink-faint); display: inline-flex; }
 .picker-empty, .picker-note { font-size: 12px; line-height: 16px; color: var(--ink-muted); padding: var(--space-2); }
 .picker-note { border-top: 1px solid var(--line); color: var(--ink-faint); }
+.picker-find { border-top: 1px solid var(--line); border-radius: 0; color: var(--ink-muted); }
 
 /* Panels, dialogs and fields */
 .panel { position: absolute; top: calc(var(--titlebar) + var(--space-2)); right: var(--space-4); width: 380px; z-index: 15; background: var(--surface-overlay); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); padding: var(--space-4); display: flex; flex-direction: column; gap: var(--space-3); }
@@ -1611,6 +1612,20 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .local-name { font-family: var(--font-mono); font-size: 12px; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
 .local-model, .hub-variant { gap: var(--space-2); }
 .local-download { display: flex; flex-direction: column; gap: var(--space-1); }
+.local-model-wrap { display: flex; flex-direction: column; }
+.local-tune.is-set { color: var(--horizon); }
+.local-options { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); padding: var(--space-1) 0 var(--space-2) var(--space-4); border-left: 2px solid var(--line); margin-left: var(--space-1); }
+.local-options .field-inline { gap: var(--space-2); }
+.local-options select { font-size: 13px; height: var(--control-sm); }
+.local-options p { flex-basis: 100%; margin: 0; }
+.local-loaded { display: flex; flex-direction: column; gap: var(--space-1); }
+.local-loaded p { margin: 0; }
+.local-loaded-model { gap: var(--space-2); }
+.local-starter { gap: var(--space-2); padding: var(--space-1) 0; }
+.local-starter-text { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.local-starter-name { display: flex; align-items: center; gap: var(--space-2); font-size: 13px; color: var(--ink); }
+.local-best { font-size: 11px; padding: 0 var(--space-2); border-radius: var(--radius-full); background: color-mix(in srgb, var(--iris) 18%, transparent); color: var(--iris); }
+.local-reading { padding: var(--space-4) 0; }
 .fit-badge { flex: none; font-size: 12px; padding: 1px var(--space-2); border-radius: var(--radius-full); border: 1px solid currentColor; white-space: nowrap; }
 .fit-gpu { color: var(--success); }
 .fit-split { color: var(--warning); }

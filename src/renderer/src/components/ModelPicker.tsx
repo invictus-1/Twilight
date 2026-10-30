@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePane } from '../pane'
 import { modelName, paneOf, useStore } from '../store'
-import { CheckIcon, ChevronDown, ChipIcon, CloudIcon, RefreshIcon } from './Icons'
+import { CheckIcon, ChevronDown, ChipIcon, CloudIcon, RefreshIcon, SearchIcon } from './Icons'
 
 /**
  * The model chip and its menu. Opens upward from the composer, downward from a header. With
@@ -101,6 +101,16 @@ export function ModelPicker({ placement = 'up', scope = 'chat' }: { placement?: 
                 .
               </div>
             )}
+          </div>
+          <div
+            className="tw-menu-item picker-find"
+            role="button"
+            tabIndex={0}
+            onClick={() => (setOpen(false), useStore.getState().setSettingsOpen(true, 'local'))}
+            onKeyDown={(e) => e.key === 'Enter' && (setOpen(false), useStore.getState().setSettingsOpen(true, 'local'))}
+          >
+            <SearchIcon className="muted" />
+            <span className="picker-name">Find a model to run on this PC…</span>
           </div>
           {started && <div className="picker-note">Switching models mid-chat starts a fresh prompt cache.</div>}
         </div>
