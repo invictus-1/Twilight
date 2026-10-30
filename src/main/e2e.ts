@@ -49,6 +49,7 @@ import { existsSync } from 'node:fs'
 import { placement } from './windowState'
 import { shouldSignal } from './doneNotice'
 import { sinceCompaction } from './providers/compactionBlocks'
+import { locatePassage } from '@shared/passage'
 import { clockTime, seasonFor } from '@shared/sky'
 import { modelKey, pickModelDefaults } from '@shared/modelDefaults'
 
@@ -1125,6 +1126,60 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       chat.setCompactionSettings({ threshold: null })
       check('past your size a bar offers to compact, and compacting leaves a marker in the chat', barUi.offered && barUi.marker && barUi.barGone, barUi)
+
+      // Changing a selected passage of a reply.
+      const src = 'Wren climbed the **hundred and twelve** steps.\n\n1. Light the lamp\n2. Wait'
+      const p1 = locatePassage(src, 'climbed the hundred and twelve steps')
+      const p2 = locatePassage(src, 'Light the lamp Wait')
+      check(
+        "a passage selected in a reply is found in the reply's markdown, marks and all",
+        !!p1 && src.slice(p1.start, p1.end) === 'climbed the **hundred and twelve** steps' && !!p2 && src.slice(p2.start, p2.end) === 'Light the lamp\n2. Wait' && locatePassage(src, 'not in it') === null,
+        { p1, p2 }
+      )
+      const pe = chat.create(null).id
+      chat.send(contents, pe, 'Passage lamps one')
+      await idle(pe)
+      const peReply = chat.view(pe).path[1]
+      const beforePe = log.length
+      const withChatText = await chat.editPassage(pe, peReply.id, 'Here is a short answer', 'Make it grander.', true)
+      const withChatReq = log[beforePe]
+      await chat.editPassage(pe, peReply.id, 'Here is a short answer', 'Make it grander.', false)
+      const aloneReq = log[beforePe + 1]
+      check(
+        'a passage edit sends the chat (unchanged, then the request) or the passage alone, and stores nothing',
+        !!withChatText && JSON.stringify(withChatReq?.messages).includes('Passage lamps one') && JSON.stringify(withChatReq?.messages.at(-1)).includes('<passage>') &&
+          !JSON.stringify(aloneReq?.messages).includes('Passage lamps one') && chat.view(pe).path.length === 2,
+        { withChat: withChatReq?.messages.length, alone: aloneReq?.messages.length }
+      )
+      await reloadUi()
+      const passageUi = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('[data-mode="chat"]')?.click()
+        await wait(200)
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Passage lamps one')?.click()
+        await wait(600)
+        const body = [...document.querySelectorAll('.tw-msg-ai .tw-msg-body')].at(-1)
+        const p = body.querySelector('p')
+        const range = document.createRange()
+        range.selectNodeContents(p)
+        document.getSelection().removeAllRanges()
+        document.getSelection().addRange(range)
+        document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+        for (let end = Date.now() + 2000; Date.now() < end && !document.querySelector('.passage-tools'); ) await wait(25)
+        const shown = !!document.querySelector('.passage-tools')
+        ;[...document.querySelectorAll('.passage-tools button')].find((b) => b.textContent === 'Rewrite')?.click()
+        for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.passage-new'); ) await wait(50)
+        const compared = !!document.querySelector('.passage-old') && !!document.querySelector('.passage-new')
+        ;[...document.querySelectorAll('.passage-tools button')].find((b) => b.textContent === 'Accept')?.click()
+        await wait(600)
+        return { shown, compared, gone: !document.querySelector('.passage-tools') }
+      })()`)
+      const peAfter = chat.view(pe).path[1]
+      check(
+        'select text in a reply, ask for a change, see it before and after, and Accept saves a new version',
+        passageUi.shown && passageUi.compared && passageUi.gone && peAfter.siblingCount === 2 && peAfter.text !== peReply.text,
+        { ...passageUi, versions: peAfter.siblingCount }
+      )
 
       // 22. Game Format: paragraphs joined within chunks, dividers kept, code and HTML untouched.
       const sample = 'ofjasdoifjasodif\n\najosdfjasoidfj\n\nasdofjiasodf\n\n---\n\noidsfjsodjfids\n\nsdfjosidjf\n\nsdojfsoidfj'
@@ -3740,6 +3795,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         for (let end = Date.now() + 4000; Date.now() < end && document.querySelectorAll('.tw-msg-ai .md-block').length < 2; ) await wait(20)
         const first = document.querySelector('.tw-msg-ai .md-block')
+        if (!first) return { blocks: 0, same: false, selected: '', streaming: false }
         const range = document.createRange()
         range.selectNodeContents(first)
         document.getSelection().removeAllRanges()

@@ -4,6 +4,7 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Change a passage of a reply:** select text in a reply and a small toolbar offers Rewrite, Tighten, Expand, or any change you ask for. The model sees exactly what you selected, with the whole chat as context (read from its cache, and never added to the conversation) unless you switch that off. The change shows before and after; Accept saves the reply with it as a new version, the original one ‹ › away.
 - **Compact a long chat:** replace the conversation so far with a summary and carry on from it, quicker and cheaper, with everything above still there to read. With Claude it's Anthropic's own compaction; other models write the summary themselves. Set a size in Settings → General (say 250k tokens) and a quiet bar offers it when a chat gets there, or compact any time from the command menu. Your own summary instructions can replace the model's, and the documents, pictures and instruction changes you attached go in again right after the summary, word for word.
 
 ## 1.3.0

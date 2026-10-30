@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef } from 'react'
 import { usePane } from '../pane'
 import { ChatTop } from './ChatTop'
+import { PassageTools } from './PassageTools'
 import { paneOf, useStore } from '../store'
 import { subscribeStream } from '../stream'
 import { Message } from './Message'
@@ -220,6 +221,7 @@ export function Thread() {
         </div>
       </div>
       <ScrollParticles scroller={scroller} />
+      <PassageTools scroller={scroller} />
     </div>
   )
 }

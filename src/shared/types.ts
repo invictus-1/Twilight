@@ -598,6 +598,8 @@ export interface TwilightApi {
   onDocLibrary(listener: (status: LibraryStatus) => void): () => void
   /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
   getSpellcheck(): Promise<boolean>
+  /** A passage of a reply rewritten as asked (with the whole chat as context, or the passage alone); nothing is stored. */
+  editPassage(id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane?: Pane): Promise<string>
   /** Replaces a chat's (or pane's) conversation so far with a summary; requests start from it after. */
   compactChat(id: string, pane?: Pane): Promise<ConversationView>
   getCompaction(): Promise<{ threshold: number | null; instructions: string; keepDocs: boolean }>

@@ -441,6 +441,7 @@ function registerIpc(): void {
     },
     searchDocLibrary: (_e, query: string) => searchLibrary(query),
     getSpellcheck: () => spellcheckOn(),
+    editPassage: (_e, id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane?: Pane) => chat.editPassage(id, nodeId, passage, instruction, withChat, pane),
     compactChat: (_e, id: string, pane?: Pane) => chat.compact(id, pane),
     getCompaction: () => chat.compactionSettings(),
     setCompaction: (_e, patch: Partial<chat.CompactionSettings>) => chat.setCompactionSettings(patch),

@@ -1584,3 +1584,13 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .compaction-line::before, .compaction-line::after { content: ''; flex: 1; height: 1px; background: color-mix(in srgb, var(--dusk) 45%, transparent); }
 .compaction-summary summary { cursor: pointer; font-size: 12px; color: var(--ink-faint); text-align: center; }
 .compaction-text { margin-top: var(--space-2); padding: var(--space-3); border-left: 2px solid var(--dusk-soft); white-space: pre-wrap; font-size: 13px; line-height: 20px; color: var(--ink-muted); max-height: 360px; overflow-y: auto; }
+
+/* Changing a selected passage of a reply: a small floating toolbar, then before and after. */
+.passage-tools { position: fixed; z-index: 35; width: min(560px, calc(100vw - 32px)); display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-2); background: var(--surface-overlay); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-lg); animation: ov-rise 150ms cubic-bezier(.2, .8, .2, 1); }
+.passage-row { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
+.passage-ask { flex: 1; min-width: 160px; height: var(--control-sm); }
+.passage-meta { justify-content: space-between; font-size: 12px; }
+.passage-compare { display: flex; flex-direction: column; gap: var(--space-2); max-height: 50vh; overflow-y: auto; }
+.passage-old { white-space: pre-wrap; font-size: 13px; color: var(--ink-faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 50%, transparent); }
+.passage-new { white-space: pre-wrap; font-size: 14px; line-height: 22px; color: var(--ink); padding-left: var(--space-2); border-left: 2px solid var(--horizon); }
+.passage-error { margin: 0; font-size: 12px; color: var(--danger); }

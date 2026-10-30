@@ -934,3 +934,42 @@ export async function compact(id: string, pane: Pane = 'a'): Promise<Conversatio
   db.touchConversation(id)
   return view(id)
 }
+
+// ——— Editing a passage of a reply (select text in the chat) ———
+
+const PASSAGE_RULES = `You are editing one passage of your earlier reply, marked <passage>, as the instruction asks.
+Reply with only the replacement text for the passage: no preamble, no quotation marks, no commentary, nothing before or after it.
+Keep the voice, tense, point of view and markdown formatting unless the instruction says otherwise, and keep it consistent with everything else in the conversation.`
+
+/**
+ * Rewrites a passage of a reply as asked, and returns the new passage (nothing is stored: it's
+ * accepted as a new version of the reply, or not). With the whole chat, the conversation goes up
+ * exactly as it would for a reply, so it reads from the chat's cache, and the request comes last
+ * in a message of its own; without it, the model sees only the passage.
+ */
+export async function editPassage(id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane: Pane = 'a'): Promise<string> {
+  const conv = db.getConversation(id)
+  const settings: ChatSettings = { ...settingsFor(conv, pane), webSearch: false, webFetch: false, choiceTool: false, imageGen: false, library: false, mcpServers: [] }
+  const nodes = db.loadNodes(id)
+  const config = getProvider(settings.providerId)
+  const ask = `${PASSAGE_RULES}\n\n<passage>\n${passage}\n</passage>\n\nInstruction: ${instruction.trim()}`
+  const base = nodes.get(nodeId)
+  if (!base) throw new Error('That reply is gone.')
+  const request = { ...base, id: randomUUID(), role: 'user', text: ask, content: JSON.stringify([{ type: 'text', text: ask }]), status: 'done' } as db.NodeRow
+  const history = withChat ? [...sinceCompaction(db.ancestors(nodes, nodeId).filter((n) => n.role !== 'root')), request] : [request]
+  const result = await implFor(config).generate({
+    config,
+    apiKey: getApiKey(config.id),
+    system: withChat ? systemFor(settings, nodes.get(conv.root_id)?.text ?? '') : '',
+    history,
+    settings,
+    options: modelOptions(settings.providerId, settings.modelId),
+    signal: new AbortController().signal,
+    onText: () => undefined,
+    onThinking: () => undefined
+  })
+  if (result.error) throw new Error(result.error)
+  const text = result.text.trim().replace(/^<passage>\s*|\s*<\/passage>$/g, '')
+  if (!text) throw new Error('Nothing came back. Try again, or say more in the request.')
+  return text
+}
