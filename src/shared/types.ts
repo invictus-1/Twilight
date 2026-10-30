@@ -602,6 +602,7 @@ export interface TwilightApi {
   editPassage(id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane?: Pane): Promise<string>
   /** Replaces a chat's (or pane's) conversation so far with a summary; requests start from it after. */
   compactChat(id: string, pane?: Pane): Promise<ConversationView>
+  cancelCompaction(id: string): Promise<void>
   getCompaction(): Promise<{ threshold: number | null; instructions: string; keepDocs: boolean }>
   setCompaction(patch: Partial<{ threshold: number | null; instructions: string; keepDocs: boolean }>): Promise<{ threshold: number | null; instructions: string; keepDocs: boolean }>
   /** Replies you starred in a chat, to jump between. */

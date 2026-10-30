@@ -49,7 +49,7 @@ export const COMMANDS: Command[] = [
     title: 'Compact this chat',
     group: 'Chat',
     hint: 'summarize summary long context compaction shrink',
-    run: () => void compactOpenChat().catch((err) => s().setError(err instanceof Error ? err.message.replace(/^Error invoking remote method '[^']+': (Error: )?/, '') : String(err)))
+    run: () => void compactOpenChat()
   },
   { id: 'find', title: 'Find on the page', group: 'App', keys: 'Ctrl+F', hint: 'find in chat search this text', run: () => openFind() },
   { id: 'search', title: 'Search everything', group: 'App', keys: 'Ctrl+Shift+F', hint: 'find chats documents', run: () => s().setOverlay('search') },

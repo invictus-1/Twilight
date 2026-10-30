@@ -873,8 +873,28 @@ function carriedBlocks(history: db.NodeRow[]): CarriedBlock[] {
  * of its path, and from then on requests start there. Everything above stays in the chat to read.
  * With Claude it's the API's own compaction; with other models, the model writes a summary.
  */
+// Compactions under way, by chat, so Cancel can stop one.
+const compacting = new Map<string, AbortController>()
+export function cancelCompaction(id: string): void {
+  compacting.get(id)?.abort()
+}
+
 export async function compact(id: string, pane: Pane = 'a'): Promise<ConversationView> {
   if (isRunning(id, pane)) throw new Error('Wait for the reply to finish before compacting.')
+  if (compacting.has(id)) throw new Error('This chat is already being compacted.')
+  const controller = new AbortController()
+  compacting.set(id, controller)
+  try {
+    return await compactNow(id, pane, controller.signal)
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error('Compacting stopped.')
+    throw err
+  } finally {
+    compacting.delete(id)
+  }
+}
+
+async function compactNow(id: string, pane: Pane, signal: AbortSignal): Promise<ConversationView> {
   const conv = db.getConversation(id)
   const settings = settingsFor(conv, pane)
   const current = view(id)
@@ -897,7 +917,7 @@ export async function compact(id: string, pane: Pane = 'a'): Promise<Conversatio
   let block: Record<string, unknown>
   let text: string
   if (config.kind === 'anthropic') {
-    ;({ block, text } = await compactAnthropic({ config, apiKey, system, history, settings, options, instructions: cfg.instructions }))
+    ;({ block, text } = await compactAnthropic({ config, apiKey, system, history, settings, options, instructions: cfg.instructions, signal }))
   } else {
     // The model writes it, as a reply to one more message that asks for it (never stored).
     const ask = cfg.instructions.trim() || LOCAL_SUMMARY
@@ -909,7 +929,7 @@ export async function compact(id: string, pane: Pane = 'a'): Promise<Conversatio
       history: [...history, request],
       settings: { ...settings, webSearch: false, webFetch: false, choiceTool: false },
       options,
-      signal: new AbortController().signal,
+      signal,
       onText: () => undefined,
       onThinking: () => undefined
     })

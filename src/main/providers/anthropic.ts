@@ -503,29 +503,40 @@ export async function compactAnthropic(req: {
   settings: ChatSettings
   options?: ModelOptions
   instructions: string
+  /** Stops it (Cancel beside Compacting…). */
+  signal?: AbortSignal
 }): Promise<{ block: Block; text: string }> {
   const { body, betas } = anthropicRequest(req)
+  // The summary gets the model's whole output allowance, not the chat's own limit: with thinking
+  // counted against it, a big chat's summary ran out of room at a reply-sized limit.
+  const room = req.options?.maxOutput ?? 64000
+  body.max_tokens = room
   const client = anthropicClient(req.config, req.apiKey ?? '')
   const instructions = req.instructions.trim()
   // Streamed, as a long summary on a big chat can run past what an unstreamed call may take.
   const res = (await explainKey(req.apiKey, () =>
     client.beta.messages
-      .stream({ ...body, betas: [...betas, 'compact-2026-09-04'], compaction: { type: 'summarize', ...(instructions ? { instructions } : {}) } } as unknown as Parameters<typeof client.beta.messages.stream>[0])
+      .stream({ ...body, betas: [...betas, 'compact-2026-09-04'], compaction: { type: 'summarize', ...(instructions ? { instructions } : {}) } } as unknown as Parameters<typeof client.beta.messages.stream>[0], { signal: req.signal })
       .finalMessage()
   )) as unknown as { content: Block[]; stop_reason: string | null }
-  if (res.stop_reason !== 'compaction') {
+  const raw = res.content.find((b) => b.type === 'compaction')
+  // A compaction block with no content is the API's way of saying the summary failed.
+  const text = raw && typeof raw.content === 'string' ? raw.content : ''
+  if (res.stop_reason !== 'compaction' || !raw || !text.trim()) {
+    const why: Record<string, string> = {
+      max_tokens: `The summary ran out of room: it reached the model's limit of ${room.toLocaleString()} output tokens before it was finished. Try shorter summary instructions, or lower the effort in Model settings, and compact again.`,
+      refusal: "Claude declined to write this summary. Try again with Claude's own summary prompt (leave Summary instructions empty in Settings → General), or compact with another model.",
+      tool_use: 'The model called a tool instead of writing the summary. Add "Do not call tools" to your summary instructions and try again.',
+      model_context_window_exceeded: 'There was no room left in the context for the summary. Try shorter summary instructions.'
+    }
     throw new Error(
-      res.stop_reason === 'tool_use'
-        ? 'The model called a tool instead of writing the summary. Add "Do not call tools" to your summary instructions and try again.'
-        : res.stop_reason === 'model_context_window_exceeded'
-          ? 'There was no room left in the context for the summary. Try shorter summary instructions.'
-          : 'No summary came back. Try again in a moment.'
+      (res.stop_reason && why[res.stop_reason]) ??
+        (res.stop_reason === 'compaction'
+          ? "Claude couldn't produce a summary this time (it came back empty). Try again, or try Claude's own summary prompt."
+          : `No summary came back (the reply ended with "${res.stop_reason ?? 'nothing'}"). Try again in a moment.`)
     )
   }
-  const raw = res.content.find((b) => b.type === 'compaction')
-  if (!raw) throw new Error('No summary came back. Try again in a moment.')
   const { type: _type, ...rest } = raw
-  const text = [rest.content, rest.summary, rest.text].find((v): v is string => typeof v === 'string') ?? ''
   // Kept with its type first (how Twilight finds it again) and otherwise exactly as it came.
   return { block: { type: 'compaction', ...rest }, text }
 }
