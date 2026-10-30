@@ -2,7 +2,7 @@
 
 Each version's section becomes its release notes on the releases page (`npm run release`), and Twilight shows them in Settings > Updates.
 
-## Unreleased
+## 1.3.0
 
 **Extras: the sky, small motions and celebrations** (Settings → Extras, each its own switch; Gentle or Off motion stills them all)
 - **A sky that follows the clock:** the sky behind an empty chat and above every chat goes from dawn to day, dusk and night as the hours pass, with a moon after dark. Or hold it at the time of day you like.

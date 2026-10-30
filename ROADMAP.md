@@ -4,6 +4,13 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.3.0 · October 2026
+- [x] **Find on the page** · Core — Ctrl+F lights up matches in a chat and steps through them
+- [x] **A sky that keeps time** · Core — dawn, day, dusk and night with the clock, seasons, and surprises if you sit and watch
+- [x] **Motion of its own** · Core — a gliding rail, messages that lift into place, sliding versions, a moon spinner, constellations and more, each in Extras
+- [x] **Small things that save time** · Chat — select while a reply streams, Continue, chats that reopen where you left them, bookmarks, a done signal and a cost preview
+- [x] **Easier reading** · Chat — bold words in the theme's colour, choices read wherever a reply puts them, and Game Format that drops every divider
+
 ### 1.2.0 · October 2026
 - [x] **Remembers its window** · Core — opens at the size and place you left it, maximized if it was
 - [x] **Nothing typed is lost** · Chat — the message box keeps what you were writing across sections and restarts; Attach opens the last folder you used
@@ -117,11 +124,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
-- [x] **Find on the page** · Core — Ctrl+F lights up matches in a chat and steps through them
-- [x] **A sky that keeps time** · Core — dawn, day, dusk and night with the clock, seasons, and surprises if you sit and watch
-- [x] **Motion of its own** · Core — a gliding rail, messages that lift into place, sliding versions, a moon spinner, constellations and more, each in Extras
-- [x] **Small things that save time** · Chat — select while a reply streams, Continue, chats that reopen where you left them, bookmarks, a done signal and a cost preview
-- [x] **Easier reading** · Chat — bold words in the theme's colour, choices read wherever a reply puts them, and Game Format that drops every divider
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story
