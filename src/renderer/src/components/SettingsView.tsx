@@ -13,6 +13,7 @@ import { useStore } from '../store'
 import { useWriting } from '../writingStore'
 import { savedTheme, setTheme, type Theme } from '../theme'
 import { readHidden, writeHidden } from './ChatSettingsPanel'
+import { readChatsOpenLast, writeChatsOpenLast } from '../commands'
 import { RoadmapSection } from './RoadmapSection'
 import { UpdatesSection } from './UpdatesSection'
 import { ToolsSection } from './ToolsSection'
@@ -29,7 +30,7 @@ type Section = 'providers' | 'local' | 'tools' | 'prices' | 'usage' | 'general' 
 // Grouped by what people come looking for: how the app behaves and looks, what you write with,
 // the models, and Twilight itself. Each page holds one kind of thing, named the way you'd ask for it.
 const SECTIONS: { id: Section; group: string; label: string; description: string }[] = [
-  { id: 'general', group: 'App', label: 'General', description: 'How chats behave: the cache status line, spelling, and Game Format for copying replies into a game.' },
+  { id: 'general', group: 'App', label: 'General', description: 'How chats behave: what the Chats button opens, the cache status line, spelling, and Game Format for copying replies into a game.' },
   { id: 'appearance', group: 'App', label: 'Appearance', description: 'How Twilight looks: the theme, a background, motion, the size of chat text and the colour of bold words.' },
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats and settings, backups you can go back to, moving it all, and request logs.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
@@ -432,6 +433,7 @@ function ProvidersSection() {
 function GeneralSection() {
   const [options, setOptions] = useState(readGameFormat)
   const [cacheBar, setCacheBar] = useState(() => !readHidden())
+  const [openLast, setOpenLast] = useState(readChatsOpenLast)
   const setGame = (patch: Partial<typeof options>): void => {
     const next = { ...options, ...patch }
     writeGameFormat(next)
@@ -451,6 +453,17 @@ function GeneralSection() {
             }}
           />
           Show the prompt cache status line under chats
+        </label>
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={openLast}
+            onChange={(e) => {
+              writeChatsOpenLast(e.target.checked)
+              setOpenLast(e.target.checked)
+            }}
+          />
+          The Chats button opens the last chat you were on, instead of a new one
         </label>
       </div>
       <LongChats />

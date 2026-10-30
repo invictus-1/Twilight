@@ -124,6 +124,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
+- [x] **Chats opens a new chat** · Chat — the Chats button starts at a new chat, or the last one you were on if you choose
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story

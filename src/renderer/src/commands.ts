@@ -38,6 +38,30 @@ export function openMode(mode: Mode): void {
   else if (mode === 'code') void useCode.getState().init()
 }
 const go = openMode
+
+// Coming to Chats from another section starts at a new chat (under the sky) unless you'd rather
+// carry on with the last one (Settings → General). Kept per install like the theme.
+const CHATS_KEY = 'twilight.chatsOpenLast'
+export function readChatsOpenLast(): boolean {
+  try {
+    return localStorage.getItem(CHATS_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+export function writeChatsOpenLast(on: boolean): void {
+  try {
+    localStorage.setItem(CHATS_KEY, on ? '1' : '0')
+  } catch {
+    // Storage unavailable: the choice holds for this session.
+  }
+}
+/** The Chats button and Ctrl+1: a new chat when arriving from elsewhere, or the last one if chosen. */
+export function openChats(): void {
+  const arriving = s().mode !== 'chat'
+  openMode('chat')
+  if (arriving && !readChatsOpenLast()) void s().newChat()
+}
 const settings = (section?: string): void => s().setSettingsOpen(true, section)
 const split = (): boolean => !!s().current?.split
 
@@ -94,7 +118,7 @@ export const COMMANDS: Command[] = [
     when: () => !!s().current?.path.some((n) => n.role === 'assistant'),
     run: () => void window.twilight.copyText(chatInGameFormat())
   },
-  { id: 'go-chat', title: 'Chats', group: 'Go to', keys: 'Ctrl+1', run: () => go('chat') },
+  { id: 'go-chat', title: 'Chats', group: 'Go to', keys: 'Ctrl+1', run: openChats },
   { id: 'go-write', title: 'Writing', group: 'Go to', keys: 'Ctrl+2', run: () => go('write') },
   { id: 'go-judge', title: 'Judge', group: 'Go to', keys: 'Ctrl+3', run: () => go('judge') },
   { id: 'go-insights', title: 'Writer insights', group: 'Go to', keys: 'Ctrl+4', run: () => go('insights') },

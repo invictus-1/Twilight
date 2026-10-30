@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
-import { keysFor, openMode, useBindings } from '../commands'
+import { keysFor, openChats, openMode, useBindings } from '../commands'
 import { useStore, type Mode } from '../store'
 import { CodeIcon, FeatherIcon, ScaleIcon, SearchIcon, SettingsIcon, SparkIcon, SpeechIcon } from './Icons'
 
@@ -182,6 +182,7 @@ export function Rail() {
               onClick={() => {
                 if (dragged.current) return
                 if (current) useStore.getState().toggleSidebar()
+                else if (s.mode === 'chat') openChats()
                 else openMode(s.mode)
               }}
             >

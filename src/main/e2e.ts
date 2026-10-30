@@ -584,6 +584,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       chat.setDefaults({ providerId: 'mock', modelId: 'mock-a', systemPrompt: 'You are a test.' })
       const models = await providers.listModels(true)
       check('mock models listed', models.filter((m) => m.providerId === 'mock').length === 2)
+      // Most checks leave for another section and come back to the chat they were in.
+      await win.webContents.executeJavaScript(`localStorage.setItem('twilight.chatsOpenLast', '1')`)
 
       // The window opens where it was last closed; a place no longer on any screen falls back to centred.
       const screens = [{ x: 0, y: 0, width: 1920, height: 1040 }]
@@ -5272,6 +5274,40 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('Settings → Data lists the backups, and Back up now adds one', data46.items >= 4 && data46.after === data46.items + 1 && data46.reasons.includes('manual') && data46.reasons.includes('before-restore'), data46)
       await shot('e2e-data.png')
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+
+      // 50. The Chats button: from another section it opens a new chat, or the last one if chosen.
+      const chats50 = await js<{ before: string; msgs: number; kept: string; box: boolean; stored: string | null; fresh: number; empty: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const rail = (m) => document.querySelector('.rail-item[data-mode="' + m + '"]')?.click()
+        const settle = async () => { await wait(300); for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.chat-head'); ) await wait(25) }
+        const open = () => document.querySelector('.tw-conv[aria-current="true"] .tw-conv-title')?.textContent ?? ''
+        const busy = [...document.querySelectorAll('.tw-conv:not([aria-current])')][0]
+        const want = busy?.querySelector('.tw-conv-title')?.textContent ?? ''
+        busy?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && (open() !== want || !document.querySelector('.msg')); ) await wait(25)
+        await wait(200)
+        const before = open()
+        const msgs = document.querySelectorAll('.msg').length
+        rail('write'); await wait(300); rail('chat'); await settle()
+        const kept = open()
+        document.querySelector('[data-rail="settings"]')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-nav'); ) await wait(25)
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'General')?.click()
+        await wait(150)
+        const box = [...document.querySelectorAll('label.check')].find((l) => l.textContent.includes('Chats button opens the last chat'))
+        const input = box?.querySelector('input')
+        if (input?.checked) input.click()
+        await wait(100)
+        const stored = localStorage.getItem('twilight.chatsOpenLast')
+        rail('chat'); await settle()
+        rail('write'); await wait(300); rail('chat'); await settle()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.empty'); ) await wait(25)
+        const out = { before, msgs, kept, box: !!input, stored, fresh: document.querySelectorAll('.msg').length, empty: !!document.querySelector('.empty') }
+        localStorage.setItem('twilight.chatsOpenLast', '1')
+        return out
+      })()`)
+      check('with "open the last chat" on, the Chats button goes back to the chat you were on', chats50.msgs > 0 && !!chats50.before && chats50.kept === chats50.before, chats50)
+      check('by default the Chats button opens a new chat, and General has the switch', chats50.box && chats50.stored === '0' && chats50.fresh === 0 && chats50.empty, chats50)
 
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
