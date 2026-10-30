@@ -84,6 +84,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'reindexDocLibrary',
   'searchDocLibrary',
   'getSpellcheck',
+  'listBookmarks',
+  'toggleBookmark',
   'getDoneNotification',
   'setDoneNotification',
   'setSpellcheck',

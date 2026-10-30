@@ -3704,6 +3704,39 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return { atBottom0, offset, atBottom1: bottom() }
       })()`)
       check('a chat reopens where you left it, and at its newest message when you left it there', spotUi.atBottom0 && spotUi.offset < 30 && spotUi.atBottom1, spotUi)
+      // Bookmarks: star a reply, the header jumps to it; unstar and the button goes.
+      const markUi = await js<{ jump: string; flashed: boolean; stored: number; after: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const reply = document.querySelectorAll('.thread .tw-msg-ai')[2]
+        reply.querySelector('.star-btn').click()
+        await wait(200)
+        const jump = document.querySelector('.bookmark-jump')?.textContent ?? ''
+        document.querySelector('.thread-scroll').scrollTop = document.querySelector('.thread-scroll').scrollHeight
+        await wait(100)
+        document.querySelector('.bookmark-jump')?.click()
+        await wait(400)
+        const flashed = reply.classList.contains('msg-flash')
+        const stored = (await window.twilight.listBookmarks(${JSON.stringify(sm)})).length
+        reply.querySelector('.star-btn').click()
+        await wait(200)
+        return { jump, flashed, stored, after: !!document.querySelector('.bookmark-jump') }
+      })()`)
+      check('a starred reply is a bookmark the header jumps to, and unstarring removes it', markUi.jump === '1' && markUi.flashed && markUi.stored === 1 && !markUi.after, markUi)
+      // A big message says roughly what it costs before it's sent.
+      const sizeLine = await js<{ big: string; small: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const area = document.querySelector('.tw-composer textarea')
+        const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+        set.call(area, 'Gull Point. '.repeat(4000)); area.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(100)
+        const big = document.querySelector('.send-size')?.textContent ?? ''
+        set.call(area, 'A short note.'); area.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(100)
+        const small = !document.querySelector('.send-size')
+        set.call(area, ''); area.dispatchEvent(new Event('input', { bubbles: true }))
+        return { big, small }
+      })()`)
+      check('a big message shows its size before it is sent, a short one does not', /^~1[12]\.\dk tokens to send/.test(sizeLine.big) && sizeLine.small, sizeLine)
       check(
         'a long reply that finishes while you are in another window gets the done signal; a short one or one you watched does not',
         shouldSignal(false, 12000) && !shouldSignal(true, 12000) && !shouldSignal(false, 3000)

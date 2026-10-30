@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Bookmarks:** star a reply (a turn in the story, a fact worth keeping) and a star in the chat's header jumps between your bookmarks on that branch.
+- **What a big message costs, before you send it:** once what's in the box and attached passes about 8k tokens, a line above it gives the size and, for a priced model, roughly what it costs to send (and that it's cached after).
 - **Continue:** a reply that stopped at the max output tokens says so, with a Continue button that asks for the rest in a new message, so everything before stays cached.
 - **Chats reopen where you left them:** come back to a chat and it's at the message you were reading; left at the newest message, it opens there. Remembered across restarts.
 - **A gentle signal when a long reply is ready:** if a reply takes 10 seconds or more and you're in another window when it finishes, Twilight's taskbar button glows until you come back. A quiet Windows notification can come too (Settings → General).

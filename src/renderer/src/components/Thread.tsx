@@ -52,20 +52,24 @@ export function Thread() {
     if (!el) return
     const spot = readSpots()[spotKey]
     const target = spot ? el.querySelector<HTMLElement>(`[data-node="${spot.node}"]`) : null
+    let placed = -1
     const place = (): void => {
       if (target) el.scrollTop += target.getBoundingClientRect().top - el.getBoundingClientRect().top + spot!.offset
       else el.scrollTop = el.scrollHeight
+      placed = el.scrollTop
     }
     if (target) atBottom.current = false
     place()
     // Messages above lay out at their real height over the next moments (they start as estimates),
-    // which moves things; place it again as they settle, unless you've started scrolling yourself.
+    // which moves things; place it again as they settle, unless the chat has been scrolled since
+    // (by you or anything else). The listener lives only for that first second.
     let yours = false
-    const mine = (): void => void (yours = true)
-    el.addEventListener('wheel', mine, { passive: true, once: true })
-    el.addEventListener('pointerdown', mine, { once: true })
-    el.addEventListener('keydown', mine, { once: true })
+    const mine = (): void => {
+      if (Math.abs(el.scrollTop - placed) > 2) yours = true
+    }
+    el.addEventListener('scroll', mine, { passive: true })
     const timers = [0, 120, 350, 800].map((ms) => setTimeout(() => !yours && place(), ms))
+    timers.push(setTimeout(() => el.removeEventListener('scroll', mine), 900))
     const leave = (): void => {
       if (atBottom.current) return saveSpot(spotKey, null)
       const top = el.getBoundingClientRect().top
@@ -75,9 +79,7 @@ export function Thread() {
     window.addEventListener('beforeunload', leave)
     return () => {
       timers.forEach(clearTimeout)
-      el.removeEventListener('wheel', mine)
-      el.removeEventListener('pointerdown', mine)
-      el.removeEventListener('keydown', mine)
+      el.removeEventListener('scroll', mine)
       window.removeEventListener('beforeunload', leave)
       leave()
     }

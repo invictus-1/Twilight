@@ -596,6 +596,9 @@ export interface TwilightApi {
   onDocLibrary(listener: (status: LibraryStatus) => void): () => void
   /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
   getSpellcheck(): Promise<boolean>
+  /** Replies you starred in a chat, to jump between. */
+  listBookmarks(conversationId: string): Promise<string[]>
+  toggleBookmark(conversationId: string, nodeId: string): Promise<string[]>
   /** A quiet Windows notification when a long reply finishes in the background (the taskbar glows either way). */
   getDoneNotification(): Promise<boolean>
   setDoneNotification(on: boolean): Promise<boolean>

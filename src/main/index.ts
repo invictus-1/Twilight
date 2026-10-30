@@ -441,6 +441,15 @@ function registerIpc(): void {
     },
     searchDocLibrary: (_e, query: string) => searchLibrary(query),
     getSpellcheck: () => spellcheckOn(),
+    listBookmarks: (_e, conversationId: string) => db.kvGet<Record<string, string[]>>('bookmarks')?.[conversationId] ?? [],
+    toggleBookmark: (_e, conversationId: string, nodeId: string) => {
+      const all = db.kvGet<Record<string, string[]>>('bookmarks') ?? {}
+      const marks = all[conversationId] ?? []
+      all[conversationId] = marks.includes(nodeId) ? marks.filter((id) => id !== nodeId) : [...marks, nodeId]
+      if (!all[conversationId].length) delete all[conversationId]
+      db.kvSet('bookmarks', all)
+      return all[conversationId] ?? []
+    },
     getDoneNotification: () => doneNotificationOn(),
     setDoneNotification: (_e, on: boolean) => setDoneNotification(on),
     setSpellcheck: (e, on: boolean) => setSpellcheck(BrowserWindow.fromWebContents(e.sender), on),

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { attachmentKind, formatBytes, tooBig } from '@shared/attachments'
-import { formatTokens } from '@shared/pricing'
+import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import type { Attachment, SendTarget } from '@shared/types'
 import { useStore } from '../store'
 import { CloseIcon, DocIcon, PaperclipIcon, SendIcon, SlidersIcon, StopIcon } from './Icons'
@@ -36,6 +36,30 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
   let binary = ''
   for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
   return { name, text: '', kind, mediaType, data: btoa(binary) }
+}
+
+/** Below this many tokens a message isn't worth a word about its size. */
+const BIG_SEND = 8000
+
+/**
+ * What a big message costs to send, before you send it: its tokens (about four characters each)
+ * and, with a price for the model, what they cost going in. With the cache on they're written to
+ * it once (at the cache-write price) and read cheaply after.
+ */
+function SendSize({ text, attachments }: { text: string; attachments: Attachment[] }) {
+  const settings = useStore((s) => s.current?.settings ?? s.defaults)
+  const models = useStore((s) => s.models)
+  const tokens = Math.round((text.length + attachments.reduce((n, a) => n + a.text.length, 0)) / 4)
+  if (!settings || tokens < BIG_SEND) return null
+  const local = models.find((m) => m.id === settings.modelId && m.providerId === settings.providerId)?.local ?? false
+  const usage = { input: settings.caching ? 0 : tokens, cacheWrite: settings.caching ? tokens : 0, cacheRead: 0, output: 0, ms: 0, cacheTtl: settings.cacheTtl }
+  const cost = local ? null : costOf(settings.modelId, usage, false)
+  return (
+    <div className="send-size" title="An estimate from the length of what's in the box and attached; the model counts exactly">
+      ~{formatTokens(tokens)} tokens to send
+      {cost !== null && <> · about {formatCost(cost)}{settings.caching ? ' the first time, then cached' : ''}</>}
+    </div>
+  )
 }
 
 const chipSize = (a: Attachment): string => (a.data ? formatBytes(Math.floor((a.data.length * 3) / 4)) : `~${formatTokens(Math.round(a.text.length / 4))}`)
@@ -181,6 +205,7 @@ export function Composer() {
             </button>
           </div>
         )}
+        <SendSize text={text} attachments={attachments} />
         {attachments.length > 0 && (
           <div className="tw-attach">
             {attachments.map((a, i) => (

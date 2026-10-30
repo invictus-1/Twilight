@@ -11,6 +11,7 @@ function Icon({ size = 16, className, style, children }: Props & { children: Rea
   )
 }
 
+export const StarIcon = (p: Props) => <Icon {...p}><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z" /></Icon>
 export const PlusIcon = (p: Props) => <Icon {...p}><path d="M12 5v14M5 12h14" /></Icon>
 export const SendIcon = (p: Props) => <Icon {...p}><path d="M12 19V5M5 12l7-7 7 7" /></Icon>
 export const StopIcon = (p: Props) => <Icon {...p}><rect x="7" y="7" width="10" height="10" rx="1.5" /></Icon>

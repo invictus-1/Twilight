@@ -6,7 +6,8 @@ import { CacheBar } from './CacheBar'
 import { ChatSettingsPanel } from './ChatSettingsPanel'
 import { Composer } from './Composer'
 import { DeletedPanel } from './DeletedPanel'
-import { SidebarIcon, SlidersIcon, SplitIcon, TrashIcon } from './Icons'
+import { SidebarIcon, SlidersIcon, SplitIcon, StarIcon, TrashIcon } from './Icons'
+import { nextBookmark, useBookmarks } from '../bookmarks'
 import { DiffSummary, DiffToggle } from './SplitDiff'
 import { SplitView } from './SplitView'
 import { SystemPromptCard } from './ChatTop'
@@ -19,6 +20,20 @@ function greeting(): string {
   if (h < 12) return 'Good morning'
   if (h < 18) return 'Good afternoon'
   return 'Good evening'
+}
+
+/** The bookmarks on this branch, and a button that goes to the next one. */
+function BookmarkJump() {
+  const marks = useBookmarks()
+  const path = useStore((s) => s.current?.path)
+  const here = path ? path.filter((n) => marks.includes(n.id)).map((n) => n.id) : []
+  if (!here.length) return null
+  return (
+    <button className="tw-btn tw-btn-ghost tw-btn-sm no-drag bookmark-jump" title="Go to the next bookmarked reply" onClick={() => nextBookmark(here)}>
+      <StarIcon />
+      {here.length}
+    </button>
+  )
 }
 
 /** Sends the two panes' latest replies to the Judge, with the prompt and system prompt they came from. */
@@ -99,6 +114,7 @@ export function ChatView() {
         </button>
         {split && <DiffToggle />}
         {split && <JudgeSplitButton />}
+        <BookmarkJump />
         {deleted > 0 && (
           <button
             className="tw-btn tw-btn-ghost tw-btn-sm no-drag"

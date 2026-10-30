@@ -1566,3 +1566,11 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 
 /* Continue, under a reply that stopped at the max output tokens. */
 .msg-continue { display: flex; align-items: center; gap: var(--space-2); }
+
+/* How big a large message is before it goes, above the message box. */
+.send-size { padding: 0 var(--space-3) var(--space-1); font-size: 12px; color: var(--ink-faint); }
+
+/* Bookmarks: a star under each reply, filled when it's on, and the header's jump button. */
+.star-btn.is-on { color: var(--horizon); }
+.star-btn.is-on svg path, .bookmark-jump svg path { fill: currentColor; }
+.bookmark-jump { color: var(--horizon); }

@@ -8,13 +8,14 @@ import { domainOf } from '@shared/webTools'
 import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { usePane } from '../pane'
 import { EarlierPrompt } from './ChatTop'
+import { toggleBookmark, useBookmarks } from '../bookmarks'
 import { modelName, paneOf, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
 import { DiffBody, useDiffed } from './SplitDiff'
-import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, ToolIcon, TrashIcon } from './Icons'
+import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -151,6 +152,22 @@ export function CopyIconButton({ text, label = 'Copy' }: { text: () => string; l
       ) : (
         <CopyIcon />
       )}
+    </button>
+  )
+}
+
+/** Star a reply (a turn in the story, a fact to keep) to jump back to it from the chat's header. */
+function StarButton({ nodeId }: { nodeId: string }) {
+  const on = useBookmarks().includes(nodeId)
+  return (
+    <button
+      className={`tw-btn tw-btn-ghost tw-btn-icon star-btn ${on ? 'is-on' : ''}`}
+      aria-label={on ? 'Remove the bookmark' : 'Bookmark this reply'}
+      aria-pressed={on}
+      title={on ? 'Bookmarked: click to remove' : 'Bookmark this reply, to jump back to it from the header'}
+      onClick={() => void toggleBookmark(nodeId)}
+    >
+      <StarIcon />
     </button>
   )
 }
@@ -637,6 +654,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
           <div className="tw-msg-actions">
             <BranchSwitcher node={node} />
             <CopyIconButton text={() => body} />
+            <StarButton nodeId={node.id} />
             <button
               className="tw-btn tw-btn-ghost tw-btn-icon"
               aria-label="Regenerate"
