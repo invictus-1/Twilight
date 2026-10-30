@@ -882,7 +882,13 @@ export async function compact(id: string, pane: Pane = 'a'): Promise<Conversatio
   const leaf = path.at(-1)
   if (!leaf || leaf.role !== 'assistant' || leaf.status !== 'done' || leaf.compaction) throw new Error('Compact after a finished reply.')
   const nodes = db.loadNodes(id)
-  const history = sinceCompaction(db.ancestors(nodes, leaf.id).filter((n) => n.role !== 'root'))
+  const all = sinceCompaction(db.ancestors(nodes, leaf.id).filter((n) => n.role !== 'root'))
+  // The latest exchange (your last message and what followed it) stays word for word; everything
+  // before it is what gets summarized.
+  const lastAsk = all.findLastIndex((n) => n.role === 'user')
+  const history = lastAsk > 0 ? all.slice(0, lastAsk) : []
+  const kept = all.length - history.length
+  if (!history.length || (history.length === 1 && compactionOf(history[0]))) throw new Error('There is nothing older than your latest message to compact yet.')
   const config = getProvider(settings.providerId)
   const apiKey = getApiKey(config.id)
   const system = systemFor(settings, nodes.get(conv.root_id)?.text ?? '')
@@ -919,7 +925,7 @@ export async function compact(id: string, pane: Pane = 'a'): Promise<Conversatio
       parent_id: leaf.id,
       role: 'assistant',
       text,
-      content: JSON.stringify([block, ...(carried.length ? [{ type: 'carried', blocks: carried }] : [])]),
+      content: JSON.stringify([block, { type: 'kept', count: kept }, ...(carried.length ? [{ type: 'carried', blocks: carried }] : [])]),
       thinking: null,
       model: settings.modelId,
       provider_id: settings.providerId,

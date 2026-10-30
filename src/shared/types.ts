@@ -251,7 +251,7 @@ export interface NodeView {
   /** Choices the model offered with a present_choices tool call. */
   toolChoices?: ChoiceSet
   /** A summary that stands in for everything above it (a compacted chat): how much it carried over. */
-  compaction?: { carried: number; local: boolean }
+  compaction?: { carried: number; local: boolean; kept: number }
   /** Instructions added mid-chat with this message. */
   instructionUpdate?: string
   /** The date and time sent along with this message, as the model read it. */

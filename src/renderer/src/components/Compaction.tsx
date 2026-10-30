@@ -54,8 +54,8 @@ export function CompactBar() {
   return (
     <div className="compact-bar" role="status">
       <span>
-        This chat is at {formatTokens(use.used)} tokens. Compacting replaces the conversation so far with a summary, so it stays quick and cheaper
-        {settings.keepDocs ? '; your attached documents come along' : ''}. Everything above stays here to read.
+        This chat is at {formatTokens(use.used)} tokens. Compacting sums up everything before your latest message, which goes on word for word with its reply, so the chat stays quick and cheaper
+        {settings.keepDocs ? '; your attached documents come along' : ''}. Everything stays here to read.
       </span>
       <button
         className="tw-btn tw-btn-sm tw-btn-primary"
@@ -107,6 +107,7 @@ export function CompactionMarker({ node }: { node: NodeView }) {
         <summary>
           Everything above is sent as a {words.toLocaleString()}-word summary{carried ? `, with ${carried} attachment${carried === 1 ? '' : 's'} carried over` : ''}
           {node.compaction?.local ? ' (written by the model)' : ''}
+          {node.compaction?.kept ? '; from here on, word for word' : ''}
         </summary>
         <div className="compaction-text">{node.text}</div>
       </details>

@@ -538,7 +538,7 @@ function LongChats() {
     <div className="settings-card">
       <h3 className="t-heading">Long chats</h3>
       <p className="field-note">
-        Compacting replaces a chat&apos;s conversation so far with a summary, and the chat carries on from it: quicker and cheaper, with everything above still there to read. With Claude it&apos;s Anthropic&apos;s own compaction; other models write the summary themselves. You can always compact from the command menu (Ctrl+K).
+        Compacting sums up everything before your latest message in a summary; that message and its reply go on word for word, and the chat carries on from there: quicker and cheaper, with everything still there to read. With Claude it&apos;s Anthropic&apos;s own compaction; other models write the summary themselves. You can always compact from the command menu (Ctrl+K).
       </p>
       <label className="field">
         <span className="field-label">Offer to compact at</span>

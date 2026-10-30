@@ -1,4 +1,5 @@
-import { useEffect, useLayoutEffect, useRef } from 'react'
+import type { NodeView } from '@shared/types'
+import { useEffect, useLayoutEffect, useMemo, useRef } from 'react'
 import { usePane } from '../pane'
 import { ChatTop } from './ChatTop'
 import { PassageTools } from './PassageTools'
@@ -38,9 +39,24 @@ function saveSpot(key: string, spot: Spot | null): void {
   }
 }
 
+/** The path as it reads: each summary moved in front of the messages it kept. */
+function inReadingOrder(path: NodeView[]): NodeView[] {
+  if (!path.some((n) => n.compaction?.kept)) return path
+  const out = [...path]
+  for (let i = 0; i < out.length; i++) {
+    const kept = out[i].compaction?.kept ?? 0
+    if (kept && i >= kept) out.splice(i - kept, 0, ...out.splice(i, 1))
+  }
+  return out
+}
+
 export function Thread() {
   const pane = usePane()
   const path = useStore((s) => paneOf(s.current!, pane).path)
+  // A summary is stored after the exchange it kept word for word; it's shown above that exchange,
+  // where it takes over, and the kept exchange still counts as the newest (its choices stay live).
+  const shown = useMemo(() => inReadingOrder(path), [path])
+  const lastReal = shown.findLastIndex((n) => !n.compaction)
   const spotKey = useStore((s) => `${s.current!.id}:${pane}`)
   const scroller = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
@@ -214,8 +230,8 @@ export function Thread() {
       >
         <ChatTop />
         <div className="thread" ref={content}>
-          {path.map((node, i) => (
-            <Message key={node.id} node={node} next={path[i + 1]} isLast={i === path.length - 1} />
+          {shown.map((node, i) => (
+            <Message key={node.id} node={node} next={shown[i + 1]} isLast={i === lastReal} />
           ))}
           <div ref={sentinel} className="thread-end" />
         </div>

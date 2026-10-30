@@ -415,9 +415,9 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
 }
 
 /** A summary node, as the window shows it: how many things it carried over. */
-function compactionView(content: string): { carried: number; local: boolean } {
-  const blocks = JSON.parse(content) as { type: string; local?: boolean; blocks?: unknown[] }[]
-  return { carried: blocks.find((b) => b.type === 'carried')?.blocks?.length ?? 0, local: blocks[0]?.local === true }
+function compactionView(content: string): { carried: number; local: boolean; kept: number } {
+  const blocks = JSON.parse(content) as { type: string; local?: boolean; blocks?: unknown[]; count?: number }[]
+  return { carried: blocks.find((b) => b.type === 'carried')?.blocks?.length ?? 0, local: blocks[0]?.local === true, kept: blocks.find((b) => b.type === 'kept')?.count ?? 0 }
 }
 
 /** Tools Twilight ran and pictures it made during a reply; most replies have neither, so they skip the parse. */

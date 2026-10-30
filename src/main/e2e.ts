@@ -1090,6 +1090,21 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           compMsgs[1]?.role === 'user' && JSON.stringify(compMsgs[1].content).includes('Lamps.md') && JSON.stringify(compMsgs[1].content).includes('Next evening') && !JSON.stringify(compMsgs).includes('First light'),
         compMsgs
       )
+      // Keeping the latest exchange: the summary goes first, then that exchange word for word (its thinking left out).
+      const keptRows = sinceCompaction([
+        cRow('user', 'First light', [doc, { type: 'text', text: 'First light' }]),
+        cRow('assistant', 'Wren counted.', [{ type: 'text', text: 'Wren counted.' }]),
+        cRow('user', 'Second light', [{ type: 'text', text: 'Second light' }]),
+        cRow('assistant', 'Rowan rowed.', [{ type: 'thinking', thinking: 'hm', signature: 's' }, { type: 'text', text: 'Rowan rowed.' }]),
+        cRow('assistant', 'The keeper and Wren...', [{ type: 'compaction', content: 'The keeper and Wren...', signature: 'sig' }, { type: 'kept', count: 2 }, { type: 'carried', blocks: [doc] }]),
+        cRow('user', 'Third light', [{ type: 'text', text: 'Third light' }])
+      ])
+      const keptMsgs = JSON.stringify(toMessages(keptRows))
+      check(
+        'compacting keeps the latest exchange word for word after the summary, and sends nothing older',
+        keptRows.length === 4 && keptRows[1].text === 'Second light' && keptMsgs.indexOf('compaction') < keptMsgs.indexOf('Second light') && keptMsgs.includes('Rowan rowed.') && !keptMsgs.includes('"thinking"') && !keptMsgs.includes('First light') && keptMsgs.includes('Third light'),
+        keptMsgs.slice(0, 400)
+      )
       // With another model, it writes the summary; the next request starts from it, documents attached again.
       const cc = chat.create(null).id
       chat.send(contents, cc, 'First light on the quay', 'a', [{ name: 'Lamps.md', text: 'Nine lamps on the quay.' }])
@@ -1104,13 +1119,16 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const afterReq = JSON.stringify(log.slice(beforeAfter).find((r) => r.messages.at(-1)?.content === 'After the summary')?.messages ?? [])
       check(
         'compacting with another model leaves a summary node, and later requests start from it with the documents again',
-        !!marker?.compaction && marker.compaction.local && marker.compaction.carried === 1 && afterReq.includes('conversation_summary') && afterReq.includes('Nine lamps on the quay.') && !afterReq.includes('First light on the quay'),
+        !!marker?.compaction && marker.compaction.local && marker.compaction.carried === 1 && marker.compaction.kept === 2 && afterReq.includes('conversation_summary') && afterReq.includes('Nine lamps on the quay.') &&
+          afterReq.indexOf('conversation_summary') < afterReq.indexOf('Second evening') && !afterReq.includes('First light on the quay'),
         { marker: marker?.compaction, sent: afterReq.slice(0, 300) }
       )
       // Past your size, a quiet bar offers it; compacting puts a marker in the chat.
       chat.setCompactionSettings({ threshold: 10 })
       const cb = chat.create(null).id
       chat.send(contents, cb, 'Bar test lamps')
+      await idle(cb)
+      chat.send(contents, cb, 'Bar test latest')
       await idle(cb)
       await reloadUi()
       const barUi = await win.webContents.executeJavaScript(`(async () => {
@@ -1122,10 +1140,11 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         const offered = !!document.querySelector('.compact-bar')
         ;[...document.querySelectorAll('.compact-bar button')].find((b) => b.textContent === 'Compact chat')?.click()
         for (let end = Date.now() + 6000; Date.now() < end && !document.querySelector('.compaction-marker'); ) await wait(50)
-        return { offered, marker: !!document.querySelector('.compaction-marker'), barGone: !document.querySelector('.compact-bar') }
+        const order = [...document.querySelectorAll('.thread > .msg')].map((m) => (m.classList.contains('compaction-marker') ? 'summary' : m.classList.contains('msg-user-row') ? 'you' : 'reply'))
+        return { offered, marker: !!document.querySelector('.compaction-marker'), barGone: !document.querySelector('.compact-bar'), order: order.join() }
       })()`)
       chat.setCompactionSettings({ threshold: null })
-      check('past your size a bar offers to compact, and compacting leaves a marker in the chat', barUi.offered && barUi.marker && barUi.barGone, barUi)
+      check('past your size a bar offers to compact, and compacting leaves a marker above the exchange it kept', barUi.offered && barUi.marker && barUi.barGone && barUi.order === 'you,reply,summary,you,reply', barUi)
 
       // Changing a selected passage of a reply.
       const src = 'Wren climbed the **hundred and twelve** steps.\n\n1. Light the lamp\n2. Wait'
