@@ -41,7 +41,11 @@ If that still sounds like what you're after, welcome. Enjoy it.
 - **Change the instructions mid-chat without losing the cache:** a change rides in your next message instead of rewriting the system prompt.
 - **Attach anything:** text files in full, images and PDFs that Claude reads natively, a document from your writing folder, or a pasted screenshot.
 - **Message actions:** copy, regenerate, edit, delete one message or everything below it, undo, and a Recently deleted panel. Every reply shows its tokens, cost and speed.
-- **Full markdown and safe HTML,** code highlighted in your theme's colours, and collapsible `<details>` blocks for things like a logbook or status card.
+- **Full markdown and safe HTML,** code highlighted in your theme's colours, and collapsible `<details>` blocks for things like a logbook or status card. Bold and italic words can take the theme's colours (or any you pick), which makes long replies easier to read.
+- **The system prompt where you can see it,** at the top of every chat under the evening sky: read, copy or edit it in place, and every earlier prompt is kept, so replies written under one say so.
+- **Little things that save time:** select and copy text while a reply is still streaming, Continue a reply that hit its length limit, bookmark replies and jump between them, chats that reopen where you left them, find on the page with Ctrl+F, and a glow on the taskbar when a long reply finishes while you're elsewhere.
+
+![The top of a chat: a striped sun on the horizon over a neon grid, then the system prompt, then the first message](docs/screenshots/chattop.png)
 
 ### Find anything, fast
 
@@ -108,7 +112,13 @@ Your writing folder, seen as numbers: words written today, this week and this ye
 
 ![Six of Twilight's themes side by side: Twilight, Ultraviolet, Synthwave, Aurora, Campfire and the light Moonlit Paper](docs/screenshots/themes.png)
 
-Eleven themes, from the default dusk to Synthwave, Aurora, Campfire, a high-contrast one and **Moonlit Paper**, a light theme of warm paper and dark ink, or **build your own** from a ground colour and three accents (every colour is kept readable). Put a picture of your own or a gradient behind the whole window, framed how you like. Drag the sections on the left into your own order. Pages fade in, messages ease in, and the window opens on a moment of evening glow, or turn the motion down or off. And for fun, **Extras** has particles that follow your scrolling: stardust, sparks, fireflies, snow, constellations or bats.
+Eleven themes, from the default dusk to Synthwave, Aurora, Campfire, a high-contrast one and **Moonlit Paper**, a light theme of warm paper and dark ink, or **build your own** from a ground colour and three accents (every colour is kept readable). Put a picture of your own or a gradient behind the whole window, framed how you like. Drag the sections on the left into your own order. Pages fade in, messages ease in, and the window opens on a moment of evening glow, or turn the motion down or off.
+
+![An empty chat: a retro evening with a striped sun, a drifting neon grid and twinkling stars](docs/screenshots/evening.gif)
+
+**Extras** are just for fun, each with its own switch. The sky over your chats follows the clock, from dawn through day and dusk to a moonlit night (or holds the time you like), with seasons and the odd surprise if you sit and watch. The rail's highlight glides, messages lift into place, achievements draw their own constellations, a warm light can soften the screen after midnight, and particles can follow your scrolling: stardust, sparks, fireflies, snow, constellations or bats.
+
+![The same empty chat at dawn, during the day, at dusk and at night under a moon](docs/screenshots/sky.gif)
 
 ### Your models, your keys, your spend
 

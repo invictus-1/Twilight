@@ -478,7 +478,7 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
       // The document library over the demo manuscript, with a search tried.
       setLibrarySettings({ folders: [join(app.getPath('userData'), 'vault')] })
       await reindexLibrary()
-      await js(`[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Writing'))?.click(); await wait(500);
+      await js(`[...document.querySelectorAll('.settings-nav-item')].find((b) => b.textContent.startsWith('Documents'))?.click(); await wait(500);
         const input = document.querySelector('.library-try input');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'who lights the lamps on the bridge');
         input.dispatchEvent(new Event('input', { bubbles: true })); await wait(100);
@@ -556,6 +556,27 @@ export function runShowcase(win: BrowserWindow, outDir: string): void {
         document.body.appendChild(page); await wait(500)`)
       await shot('themes')
       await js(`document.getElementById('showcase-grid')?.remove()`)
+
+      // The top of a chat: the sky above the first message, and the system prompt under it.
+      await js(`document.querySelector('[data-mode="chat"]').click(); await wait(300);
+        [...document.querySelectorAll('.tw-conv')].find((r) => r.textContent.includes('The lighthouse at Gull Point'))?.click(); await wait(900);
+        const s = document.querySelector('.thread-scroll'); if (s) s.scrollTop = 0; await wait(400)`)
+      await shot('chattop')
+
+      // The sky through the day, on an empty chat: one frame per time (scripts/readme-gifs.cjs makes the GIFs).
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'N', modifiers: ['control'] })
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'N', modifiers: ['control'] })
+      await wait(1200)
+      for (const time of ['dawn', 'day', 'dusk', 'night']) {
+        await js(`document.querySelector('.empty .empty-sky').dataset.sky = '${time}'; await wait(1200)`)
+        await shot(`sky-${time}`)
+      }
+      await js(`document.querySelector('.empty .empty-sky').dataset.sky = 'dusk'; await wait(1200)`)
+      // The empty chat moving: the grid drifting and stars twinkling, about three seconds.
+      for (let i = 0; i < 36; i++) {
+        writeFileSync(join(outDir, `empty-${String(i).padStart(2, '0')}.png`), (await win.webContents.capturePage()).toPNG())
+        await wait(70)
+      }
 
       // Last, the hero: the welcome's evening, once the sun has set.
       await js(`document.querySelector('.rail [data-rail="settings"]').click(); await wait(300);

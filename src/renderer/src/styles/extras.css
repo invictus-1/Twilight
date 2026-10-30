@@ -17,12 +17,12 @@
 .empty-sky[data-sky='day']::before { background: linear-gradient(180deg, color-mix(in srgb, var(--iris) 14%, transparent) 0%, color-mix(in srgb, var(--iris) 8%, transparent) 45%, color-mix(in srgb, var(--horizon-soft) 80%, transparent) var(--horizon-at), transparent calc(var(--horizon-at) + 1%)); }
 .empty-sky[data-sky='day'] .empty-field { opacity: .12; }
 .empty-sky[data-sky='day'] .empty-galaxy, .empty-sky[data-sky='day'] .empty-star, .empty-sky[data-sky='day'] .empty-shooting { opacity: 0; }
-.empty-sky[data-sky='day'] .empty-sun { translate: 0 -55%; scale: .8; -webkit-mask-image: none; mask-image: none; }
+.empty-sky[data-sky='day'] .empty-sun { translate: 0 -14%; scale: .9; -webkit-mask-image: none; mask-image: none; }
 
 .empty-sky[data-sky='night']::before { background: linear-gradient(180deg, color-mix(in srgb, var(--night) 35%, transparent), color-mix(in srgb, var(--night) 20%, transparent) var(--horizon-at), transparent calc(var(--horizon-at) + 1%)); }
 .empty-sky[data-sky='night'] .empty-horizon { opacity: .45; }
-/* At night the sun is a pale moon, high and small. */
-.empty-sky[data-sky='night'] .empty-sun { translate: 0 -70%; scale: .42; -webkit-mask-image: none; mask-image: none; background: radial-gradient(circle at 38% 36%, color-mix(in srgb, #fff 70%, var(--ink)) 0%, color-mix(in srgb, var(--ink) 75%, var(--iris)) 70%, color-mix(in srgb, var(--ink) 45%, var(--dusk)) 100%); box-shadow: 0 0 60px 10px color-mix(in srgb, var(--ink) 18%, transparent); }
+/* At night the sun is a pale moon, high and small, off to the side so it never sits behind words. */
+.empty-sky[data-sky='night'] .empty-sun { translate: min(30vw, 400px) -95%; scale: .36; -webkit-mask-image: none; mask-image: none; background: radial-gradient(circle at 38% 36%, color-mix(in srgb, #fff 70%, var(--ink)) 0%, color-mix(in srgb, var(--ink) 75%, var(--iris)) 70%, color-mix(in srgb, var(--ink) 45%, var(--dusk)) 100%); box-shadow: 0 0 60px 10px color-mix(in srgb, var(--ink) 18%, transparent); }
 
 /* A long session: the top of the chat has slowly gone toward night. */
 .sky-late { position: absolute; inset: 0; pointer-events: none; background: color-mix(in srgb, var(--night) calc(var(--session-night) * 100%), transparent); }
