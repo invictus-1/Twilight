@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import type { Attachment, ChatSettings, ConversationView, DeletionView, NodeView, Pane, SendTarget, StreamEvent, Usage } from '@shared/types'
+import type { ArenaReveal, ArenaVote, ArenaWinner, Attachment, ChatSettings, ConversationView, DeletionView, NodeView, Pane, SendTarget, StreamEvent, Usage } from '@shared/types'
 import { modelKey, pickModelDefaults, type ModelDefaults } from '@shared/modelDefaults'
 import * as db from './db'
 import { signalDone } from './doneNotice'
@@ -80,6 +80,10 @@ export function trimHistory<T extends { role: string }>(history: T[], limit: num
 interface SplitState {
   leafId: string
   settings: ChatSettings
+  /** The blind arena: which model is in which pane is hidden until you vote. */
+  blind?: boolean
+  /** When the blind round began: only replies written since then can be voted on. */
+  blindSince?: number
 }
 
 /** Running generations, keyed `${conversationId}:${pane}`, and `…#n` for a pane's extra drafts. */
@@ -140,7 +144,9 @@ export function view(id: string): ConversationView {
     settings: settingsFor(conv, 'a'),
     started: !!conv.started,
     path: toViews(db.activePath(conv, nodes)),
-    split: split ? { settings: split.settings, path: toViews(db.ancestors(nodes, split.leafId)) } : null
+    split: split ? { settings: split.settings, path: toViews(db.ancestors(nodes, split.leafId)) } : null,
+    blind: !!split?.blind,
+    blindSince: split?.blind ? (split.blindSince ?? 0) : null
   }
 }
 
@@ -533,6 +539,52 @@ export function branchMap(id: string): BranchMap {
     rows,
     db.activePath(conv, nodes).slice(1).map((n) => n.id)
   )
+}
+
+// ——— The blind arena ———
+// Blind shuffles the two panes' models (a coin toss swaps them) and hides which is which; after
+// a pair of replies you vote, the names show, and the vote joins your arena leaderboard.
+
+/** Turns the blind arena on (shuffling the models) or off for a split chat. */
+export function setBlind(id: string, on: boolean, coin = Math.random()): ConversationView {
+  const conv = db.getConversation(id)
+  const split = splitOf(conv)
+  if (!split) throw new Error('The blind arena needs a split chat.')
+  const since = on ? Date.now() : undefined
+  if (on && coin < 0.5) {
+    const a = settingsFor(conv, 'a')
+    db.updateConversation(id, { settings: JSON.stringify(split.settings) })
+    setSplit(id, { ...split, settings: a, blind: true, blindSince: since })
+  } else setSplit(id, { ...split, blind: on, blindSince: since })
+  return view(id)
+}
+
+/** Records a vote on the two panes' latest replies, ends the blind round, and says who was who. */
+export function voteArena(id: string, winner: ArenaWinner): ArenaReveal {
+  const conv = db.getConversation(id)
+  const split = splitOf(conv)
+  if (!split?.blind) throw new Error('There is no blind round to vote on.')
+  const nodes = db.loadNodes(id)
+  const last = (path: db.NodeRow[]): db.NodeRow | undefined => path.findLast((n) => n.role === 'assistant')
+  const a = last(db.activePath(conv, nodes))
+  const b = last(db.ancestors(nodes, split.leafId))
+  const fresh = (n: db.NodeRow | undefined): boolean => !!n && n.status === 'done' && n.created_at >= (split.blindSince ?? 0)
+  if (!fresh(a) || !fresh(b)) throw new Error('Vote once both panes have a finished reply from this blind round.')
+  const vote: ArenaVote = {
+    id: randomUUID(),
+    at: Date.now(),
+    conversationId: id,
+    a: { providerId: a!.provider_id ?? '', modelId: a!.model ?? '' },
+    b: { providerId: b!.provider_id ?? '', modelId: b!.model ?? '' },
+    winner
+  }
+  db.kvSet('arena:votes', [...(db.kvGet<ArenaVote[]>('arena:votes') ?? []), vote])
+  setSplit(id, { ...split, blind: false, blindSince: undefined })
+  return { vote, view: view(id) }
+}
+
+export function arenaVotes(): ArenaVote[] {
+  return db.kvGet<ArenaVote[]>('arena:votes') ?? []
 }
 
 export function closeSplit(id: string, keep: Pane): ConversationView {

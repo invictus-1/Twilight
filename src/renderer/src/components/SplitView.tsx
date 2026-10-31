@@ -7,6 +7,7 @@ import { optionsFor, paneOf, useStore } from '../store'
 import { cacheStatus, ContextMeter } from './CacheBar'
 import { CloseIcon } from './Icons'
 import { ModelPicker } from './ModelPicker'
+import { useBlind } from './Arena'
 import { Thread } from './Thread'
 
 /** The same stats, in the same order, under both panes so they compare at a glance. */
@@ -17,12 +18,14 @@ function PaneFooter({ pane }: { pane: Pane }) {
   const models = useStore((s) => s.models)
   const providers = useStore((s) => s.providers)
   useStore((s) => s.prices) // re-price when your price list changes
+  const blind = useBlind()
   const u = last?.usage
   const cache = cacheStatus(u, settings, optionsFor(models, providers, settings.providerId, settings.modelId))
   const cacheLabel = { hit: 'cache hit', write: 'cache written', miss: 'not cached', off: 'caching off', idle: '' }[cache.tone]
   if (!u) return <footer className="tw-pane-foot">No reply yet{cache.tone === 'off' ? ' · caching off' : ''}</footer>
   const local = models.find((m) => m.id === last.modelId && m.providerId === last.providerId)?.local ?? false
-  const cost = costOf(last.modelId, u, local)
+  // A price would give the model away in a blind round.
+  const cost = blind ? null : costOf(last.modelId, u, local)
   return (
     <footer className="tw-pane-foot">
       <span>{formatTokens(u.output)} out</span>
@@ -44,12 +47,13 @@ function PaneColumn({ pane }: { pane: Pane }) {
   const empty = useStore((s) => paneOf(s.current!, pane).path.length === 0)
   const closeSplit = useStore((s) => s.closeSplit)
   const other: Pane = pane === 'a' ? 'b' : 'a'
+  const blind = useBlind()
   return (
     <PaneContext.Provider value={pane}>
       <section className={`tw-pane tw-pane-${pane}`} aria-label={`Pane ${pane.toUpperCase()}`}>
         <header className="tw-pane-head">
           <span className="tw-pane-tag">{pane.toUpperCase()}</span>
-          <ModelPicker placement="down" />
+          {blind ? <span className="arena-hidden">Hidden model</span> : <ModelPicker placement="down" />}
           <span className="tw-spacer" />
           <button
             className="tw-btn tw-btn-ghost tw-btn-sm"

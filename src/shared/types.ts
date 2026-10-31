@@ -343,6 +343,27 @@ export interface ConversationView {
   path: NodeView[]
   /** Pane B while split compare is open. */
   split: PaneView | null
+  /** A blind arena round in the split: model names stay hidden until you vote. */
+  blind: boolean
+  /** When that round began (replies from before it can't be voted on); null outside one. */
+  blindSince: number | null
+}
+
+export type ArenaWinner = 'a' | 'b' | 'tie' | 'bad'
+
+/** One vote in the blind arena: the two models as they were in the panes, and which won. */
+export interface ArenaVote {
+  id: string
+  at: number
+  conversationId: string
+  a: { providerId: string; modelId: string }
+  b: { providerId: string; modelId: string }
+  winner: ArenaWinner
+}
+
+export interface ArenaReveal {
+  vote: ArenaVote
+  view: ConversationView
 }
 
 /** A published version on the releases repo. */
@@ -537,6 +558,11 @@ export interface TwilightApi {
   cloneIntoSplit(id: string, nodeId?: string): Promise<ConversationView>
   /** Closes split compare, continuing on the kept pane's branch. */
   closeSplit(id: string, keep: Pane): Promise<ConversationView>
+  /** The blind arena: on shuffles the split's two models and hides which is which. */
+  setBlind(id: string, on: boolean): Promise<ConversationView>
+  /** Votes on the blind round's two latest replies, which reveals the models. */
+  voteArena(id: string, winner: ArenaWinner): Promise<ArenaReveal>
+  arenaVotes(): Promise<ArenaVote[]>
   /** A new chat with this conversation up to `nodeId` (the pane's settings, same workspace); returns it. */
   branchToNewChat(id: string, nodeId: string, pane?: Pane): Promise<ConversationView>
   onStream(listener: (event: StreamEvent) => void): () => void

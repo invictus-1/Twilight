@@ -16,6 +16,7 @@ import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
 import { savedCount } from './Multiverse'
+import { useBlind } from './Arena'
 import { DiffBody, useDiffed } from './SplitDiff'
 import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, GridIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
 
@@ -611,6 +612,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
   const slide = useSlideIn()
   const diffed = useDiffed(pane, node.id)
   const streaming = node.status === 'streaming'
+  const blind = useBlind()
   if (editing) {
     return (
       <div className="msg tw-msg-ai">
@@ -622,7 +624,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
   return (
     <div className={`msg tw-msg-ai ${fresh ? 'msg-enter' : ''} ${slide}`} data-node={node.id} style={{ containIntrinsicSize: `auto ${estimateHeight(node.text, 80)}px` }}>
       <div className="tw-msg-head">
-        {modelName(models, node.modelId)}
+        {blind ? `Model ${pane.toUpperCase()}` : modelName(models, node.modelId)}
         {node.usage && <span className="msg-time">· {(node.usage.ms / 1000).toFixed(1)}s</span>}
         {node.status === 'stopped' && <span className="msg-time">· stopped</span>}
       </div>
@@ -727,7 +729,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
             )}
             <DeleteButton node={node} />
           </div>
-          <UsageLine node={node} />
+          {!blind && <UsageLine node={node} />}
         </div>
       )}
     </div>

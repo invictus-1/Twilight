@@ -10,6 +10,7 @@ import { DeletedPanel } from './DeletedPanel'
 import { BranchIcon, SidebarIcon, SlidersIcon, SplitIcon, StarIcon, TrashIcon } from './Icons'
 import { nextBookmark, useBookmarks } from '../bookmarks'
 import { DiffSummary, DiffToggle } from './SplitDiff'
+import { ArenaBar, BlindToggle } from './Arena'
 import { SplitView } from './SplitView'
 import { SystemPromptCard } from './ChatTop'
 import { EmptySky } from './Sky'
@@ -118,6 +119,7 @@ export function ChatView() {
         </button>
         {split && <DiffToggle />}
         {split && <JudgeSplitButton />}
+        {split && <BlindToggle />}
         <BookmarkJump />
         {branched && (
           <button
@@ -154,6 +156,7 @@ export function ChatView() {
       {panel === 'settings' && current && <ChatSettingsPanel key={`settings:${current.id}`} onClose={() => setPanel(null)} />}
       {panel === 'deleted' && current && <DeletedPanel key={`deleted:${current.id}`} onClose={() => setPanel(null)} />}
       {split && <DiffSummary key={`diff:${current.id}`} />}
+      {split && <ArenaBar />}
       {split ? (
         <SplitView key={current.id} />
       ) : empty ? (

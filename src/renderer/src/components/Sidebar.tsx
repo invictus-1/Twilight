@@ -1,6 +1,7 @@
 import { memo, useEffect, useState, type DragEvent, type ReactNode } from 'react'
 import type { ChatFolder, ConversationSummary, DocEntry } from '@shared/types'
 import { modelName, useStore } from '../store'
+import { useBlind } from './Arena'
 import { useInsights, type InsightsPage } from '../insightsStore'
 import { useJudge } from '../judgeStore'
 import { useWriting } from '../writingStore'
@@ -216,6 +217,7 @@ function ChatFolderGroup({ folder, chats }: { folder: ChatFolder; chats: Convers
   const [editing, setEditing] = useState(false)
   const currentId = useStore((s) => s.current?.id)
   const models = useStore((s) => s.models)
+  const blind = useBlind()
   const store = useStore.getState()
   const drop = useDrop(CHAT_MIME, (id) => void store.moveChat(id, folder.id))
   return (
@@ -274,7 +276,7 @@ function ChatFolderGroup({ folder, chats }: { folder: ChatFolder; chats: Convers
         </span>
       </div>
       {!folder.collapsed &&
-        chats.map((c) => <ChatRow key={c.id} c={c} active={c.id === currentId} model={modelName(models, c.modelId)} depth={1} />)}
+        chats.map((c) => <ChatRow key={c.id} c={c} active={c.id === currentId} model={blind && c.id === currentId ? '' : modelName(models, c.modelId)} depth={1} />)}
       {!folder.collapsed && chats.length === 0 && <p className="folder-empty">Drag chats here</p>}
       {editing && <WorkspaceDialog workspace={folder} onClose={() => setEditing(false)} />}
     </div>
@@ -286,12 +288,13 @@ function ChatList({ creating, onCreated }: { creating: boolean; onCreated: () =>
   const folders = useStore((s) => s.folders)
   const currentId = useStore((s) => s.current?.id)
   const models = useStore((s) => s.models)
+  const blind = useBlind()
   const store = useStore.getState()
   const recentDrop = useDrop(CHAT_MIME, (id) => void store.moveChat(id, null))
   const pinned = conversations.filter((c) => c.pinned)
   const recent = conversations.filter((c) => !c.pinned && !c.folderId)
   const row = (c: ConversationSummary): ReactNode => (
-    <ChatRow key={c.id} c={c} active={c.id === currentId} model={modelName(models, c.modelId)} depth={0} />
+    <ChatRow key={c.id} c={c} active={c.id === currentId} model={blind && c.id === currentId ? '' : modelName(models, c.modelId)} depth={0} />
   )
 
   return (

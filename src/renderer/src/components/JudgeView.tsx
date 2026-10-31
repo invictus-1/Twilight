@@ -6,6 +6,7 @@ import { renderMarkdown, renderMarkdownLive } from '../markdown'
 import { modelName, optionsFor, useStore } from '../store'
 import { readStream, subscribeStream } from '../stream'
 import { CloseIcon, PaperclipIcon, PlusIcon, SidebarIcon, TrashIcon, TrophyIcon } from './Icons'
+import { ArenaBoard } from './Arena'
 
 const words = (s: string): number => s.match(/\S+/g)?.length ?? 0
 const fmt = (n: number | null): string => (n === null ? '–' : n.toFixed(1))
@@ -442,6 +443,8 @@ function LeaderboardView() {
           ))}
         </section>
       )}
+
+      {!round && <ArenaBoard />}
 
       <p className="field-note">
         Counted by label, from finished judgments where both passages are labelled. Ratings are Elo-style: every label starts at {ELO_START}, and each

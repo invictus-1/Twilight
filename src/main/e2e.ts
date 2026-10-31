@@ -5428,6 +5428,75 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         ui52
       )
 
+      // 53. The blind arena: the split's models shuffled and hidden, a vote, then who was who.
+      const c53 = chat.create().id
+      chat.send(contents, c53, 'Describe the lighthouse at dusk in one line.')
+      await idle(c53)
+      chat.cloneIntoSplit(c53)
+      chat.updateSettings(c53, { modelId: 'mock-b' }, 'b')
+      const blind53 = chat.setBlind(c53, true, 0.2)
+      check('Blind shuffles the two models (a coin toss swaps them) and marks the round', blind53.blind && blind53.settings.modelId === 'mock-b' && blind53.split?.settings.modelId === 'mock-a', [blind53.settings.modelId, blind53.split?.settings.modelId])
+      check('Blind keeps them as they are on the other side of the coin', chat.setBlind(c53, true, 0.7).settings.modelId === 'mock-b')
+      let early53 = ''
+      try {
+        chat.voteArena(c53, 'a')
+      } catch (e) {
+        early53 = String(e)
+      }
+      chat.send(contents, c53, 'And now the harbour.', 'both')
+      await idle(c53)
+      const votesBefore53 = chat.arenaVotes().length
+      const reveal53 = chat.voteArena(c53, 'b')
+      check(
+        'a vote records who was in each pane and ends the round',
+        !!early53 && reveal53.vote.a.modelId === 'mock-b' && reveal53.vote.b.modelId === 'mock-a' && reveal53.vote.winner === 'b' && !reveal53.view.blind && chat.arenaVotes().length === votesBefore53 + 1,
+        { early53, vote: reveal53.vote }
+      )
+      chat.setBlind(c53, true, 0.9)
+      db.updateConversation(c53, { title: 'Arena chat' })
+      await reloadUi()
+      const ui53 = await js<{ hidden: number; pickers: number; heads: string[]; costs: number; ready: boolean; votes: number; reveal: string; blindAfter: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Arena chat')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.arena-bar'); ) await wait(25)
+        const out = {
+          hidden: document.querySelectorAll('.arena-hidden').length,
+          pickers: document.querySelectorAll('.tw-pane-head .model-picker, .tw-pane-head [data-model-picker]').length,
+          heads: [...document.querySelectorAll('.tw-pane .tw-msg-ai .tw-msg-head')].map((h) => h.textContent.split('·')[0].trim()),
+          costs: document.querySelectorAll('.tw-pane .msg-usage').length,
+          ready: false, votes: 0, reveal: '', blindAfter: true
+        }
+        document.querySelector('.tw-composer textarea')?.focus()
+        return out
+      })()`)
+      win.webContents.insertText('Round two at the pier.')
+      const vote53 = await js<{ ready: boolean; votes: number; reveal: string; blindAfter: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        await wait(100)
+        document.querySelector('.tw-composer [aria-label="Send (Enter)"]')?.click()
+        for (let end = Date.now() + 8000; Date.now() < end && document.querySelectorAll('.arena-vote').length < 4; ) await wait(40)
+        const votes = document.querySelectorAll('.arena-vote').length
+        document.querySelector('.arena-vote[data-winner="a"]')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.arena-reveal'); ) await wait(25)
+        return { ready: votes === 4, votes, reveal: document.querySelector('.arena-reveal')?.textContent ?? '', blindAfter: document.querySelector('.arena-toggle')?.getAttribute('aria-pressed') === 'true', bar: document.querySelector('.arena-bar')?.textContent ?? '', box: document.querySelector('.tw-composer textarea')?.value ?? null, panes: [...document.querySelectorAll('.tw-pane')].map((p) => [...p.querySelectorAll('.msg')].map((m) => m.className.includes('tw-msg-ai') ? 'ai' : 'you').join(',')) }
+      })()`)
+      check(
+        'a blind split hides the models, their names on replies and the prices',
+        ui53.hidden === 2 && ui53.heads.length >= 2 && ui53.heads.every((h) => h === 'Model A' || h === 'Model B') && ui53.costs === 0,
+        ui53
+      )
+      check('once both replies are in, the vote shows; voting names the models', vote53.ready && /^You picked A\. A was .+, B was .+\./.test(vote53.reveal) && !vote53.blindAfter, vote53)
+      await js(`document.querySelector('.rail-item[data-mode="judge"]')?.click()`)
+      const board53 = await js<string[]>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 2000; Date.now() < end && !document.querySelector('.judge-board-item'); ) await wait(25)
+        document.querySelector('.judge-board-item')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.arena-table tbody tr'); ) await wait(25)
+        return [...document.querySelectorAll('.arena-table tbody tr')].map((r) => r.dataset.label + ':' + r.dataset.record)
+      })()`)
+      check('the Judge leaderboard has the blind arena table, rated from the votes', board53.length === 2 && board53.every((r) => /:\d+-\d+-\d+$/.test(r)), board53)
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+
       check('the page logged no errors', consoleErrors.length === 0, consoleErrors.slice(0, 5))
     } catch (err) {
       // What the mock server saw last, so a stalled reply shows whether its request ever arrived.

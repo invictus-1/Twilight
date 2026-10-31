@@ -1,6 +1,8 @@
 import type { McpServerView } from '@shared/mcp'
 import { create } from 'zustand'
 import type {
+  ArenaVote,
+  ArenaWinner,
   Attachment,
   ChatFolder,
   ChatSettings,
@@ -106,6 +108,11 @@ interface State {
   stop(target?: SendTarget): Promise<void>
   updateSettings(patch: Partial<ChatSettings>, pane?: Pane): Promise<void>
   cloneIntoSplit(nodeId?: string): Promise<void>
+  /** The blind arena in a split chat: on shuffles the two models and hides which is which. */
+  setBlind(on: boolean): Promise<void>
+  /** Votes on the blind round; the vote (with who was who) shows until the next round. */
+  voteArena(winner: ArenaWinner): Promise<void>
+  arenaReveal: ArenaVote | null
   closeSplit(keep: Pane): Promise<void>
   /** Opens a new chat holding this one up to `nodeId`. */
   branchToNewChat(nodeId: string, pane?: Pane): Promise<void>
@@ -204,7 +211,7 @@ export const useStore = create<State>((set, get) => {
     async open(id) {
       const view = await guard(set, () => api.openConversation(id))
       if (view) {
-        set({ current: view, undo: appUndo() })
+        set({ current: view, undo: appUndo(), arenaReveal: null })
         void get().refreshDeletions()
       }
     },
@@ -348,6 +355,14 @@ export const useStore = create<State>((set, get) => {
     },
 
     cloneIntoSplit: (nodeId) => withCurrent((id) => api.cloneIntoSplit(id, nodeId)),
+    setBlind: (on) => (set({ arenaReveal: null }), withCurrent((id) => api.setBlind(id, on))),
+    async voteArena(winner) {
+      const id = get().current?.id
+      if (!id) return
+      const result = await guard(set, () => api.voteArena(id, winner))
+      if (result && get().current?.id === id) set({ current: result.view, arenaReveal: result.vote })
+    },
+    arenaReveal: null,
     // Closing the split also ends the differences view, so the next split starts plain.
     closeSplit: (keep) => (set({ splitDiff: false }), withCurrent((id) => api.closeSplit(id, keep))),
     async branchToNewChat(nodeId, pane = 'a') {
