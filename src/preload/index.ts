@@ -5,14 +5,13 @@ import type { McpServerView } from '@shared/mcp'
 import type { LibraryStatus } from '@shared/docLibrary'
 import type { LocalState } from '@shared/localModels'
 import type { VoiceState } from '@shared/voice'
-import type { BibleState } from '@shared/bible'
 
 const invoke =
   (name: keyof TwilightApi) =>
   (...args: unknown[]) =>
     ipcRenderer.invoke(`twilight:${name}`, ...args)
 
-const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights' | 'onCode' | 'onMcp' | 'onDocLibrary' | 'onLocalModels' | 'onVoice' | 'onBible' | 'onContinuity'>[] = [
+const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights' | 'onCode' | 'onMcp' | 'onDocLibrary' | 'onLocalModels' | 'onVoice'>[] = [
   'listRubrics',
   'saveRubric',
   'deleteRubric',
@@ -152,17 +151,9 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'revealMessage',
   'branchMap',
   'voiceState',
-  'bibleState',
-  'setBibleSettings',
-  'readBible',
-  'stopBibleReading',
-  'reviewBible',
-  'editBibleEntry',
-  'editBibleFact',
-  'addBibleEntry',
-  'addBibleFact',
   'checkContinuity',
-  'resolveContinuity',
+  'continuityPresets',
+  'saveContinuityPresets',
   'speak',
   'installWhisper',
   'downloadVoiceModel',
@@ -244,18 +235,6 @@ api.onVoice = (listener: (state: VoiceState) => void) => {
   const handler = (_e: unknown, state: VoiceState): void => listener(state)
   ipcRenderer.on('twilight:voice', handler)
   return () => ipcRenderer.removeListener('twilight:voice', handler)
-}
-
-api.onBible = (listener: (state: BibleState) => void) => {
-  const handler = (_e: unknown, state: BibleState): void => listener(state)
-  ipcRenderer.on('twilight:bible', handler)
-  return () => ipcRenderer.removeListener('twilight:bible', handler)
-}
-
-api.onContinuity = (listener: Parameters<TwilightApi['onContinuity']>[0]) => {
-  const handler = (_e: unknown, event: Parameters<Parameters<TwilightApi['onContinuity']>[0]>[0]): void => listener(event)
-  ipcRenderer.on('twilight:continuity', handler)
-  return () => ipcRenderer.removeListener('twilight:continuity', handler)
 }
 
 api.onMcp = (listener: (servers: McpServerView[]) => void) => {

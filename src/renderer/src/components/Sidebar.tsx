@@ -2,7 +2,6 @@ import { memo, useEffect, useState, type DragEvent, type ReactNode } from 'react
 import type { ChatFolder, ConversationSummary, DocEntry } from '@shared/types'
 import { modelName, useStore } from '../store'
 import { useBlind } from './Arena'
-import { BibleList } from './BibleList'
 import { useInsights, type InsightsPage } from '../insightsStore'
 import { useJudge } from '../judgeStore'
 import { useWriting } from '../writingStore'
@@ -646,7 +645,7 @@ function CodeList() {
   )
 }
 
-const SECTION_NAMES = { chat: 'Chats', write: 'Writing', judge: 'Judge', insights: 'Insights', code: 'Code', bible: 'Story bible' } as const
+const SECTION_NAMES = { chat: 'Chats', write: 'Writing', judge: 'Judge', insights: 'Insights', code: 'Code' } as const
 
 export function Sidebar() {
   const mode = useStore((s) => s.mode)
@@ -661,7 +660,7 @@ export function Sidebar() {
     <nav className="sidebar" aria-label={mode === 'chat' ? 'Conversations' : 'Documents'}>
       <div className="sidebar-head drag">
         <span className="brand">{SECTION_NAMES[mode]}</span>
-        <span className="head-actions" hidden={mode === 'insights' || mode === 'bible'}>
+        <span className="head-actions" hidden={mode === 'insights'}>
           <button
             className="tw-btn tw-btn-ghost tw-btn-icon no-drag"
             hidden={mode === 'code'}
@@ -697,8 +696,6 @@ export function Sidebar() {
         <InsightsNav />
       ) : mode === 'code' ? (
         <CodeList />
-      ) : mode === 'bible' ? (
-        <BibleList />
       ) : (
         <JudgeList />
       )}

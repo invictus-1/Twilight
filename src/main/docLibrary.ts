@@ -408,17 +408,6 @@ export function gather(ids: number[], budgetChars: number): LibraryHit[] {
   return out.map(({ id, source, line, section, text }) => ({ id, source, line, section, text }))
 }
 
-/** Every file the library has read, in story order, with when it last changed (for the story bible). */
-export function libraryFiles(): { path: string; source: string; mtime: number }[] {
-  const rows = db().prepare('SELECT f.path, f.mtime, (SELECT source FROM passages p WHERE p.path = f.path LIMIT 1) AS source FROM files f').all() as { path: string; mtime: number; source: string | null }[]
-  return rows.filter((r) => r.source).map((r) => ({ path: r.path, source: r.source!, mtime: r.mtime })).sort((a, b) => storyOrder(a.source, b.source))
-}
-
-/** A file's passages in order, with the headings each sits under. */
-export function passagesOf(path: string): { line: number; section: string; text: string }[] {
-  return db().prepare('SELECT line, section, text FROM passages WHERE path = ? ORDER BY line, id').all(path) as { line: number; section: string; text: string }[]
-}
-
 /** Checks the folders now and then (on start, and when a chat uses the library after a while). */
 export function keepFresh(): void {
   const last = Number(meta('lastIndexed') ?? 0)

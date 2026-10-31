@@ -19,10 +19,9 @@ import type {
   UpdateState
 } from '@shared/types'
 import { clearStream } from './stream'
-import type { ContinuityIssue } from '@shared/bible'
 import { setCustomPrices, type CustomPrice } from '@shared/pricing'
 
-export type Mode = 'chat' | 'write' | 'judge' | 'insights' | 'code' | 'bible'
+export type Mode = 'chat' | 'write' | 'judge' | 'insights' | 'code'
 /** A floating panel over everything: the command menu, the shortcut sheet, search or the persona chooser. */
 export type Overlay = 'commands' | 'shortcuts' | 'search' | 'personas' | 'branches' | 'multiverse' | null
 
@@ -116,8 +115,6 @@ interface State {
   /** Votes on the blind round; the vote (with who was who) shows until the next round. */
   voteArena(winner: ArenaWinner): Promise<void>
   arenaReveal: ArenaVote | null
-  /** What the continuity watcher found on a reply in the open chat. */
-  setContinuity(nodeId: string, issues: ContinuityIssue[]): void
   closeSplit(keep: Pane): Promise<void>
   /** Opens a new chat holding this one up to `nodeId`. */
   branchToNewChat(nodeId: string, pane?: Pane): Promise<void>
@@ -369,12 +366,6 @@ export const useStore = create<State>((set, get) => {
       if (result && get().current?.id === id) set({ current: result.view, arenaReveal: result.vote })
     },
     arenaReveal: null,
-    setContinuity(nodeId, issues) {
-      const current = get().current
-      if (!current) return
-      const patch = (path: NodeView[]): NodeView[] => path.map((n) => (n.id === nodeId ? { ...n, continuity: issues } : n))
-      set({ current: { ...current, path: patch(current.path), split: current.split ? { ...current.split, path: patch(current.split.path) } : null } })
-    },
     // Closing the split also ends the differences view, so the next split starts plain.
     closeSplit: (keep) => (set({ splitDiff: false }), withCurrent((id) => api.closeSplit(id, keep))),
     async branchToNewChat(nodeId, pane = 'a') {

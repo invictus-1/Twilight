@@ -10,6 +10,7 @@ import type {
   ChatFolder,
   ConversationSummary,
   ArenaWinner,
+  ContinuityPreset,
   DocContext,
   Pane,
   SendTarget,
@@ -26,7 +27,6 @@ import * as docs from './docs'
 import * as judge from './judge'
 import * as library from './library'
 import * as voice from './voice'
-import * as bible from './bible'
 import * as logs from './logs'
 import * as workspaces from './workspaces'
 import type { JudgeInput, Rubric } from '@shared/judge'
@@ -443,6 +443,12 @@ function registerIpc(): void {
     setDocContext: (_e, path: string, context: DocContext) => docs.setDocContext(path, context),
     runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
     stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
+    checkContinuity: (_e, docPath: string, passage: string, references: string[]) => writing.checkContinuity(docPath, passage, references),
+    continuityPresets: () => db.kvGet<ContinuityPreset[]>('continuityPresets') ?? [],
+    saveContinuityPresets: (_e, presets: ContinuityPreset[]) => {
+      db.kvSet('continuityPresets', presets)
+      return presets
+    },
     getAppInfo: () => ({ version: app.getVersion(), dataFolder: app.getPath('userData'), electron: process.versions.electron }),
     getDocLibrary: () => ({ settings: librarySettings(), status: libraryStatus() }),
     setDocLibrarySettings: (_e, patch: Partial<LibrarySettings>) => setLibrarySettings(patch),
@@ -463,17 +469,6 @@ function registerIpc(): void {
     scoutDocLibrary: (_e, query: string) => scout(query, ''),
     getLocalModels: () => local.localState(),
     voiceState: () => voice.voiceState(),
-    bibleState: () => bible.bibleState(),
-    setBibleSettings: (_e, patch: { on?: boolean; sources?: string[] }) => bible.setBibleSettings(patch),
-    readBible: () => void bible.readBible(),
-    stopBibleReading: () => bible.stopBibleReading(),
-    reviewBible: (_e, action: 'accept' | 'remove' | 'restore', ids: { entries?: string[]; facts?: string[] }) => bible.reviewBible(action, ids),
-    editBibleEntry: (_e, id: string, patch) => bible.editEntry(id, patch),
-    editBibleFact: (_e, id: string, text: string) => bible.editFact(id, text),
-    addBibleEntry: (_e, name: string, kind) => bible.addEntry(name, kind),
-    addBibleFact: (_e, entryId: string, text: string) => bible.addFact(entryId, text),
-    checkContinuity: (_e, text: string) => bible.checkContinuity(text),
-    resolveContinuity: (_e, issue, action: 'update' | 'ignore' | 'fixed', where: string, nodeId?: string) => bible.resolveContinuity(issue, action, where, nodeId),
     speak: (_e, text: string) => voice.speak(text),
     installWhisper: () => void voice.installWhisper(),
     downloadVoiceModel: (_e, file: string) => void voice.downloadVoiceModel(file),

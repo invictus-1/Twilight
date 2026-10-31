@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { locatePassage } from '@shared/passage'
 import { usePane } from '../pane'
 import { paneOf, useStore } from '../store'
+import { SpeechIcon } from './Icons'
 
 // Quick asks, in the editor's spirit; anything else goes in the box.
 const QUICK: { label: string; ask: string }[] = [
@@ -31,6 +32,8 @@ export function PassageTools({ scroller }: { scroller: React.RefObject<HTMLDivEl
   const pane = usePane()
   const [picked, setPicked] = useState<Picked | null>(null)
   const [ask, setAsk] = useState('')
+  // The box for asking opens only when you click Ask, as in the editor.
+  const [asking, setAsking] = useState(false)
   const [withChat, setWithChat] = useState(readWithChat)
   const [busy, setBusy] = useState(false)
   const [result, setResult] = useState<string | null>(null)
@@ -94,6 +97,7 @@ export function PassageTools({ scroller }: { scroller: React.RefObject<HTMLDivEl
     setResult(null)
     setError(null)
     setAsk('')
+    setAsking(false)
   }
   const accept = (): void => {
     if (result === null) return
@@ -102,50 +106,60 @@ export function PassageTools({ scroller }: { scroller: React.RefObject<HTMLDivEl
   }
 
   return (
-    <div className="passage-tools" ref={bar} style={{ top: picked.top, left: picked.left }} role="dialog" aria-label="Change this passage">
+    <div className={`passage-tools ${result === null ? 'is-bar' : ''}`} ref={bar} style={{ top: picked.top, left: picked.left }} role="dialog" aria-label="Change this passage">
       {result === null ? (
-        <>
-          <div className="passage-row">
+        busy ? (
+          <span className="passage-working field-note">
+            <span className="tw-spin" /> Working…
+          </span>
+        ) : asking ? (
+          <form
+            className="seltool-ask"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void run(ask)
+            }}
+          >
+            <input
+              className="passage-ask"
+              autoFocus
+              placeholder="What should change? Enter to run"
+              value={ask}
+              disabled={!passage}
+              onChange={(e) => setAsk(e.target.value)}
+              onKeyDown={(e) => e.key === 'Escape' && (ask ? setAsk('') : setAsking(false))}
+            />
+          </form>
+        ) : (
+          <>
+            <button className="tw-btn tw-btn-ghost tw-btn-sm tw-ask" disabled={!passage} onClick={() => setAsking(true)}>
+              Ask
+            </button>
+            <span className="tw-sep" />
             {QUICK.map((q) => (
-              <button key={q.label} className="tw-btn tw-btn-ghost tw-btn-sm" disabled={busy || !passage} onClick={() => void run(q.ask)}>
+              <button key={q.label} className="tw-btn tw-btn-ghost tw-btn-sm" disabled={!passage} onClick={() => void run(q.ask)}>
                 {q.label}
               </button>
             ))}
-            <input
-              className="passage-ask"
-              placeholder="Or ask for a change…"
-              value={ask}
-              disabled={busy || !passage}
-              onChange={(e) => setAsk(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') void run(ask)
-                if (e.key === 'Escape') close()
+            <span className="tw-sep" />
+            <button
+              className="tw-btn tw-btn-ghost tw-btn-icon passage-context"
+              aria-pressed={withChat}
+              aria-label="Use the whole chat as context"
+              title={withChat ? "Uses the whole chat as context, read from its cache (the request isn't added to the chat). Click to use the passage alone." : 'Uses the passage alone. Click to use the whole chat as context.'}
+              onClick={() => {
+                setWithChat(!withChat)
+                try {
+                  localStorage.setItem(CONTEXT_KEY, withChat ? 'off' : 'on')
+                } catch {
+                  // Storage unavailable: the choice holds while the app is open.
+                }
               }}
-            />
-          </div>
-          <div className="passage-row passage-meta">
-            <label className="check" title="With the whole chat, it reads from the chat's cache; the request isn't added to the conversation">
-              <input
-                type="checkbox"
-                checked={withChat}
-                onChange={(e) => {
-                  setWithChat(e.target.checked)
-                  try {
-                    localStorage.setItem(CONTEXT_KEY, e.target.checked ? 'on' : 'off')
-                  } catch {
-                    // Storage unavailable: the choice holds while the app is open.
-                  }
-                }}
-              />
-              Use the whole chat as context
-            </label>
-            {busy && (
-              <span className="field-note">
-                <span className="tw-spin" /> Working…
-              </span>
-            )}
-          </div>
-        </>
+            >
+              <SpeechIcon size={14} />
+            </button>
+          </>
+        )
       ) : (
         <>
           <div className="passage-compare">

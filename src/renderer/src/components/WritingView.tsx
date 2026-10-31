@@ -150,7 +150,7 @@ export function WritingView() {
             <button
               className="tw-btn tw-btn-ghost tw-btn-sm no-drag continuity-open"
               aria-expanded={continuityOpen}
-              title="Check the selection, or the document, against your story bible"
+              title="Check the selection, or the document, against documents you pick"
               onClick={() => setContinuityOpen((o) => !o)}
             >
               <BookIcon />

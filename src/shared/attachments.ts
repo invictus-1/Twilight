@@ -3,7 +3,6 @@
 // natively.
 
 import { LIBRARY_OPEN } from './docLibrary'
-import { BIBLE_OPEN } from './bible'
 
 export type AttachmentKind = 'text' | 'image' | 'pdf'
 
@@ -45,7 +44,7 @@ export function tooBig(kind: AttachmentKind, bytes: number, name: string): strin
 export const INSTRUCTION_OPEN = '<instruction_update>'
 export const CLOCK_OPEN = '<current_time>'
 export const isContextText = (text: string): boolean =>
-  text.startsWith('<document name=') || text.startsWith(INSTRUCTION_OPEN) || text.startsWith(CLOCK_OPEN) || text.startsWith(LIBRARY_OPEN) || text.startsWith(BIBLE_OPEN)
+  text.startsWith('<document name=') || text.startsWith(INSTRUCTION_OPEN) || text.startsWith(CLOCK_OPEN) || text.startsWith(LIBRARY_OPEN)
 
 const pad = (n: number): string => String(n).padStart(2, '0')
 

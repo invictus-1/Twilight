@@ -16,9 +16,8 @@ import { chunk, gather, libraryStatus, reindex as reindexLibrary, searchLibrary,
 import { parseScoutCases, scout, testScout } from './scout'
 import * as local from './localModels'
 import { pickEngine } from './localModels'
+import { checkContinuity } from './writing'
 import * as voice from './voice'
-import * as storyBible from './bible'
-import { mentioned } from '@shared/bible'
 import { cleanTranscript, encodeWav, speakable } from '@shared/voice'
 import { bestStarter, fitFor, quantOf, type Hardware } from '@shared/localModels'
 
@@ -312,48 +311,6 @@ function mockMcpHttp(req: import('node:http').IncomingMessage, res: import('node
  * asks for one more search ("ferry") the first time, and answers with nonsense when the message
  * says SCOUTFAIL, so the fallback to plain search can be seen.
  */
-/**
- * The story bible's reader and the continuity watcher, as the scout model would answer them: the
- * reader reports Wren and Gull Point from any passage naming Wren; the watcher flags eyes of the
- * wrong colour against "Wren has grey eyes", plus one finding with words the passage doesn't
- * hold and one with no such fact, which Twilight must drop.
- */
-function bibleModelReply(messages: { role: string; content: unknown }[], res: import('node:http').ServerResponse): void {
-  const system = String(messages[0]?.content ?? '')
-  const user = messages.filter((m) => m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n')
-  let answer: unknown
-  if (system.startsWith('You keep the story bible')) {
-    const passage = /\[(\d+)\][^\n]*\n[^[]*Wren/.exec(user)?.[1] ?? '1'
-    answer = user.includes('Wren')
-      ? {
-          entries: [
-            { name: 'Wren', kind: 'character', aliases: ['the keeper'], facts: [{ text: 'Wren has grey eyes', passage }, { text: "Wren is Rowan's sister", passage }] },
-            { name: 'Gull Point', kind: 'place', facts: [{ text: 'Gull Point has a lighthouse', passage }] }
-          ]
-        }
-      : { entries: [] }
-  } else {
-    const fact = /F(\d+) · Wren — Wren has grey eyes/.exec(user)?.[1]
-    // The passage runs to the last closing tag: a reply can hold passage tags of its own.
-    const start = user.indexOf('<passage>\n')
-    const passage = start >= 0 ? user.slice(start + 10, user.lastIndexOf('\n</passage>')) : ''
-    const eyes = /\b(green|blue) eyes\b/i.exec(passage)?.[0]
-    answer = {
-      issues: [
-        ...(fact && eyes ? [{ fact: `F${fact}`, quote: eyes, says: `Wren has ${eyes}`, why: 'The bible says grey.' }] : []),
-        { fact: 'F1', quote: 'a purple sky over the harbour', says: 'x', why: 'not in the passage' },
-        { fact: 'F99', quote: passage.split(' ')[0] ?? 'Wren', says: 'x', why: 'no such fact' }
-      ]
-    }
-  }
-  const send = (o: unknown): void => void res.write(`data: ${JSON.stringify(o)}\n\n`)
-  res.writeHead(200, { 'content-type': 'text/event-stream' })
-  send({ choices: [{ delta: { content: JSON.stringify(answer) } }] })
-  send({ choices: [{ delta: {}, finish_reason: 'stop' }] })
-  send({ choices: [], usage: { prompt_tokens: Math.ceil(user.length / 4), completion_tokens: 40 } })
-  res.end('data: [DONE]\n\n')
-}
-
 function scoutReply(messages: { role: string; content: unknown }[], res: import('node:http').ServerResponse): void {
   const user = messages.filter((m) => m.role === 'user').map((m) => (typeof m.content === 'string' ? m.content : JSON.stringify(m.content))).join('\n')
   const listed = [...user.matchAll(/\[(\d+)\] ([^\n,]+)/g)].map((m) => ({ id: Number(m[1]), where: m[2] }))
@@ -462,7 +419,6 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
       log.push(entry)
       if (parsed.messages[0]?.content?.startsWith('You are a careful coding agent')) return codeAgentReply(parsed.messages, res)
       if (parsed.messages[0]?.content?.startsWith('You are the context scout')) return scoutReply(parsed.messages, res)
-      if (/^You (keep the story bible|are the continuity watcher)/.test(parsed.messages[0]?.content ?? '')) return bibleModelReply(parsed.messages, res)
       const lastUser =[...parsed.messages].reverse().find((m) => m.role === 'user')?.content ?? ''
       const toolResult = parsed.messages.at(-1)?.role === 'tool' ? parsed.messages.at(-1)?.content : null
       if (!toolResult && lastUser.includes('TOOLCHOICE') && (parsed as { tools?: unknown[] }).tools?.length) {
@@ -538,6 +494,17 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply = JSON.stringify({ strength: 'Clear scenes.', areas: [{ title: 'Vary openings', why: 'Many sentences start the same way.', evidence: ['Wren and Rowan climbed the stair'], exercise: 'Rewrite five openings.' }, { title: 'Trim adverbs', why: 'They pile up.', evidence: ['asked quietly'], exercise: 'Cut half.' }] })
       } else if (system.startsWith("You read a writer's own statistics")) {
         reply = JSON.stringify({ observations: [{ title: 'Steady mornings', text: 'Most words land before noon.' }, { title: 'Dialogue-heavy', text: 'A fifth of the words are spoken.' }], nextStep: 'Write one scene without dialogue.' })
+      } else if (system.startsWith('You check a passage of fiction for continuity')) {
+        // Eyes of the wrong colour against a reference that says grey; and two findings Twilight must drop:
+        // words the passage doesn't hold, and a reference it wasn't given.
+        const eyes = /\b(green|blue) eyes\b/i.exec(lastUser)?.[0]
+        reply = JSON.stringify({
+          issues: [
+            ...(eyes && system.includes('grey eyes') ? [{ quote: eyes, reference: 'Profiles', evidence: 'She has  grey eyes', why: 'The profile says grey.' }] : []),
+            { quote: 'a purple sky over the harbour', reference: 'Profiles', evidence: 'x', why: 'not in the passage' },
+            { quote: eyes ?? 'Wren', reference: 'Somewhere else', evidence: 'x', why: 'no such reference' }
+          ]
+        })
       } else if (toolResult) {
         reply = `Answering the tool result: ${toolResult}`
       } else if (parsed.messages.at(-1)?.role === 'assistant') {
@@ -1379,13 +1346,32 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
         for (let end = Date.now() + 2000; Date.now() < end && !document.querySelector('.passage-tools'); ) await wait(25)
         const shown = !!document.querySelector('.passage-tools')
+        // One slim row: Ask opens its box only when clicked, and Esc closes it again.
+        const bar = { slim: !!document.querySelector('.passage-tools.is-bar'), boxFirst: !!document.querySelector('.passage-tools input'), labels: [...document.querySelectorAll('.passage-tools.is-bar button')].map((b) => b.textContent.trim()).filter(Boolean).join() }
+        document.querySelector('.passage-tools .tw-ask')?.click()
+        await wait(50)
+        bar.boxAfter = !!document.querySelector('.passage-tools .passage-ask')
+        document.querySelector('.passage-tools .passage-ask')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+        await wait(50)
+        bar.back = !!document.querySelector('.passage-tools .tw-ask')
+        const toggle = document.querySelector('.passage-tools .passage-context')
+        bar.context = toggle?.getAttribute('aria-pressed')
+        toggle?.click()
+        await wait(30)
+        bar.contextAfter = document.querySelector('.passage-tools .passage-context')?.getAttribute('aria-pressed')
+        document.querySelector('.passage-tools .passage-context')?.click()
         ;[...document.querySelectorAll('.passage-tools button')].find((b) => b.textContent === 'Rewrite')?.click()
         for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.passage-new'); ) await wait(50)
         const compared = !!document.querySelector('.passage-old') && !!document.querySelector('.passage-new')
         ;[...document.querySelectorAll('.passage-tools button')].find((b) => b.textContent === 'Accept')?.click()
         await wait(600)
-        return { shown, compared, gone: !document.querySelector('.passage-tools') }
+        return { shown, compared, gone: !document.querySelector('.passage-tools'), bar }
       })()`)
+      check(
+        'the passage toolbar is one slim row; Ask opens its box when clicked, and the whole-chat toggle switches',
+        passageUi.bar.slim && !passageUi.bar.boxFirst && passageUi.bar.labels === 'Ask,Rewrite,Tighten,Expand' && passageUi.bar.boxAfter && passageUi.bar.back && passageUi.bar.context === 'true' && passageUi.bar.contextAfter === 'false',
+        passageUi.bar
+      )
       const peAfter = chat.view(pe).path[1]
       check(
         'select text in a reply, ask for a change, see it before and after, and Accept saves a new version',
@@ -2656,7 +2642,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(200)
         return out
       })()`)
-      check('the rail lists every section by name', railUi.labels.join() === 'Chats,Writing,Judge,Insights,Code,Bible,Search,Settings' && railUi.selected === 'Writing' && railUi.head === 'Writing', railUi)
+      check('the rail lists every section by name', railUi.labels.join() === 'Chats,Writing,Judge,Insights,Code,Search,Settings' && railUi.selected === 'Writing' && railUi.head === 'Writing', railUi)
       check('the current section on the rail hides and shows the sidebar, and the rail stays', railUi.closed && railUi.railStill && railUi.reopened, railUi)
       await shot('e2e-rail.png')
 
@@ -2691,12 +2677,12 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         }
       })()`)
       check('dragging a section lifts it, slides the others aside and shows where it will land', mid34.held && mid34.chatShift === `translateY(${slot34}px)` && mid34.outline, mid34)
-      check('letting go puts it there and remembers the order', after34.order.join() === 'write,chat,judge,insights,code,bible' && after34.saved === JSON.stringify(after34.order), after34)
+      check('letting go puts it there and remembers the order', after34.order.join() === 'write,chat,judge,insights,code' && after34.saved === JSON.stringify(after34.order), after34)
       check("a drag doesn't also open the section", after34.mode === railRects34.mode, { before: railRects34.mode, after: after34.mode })
       await js(`document.querySelector('.rail-item[data-mode="write"]').focus()`)
       await key('Down', ['alt'])
       const back34 = await js<string[]>(`(async () => { await new Promise((r) => setTimeout(r, 200)); return [...document.querySelectorAll('.rail-items:not(.rail-foot) .rail-item')].map((b) => b.dataset.mode) })()`)
-      check('Alt+Down moves the focused section down the rail', back34.join() === 'chat,write,judge,insights,code,bible', back34)
+      check('Alt+Down moves the focused section down the rail', back34.join() === 'chat,write,judge,insights,code', back34)
 
       // 35. The Judge leaderboard: a running tally by passage label (Elo-style, replayed oldest
       // first), and rounds of more than two passages, every pair judged as its own judgment.
@@ -5565,122 +5551,64 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       check('the speaker on a reply reads it aloud, and stops when pressed again', read55.button && read55.reading && read55.stopped, read55)
 
-      // 56. The story bible and the continuity watcher.
-      check(
-        'entries are found by whole names and aliases, case aside',
-        mentioned('Old WREN walked past the keeper.', [{ name: 'Wren', aliases: [] }, { name: 'Rowan', aliases: ['the keeper'] }, { name: 'Wre', aliases: [] }]).map((e) => e.name).join() === 'Wren,Rowan' &&
-          mentioned('Wrenly came by.', [{ name: 'Wren', aliases: [] }]).length === 0
-      )
-      // The bible reads and checks with the scout model.
-      setLibrarySettings({ folders: [lib48], scoutProviderId: 'mock', scoutModelId: 'mock-a' })
-      const profiles56 = join(lib48, 'Profiles.md')
-      await writeFile(profiles56, '# Profiles\n\n## Wren\n\nWren keeps the lamps at Gull Point. She has grey eyes, and Rowan is her brother.\n')
-      await reindexLibrary()
-      const source56 = storyBible.bibleState().sources.find((s) => s.path === profiles56)
-      storyBible.setBibleSettings({ on: true, sources: [profiles56] })
-      await storyBible.readBible()
-      const read56 = storyBible.bibleState()
-      const wren56 = read56.entries.find((e) => e.name === 'Wren')
-      const gull56 = read56.entries.find((e) => e.name === 'Gull Point')
-      check(
-        'the bible reads the chosen documents and proposes entries and facts, where they came from',
-        !!source56 && !source56.chosen && !!wren56 && wren56.status === 'proposed' && wren56.aliases.join() === 'the keeper' && wren56.facts.length === 2 && wren56.facts.every((f) => f.status === 'proposed' && f.source === 'library-docs/Profiles.md' && f.section === 'Profiles › Wren') && gull56?.kind === 'place' && !read56.error && read56.sources.find((s) => s.path === profiles56)?.current === true,
-        { error: read56.error, entries: read56.entries.map((e) => [e.name, e.status, e.facts.length, e.facts[0]?.section]) }
-      )
-      storyBible.merge([{ name: 'wren', kind: 'character', facts: [{ text: 'Wren has grey eyes.', passage: 1 }] }, { name: 'The Keeper', facts: [{ text: 'Wren keeps the lamps', passage: 1 }] }], [{ line: 5, section: 'Profiles › Wren', text: '' }], 'library-docs/Profiles.md')
-      const merged56 = storyBible.allEntries().find((e) => e.name === 'Wren')!
-      check('the same entry under another name or case gets only facts it lacks', storyBible.allEntries().filter((e) => /wren|keeper/i.test(e.name)).length === 1 && merged56.facts.length === 3, merged56.facts.map((f) => f.text))
-      storyBible.reviewBible('accept', { entries: [wren56!.id] })
-      storyBible.reviewBible('remove', { entries: [gull56!.id] })
-      await writeFile(profiles56, '# Profiles\n\n## Wren\n\nWren keeps the lamps at Gull Point. She has grey eyes, and Rowan is her brother.\n\nWren rows out at dawn.\n')
-      await reindexLibrary()
+      // 56. Writing → Continuity: a passage checked against documents you pick, with presets.
+      const profile56 = await docs.createDoc('Profiles')
+      await docs.writeDoc(profile56.path, '# Wren\n\nWren keeps the lamps at Gull Point. She has grey eyes, and Rowan is her brother.\n')
+      const chapter56 = await docs.createDoc('Chapter nine')
+      await docs.writeDoc(chapter56.path, 'Wren looked up at the lamp with green eyes and laughed.\n')
       const before56 = log.length
-      await storyBible.readBible()
-      const again56 = storyBible.bibleState()
+      const found56 = await checkContinuity(chapter56.path, 'Wren looked up at the lamp with green eyes and laughed.', [profile56.path, chapter56.path])
+      const asked56 = log.slice(before56).find((r) => String(r.messages[0]?.content ?? '').startsWith('You check a passage of fiction for continuity'))
+      const system56 = String(asked56?.messages[0]?.content ?? '')
       check(
-        'accepting an entry accepts its facts; a changed document is read again, and what you turned down stays down',
-        again56.entries.find((e) => e.name === 'Wren')?.status === 'accepted' &&
-          again56.entries.find((e) => e.name === 'Wren')!.facts.every((f) => f.status === 'accepted') &&
-          again56.entries.filter((e) => e.name === 'Gull Point').length === 1 &&
-          again56.entries.find((e) => e.name === 'Gull Point')?.status === 'removed' &&
-          again56.entries.find((e) => e.name === 'Gull Point')!.facts.length === 1 &&
-          log.length > before56,
-        again56.entries.map((e) => [e.name, e.status, e.facts.map((f) => f.status).join('/')])
+        'a passage is checked against the chosen documents only, with the clash quoted from both, nothing made up',
+        found56.length === 1 && found56[0].quote === 'green eyes' && found56[0].reference === profile56.path && found56[0].evidence === 'She has grey eyes' && system56.includes('<reference title="Profiles">') && !system56.includes('<reference title="Chapter nine">'),
+        { found56, refs: [...system56.matchAll(/<reference title="([^"]+)"/g)].map((m) => m[1]) }
       )
-      const quiet56 = log.length
-      await storyBible.readBible()
-      check('an unchanged document is not read again', log.length === quiet56)
-
-      const c56 = chat.create().id
-      chat.updateSettings(c56, { library: true, continuity: true })
-      chat.send(contents, c56, 'Wren looked up with green eyes.')
-      await idle(c56)
-      const sent56 = String(log.filter((r) => !/^You (are the context scout|keep the story bible|are the continuity watcher)/.test(String(r.messages[0]?.content ?? ''))).at(-1)?.messages.at(-1)?.content ?? '')
-      check(
-        "a message naming an entry brings it from the bible, and only what it names",
-        sent56.includes('<story_bible>') && sent56.includes('Wren has grey eyes') && !sent56.includes('Gull Point has a lighthouse') && sent56.trim().endsWith('Wren looked up with green eyes.') && chat.view(c56).path.at(-2)?.bible?.join() === 'Wren',
-        sent56.slice(0, 400)
-      )
-      let found56 = chat.view(c56).path.at(-1)?.continuity
-      for (let i = 0; i < 100 && !found56; i++) {
-        await new Promise((r) => setTimeout(r, 50))
-        found56 = chat.view(c56).path.at(-1)?.continuity
+      let none56 = ''
+      try {
+        await checkContinuity(chapter56.path, 'x', [])
+      } catch (e) {
+        none56 = String(e)
       }
-      check(
-        'the watcher checks a finished reply against the bible and flags the clash, nothing made up',
-        found56?.length === 1 && found56[0].quote === 'green eyes' && found56[0].factText === 'Wren has grey eyes' && found56[0].entryName === 'Wren',
-        found56
-      )
-      db.updateConversation(c56, { started: 1, title: 'Bible chat' })
-      await reloadUi()
-      const ui56 = await js<{ rail: boolean; items: number; wrenFacts: number; note: number; after: number }>(`(async () => {
-        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Bible chat')?.click()
-        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.continuity-issue'); ) await wait(25)
-        const note = document.querySelectorAll('.continuity-issue').length
-        document.querySelector('.continuity-ignore')?.click()
-        for (let end = Date.now() + 3000; Date.now() < end && document.querySelector('.continuity-issue'); ) await wait(25)
-        const after = document.querySelectorAll('.continuity-issue').length
-        const rail = !!document.querySelector('.rail-item[data-mode="bible"]')
-        document.querySelector('.rail-item[data-mode="bible"]')?.click()
-        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.bible-item'); ) await wait(25)
-        const items = document.querySelectorAll('.bible-item').length
-        ;[...document.querySelectorAll('.bible-item')].find((b) => b.textContent.startsWith('Wren'))?.click()
-        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.bible-entry'); ) await wait(25)
-        return { rail, items, wrenFacts: document.querySelectorAll('.bible-entry .bible-fact').length, note, after }
-      })()`)
-      check('the reply shows the clash under it, and Ignore settles it', ui56.note === 1 && ui56.after === 0 && (chat.view(c56).path.at(-1)?.continuity ?? [1]).length === 0, ui56)
-      check('ignored, the same words are not flagged again', (await storyBible.checkContinuity('Wren looked up with green eyes.')).length === 0)
-      check('the Bible section lists the entries and opens one with its facts', ui56.rail && ui56.items === 1 && ui56.wrenFacts === 3, ui56)
-      const blue56 = await storyBible.checkContinuity('At dawn Wren blinked her blue eyes at the sea.')
-      storyBible.resolveContinuity(blue56[0], 'update', 'Writing: Scene')
-      const wrenNow56 = storyBible.allEntries().find((e) => e.name === 'Wren')!
-      check(
-        'Update the bible makes the new text the fact and keeps the old one turned down',
-        blue56.length === 1 && wrenNow56.facts.some((f) => f.text === 'Wren has blue eyes' && f.status === 'accepted' && f.source === 'Writing: Scene') && wrenNow56.facts.find((f) => f.text === 'Wren has grey eyes')?.status === 'removed',
-        wrenNow56.facts.map((f) => [f.text, f.status])
-      )
+      check('a check needs at least one document', /Choose at least one document/.test(none56), none56)
       await js(`document.querySelector('.rail-item[data-mode="write"]')?.click()`)
-      const writing56 = await js<string>(`(async () => {
+      const ui56 = await js<{ docs: number; tokens: string; result: string; issues: number; presets: string[]; afterPreset: number }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.doc-item'); ) await wait(25)
-        document.querySelector('.doc-item')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.doc-item[data-path="Chapter nine.md"]'); ) await wait(25)
+        document.querySelector('.doc-item[data-path="Chapter nine.md"]')?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.continuity-open'); ) await wait(25)
+        await wait(300)
         document.querySelector('.continuity-open')?.click()
-        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.continuity-check'); ) await wait(25)
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.continuity-panel'); ) await wait(25)
+        const boxes = [...document.querySelectorAll('.continuity-panel .ref-item')]
+        boxes.forEach((b) => { const i = b.querySelector('input'); if (i.checked) i.click() })
+        boxes.find((b) => b.textContent.includes('Profiles'))?.querySelector('input')?.click()
+        await wait(50)
+        const tokens = document.querySelector('.continuity-panel .data-actions .field-note')?.textContent ?? ''
+        document.querySelector('.continuity-save-preset')?.click()
+        await wait(50)
+        const name = document.querySelector('.continuity-preset-name')
+        if (name) { name.value = 'Characters'; name.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); name.blur() }
+        for (let end = Date.now() + 2000; Date.now() < end && !document.querySelector('.continuity-preset[data-preset="Characters"]'); ) await wait(25)
+        const presets = [...document.querySelectorAll('.continuity-preset')].map((b) => b.textContent.trim())
+        document.querySelector('.continuity-preset')?.click()
+        await wait(50)
+        document.querySelector('.continuity-preset[data-preset="Characters"]')?.click()
+        await wait(50)
+        const afterPreset = [...document.querySelectorAll('.continuity-panel .ref-item input')].filter((i) => i.checked).length
         document.querySelector('.continuity-check')?.click()
         for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.continuity-result'); ) await wait(50)
-        const out = document.querySelector('.continuity-result')?.textContent || ('debug: ' + JSON.stringify({ docs: document.querySelectorAll('.doc-item').length, open: !!document.querySelector('.continuity-open'), panel: !!document.querySelector('.continuity-panel'), err: document.querySelector('.continuity-panel .form-error')?.textContent, title: document.querySelector('.chat-title')?.textContent }))
+        const out = { docs: boxes.length, tokens, result: document.querySelector('.continuity-result')?.textContent ?? '', issues: document.querySelectorAll('.continuity-issue').length, presets, afterPreset }
         document.querySelector('.continuity-panel .panel-head [aria-label="Close"]')?.click()
         return out
       })()`)
-      check('Writing checks a document against the bible on request', /^(Nothing in the whole document contradicts the bible\.|\d+ possible)/.test(writing56), writing56)
-      storyBible.setBibleSettings({ on: false })
-      chat.send(contents, c56, 'Wren again.')
-      await idle(c56)
-      const off56 = String(log.filter((r) => !/^You (are the context scout|keep the story bible|are the continuity watcher)/.test(String(r.messages[0]?.content ?? ''))).at(-1)?.messages.at(-1)?.content ?? '')
-      check('switched off, the bible adds nothing to messages', !off56.includes('<story_bible>'), off56.slice(0, 200))
-      setLibrarySettings({ folders: [], scoutProviderId: null, scoutModelId: null })
+      check(
+        'Writing → Continuity: pick documents, save them as a preset, check, and see the clash',
+        ui56.docs > 1 && /^1 document, about/.test(ui56.tokens) && ui56.presets.join() === 'Everything,Characters' && ui56.afterPreset === 1 && /^1 possible clash in the whole document/.test(ui56.result) && ui56.issues === 1,
+        ui56
+      )
+      check('presets are kept', JSON.stringify((db.kvGet('continuityPresets') as { name: string; paths: string[] }[] | undefined) ?? []) === JSON.stringify([{ name: 'Characters', paths: [profile56.path] }]))
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
 
       // 54. Local power tools: token probabilities, branching from a word, samplers.

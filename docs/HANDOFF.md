@@ -109,6 +109,8 @@ The owner's answers (2026-10-29, after 1.1.0):
 - **Local models, made easy:** search Hugging Face for models and download them in the app, with a built-in check of what this PC can run (like LM Studio's), so anyone can use local models without the convoluted interfaces most wrappers have. To be explored alongside the retrieval research.
 - **Motion:** explore new animations across the app, unique to Twilight, for the owner and for everyone.
 
+**Shelved, 2026-10-30: the story bible and the continuity watcher.** Both were built (entries proposed from chosen library documents, accepted by the user, brought into chats by name; every reply checked against them) and then taken out by the owner, who tried them. The reasons: relying on a model to sort everyone's notes is fragile when most people's notes are less organised than theirs, and the cheap fast models that could afford to check every reply hallucinate too much to be trusted, while a manuscript of 200k tokens is more than they can hold. The code is kept whole on the branch `shelved/story-bible` (commit de4b6fb), off the roadmap, to revisit once fast models are smart and cheap enough and handle long context well. What replaced the watcher is Writing → Continuity: the writer picks the documents to check against (with presets such as Characters or Lore, or Everything), and the writing tools' own model does the check, on request only.
+
 Standalone ideas for 2.x afterwards (on the roadmap under Ideas):
 
 - **Ghost text:** autocomplete in the editor from a small local model.

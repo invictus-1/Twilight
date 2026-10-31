@@ -124,6 +124,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
+- [x] **Continuity in Writing** · Writing — check a draft against the documents you pick, with presets, using the writing tools' model
 - [x] **Chats opens a new chat** · Chat — the Chats button starts at a new chat, or the last one you were on if you choose
 - [x] **Offline voice** · Core — replies read aloud in a Windows voice, and dictation transcribed on this PC by whisper.cpp
 - [x] **Local-model power tools** · Chat — a confidence heatmap from token probabilities, branching from any word, and more samplers
@@ -136,8 +137,6 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story
 - [x] **Retrieval research** · Writing — for 2.0, first: looked beyond graph RAG; the answer is a story ledger behind a context scout, judged on your own questions before anything bigger is built
 - [x] **Context scout** · Writing — for 2.0: a small, fast model reads each message first and picks what the main model needs, as whole scenes in story order; with a test of your own questions against plain search
-- [x] **Story bible** · Writing — for 2.0: characters, places, relationships and facts read from the documents you choose, proposed for you to accept, as pages you can read and edit, and brought into chats when a message names them
-- [x] **Continuity watcher** · Writing — for 2.0: flags where a reply or a draft contradicts the story bible, with Update the bible, Fix the text and Ignore
 - [x] **Local models, made easy** · Core — for 2.0: search and download models from Hugging Face, each size checked against what this PC can run, llama.cpp fetched and run for you with each model's own context and graphics card settings, what's loaded and Unload, and good first models, simple enough for anyone
-- [x] **Better retrieval underneath** · Writing — for 2.0: passages indexed with the headings they sit under, chosen passages widened into whole scenes, and the bible's entries found by name
+- [x] **Better retrieval underneath** · Writing — for 2.0: passages indexed with the headings they sit under, and chosen passages widened into whole scenes
 
