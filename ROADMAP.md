@@ -124,9 +124,11 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
+- [x] **Under the sky** · Core — ocean, mountains, city, dunes or a pixel-art cyberpunk city on the horizon, in the theme's colours
+- [x] **Shooting stars** · Core — streaks across the whole sky with a glowing head and a long tail, and more detailed stars
 - [x] **Multiverse drafts, your way** · Chat — choose how many, and the same message for all or a different one for each, before anything is written
 - [x] **When you sent it** · Chat — how long ago each message of yours was sent, the exact time on hover
-- [x] **Continuity in Writing** · Writing — check a draft against the documents you pick, with presets, using the writing tools' model
+- [x] **Continuity in Writing** · Writing — check a draft against the documents you pick, with presets, or ask about it, using the writing tools' model
 - [x] **Chats opens a new chat** · Chat — the Chats button starts at a new chat, or the last one you were on if you choose
 - [x] **Offline voice** · Core — replies read aloud in a Windows voice, and dictation transcribed on this PC by whisper.cpp
 - [x] **Local-model power tools** · Chat — a confidence heatmap from token probabilities, branching from any word, and more samplers

@@ -147,7 +147,7 @@ export function MultiversePanel() {
   const fit = Math.min(columns?.length ?? 1, MAX_FIT)
 
   return (
-    <div className="dialog-backdrop overlay-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
+    <div className="dialog-backdrop overlay-backdrop multiverse-backdrop" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="palette multiverse-panel" role="dialog" aria-modal="true" aria-label="Multiverse drafts">
         <div className="branch-head">
           <GridIcon size={16} />

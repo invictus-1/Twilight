@@ -1,6 +1,6 @@
 import type { WebContents } from 'electron'
 import { randomUUID } from 'node:crypto'
-import type { ChatSettings, ContinuityIssue, StreamEvent, WritingRequest } from '@shared/types'
+import type { ChatSettings, ContinuityIssue, ContinuityResult, StreamEvent, WritingRequest } from '@shared/types'
 import { parseJson } from './insightsAi'
 import { getDefaults } from './chat'
 import type { NodeRow } from './db'
@@ -66,16 +66,21 @@ async function buildPrompt(req: WritingRequest, ttl: string | null): Promise<{ s
 }
 
 // ——— Continuity ———
-// A passage checked against documents you choose (character profiles, lore, earlier chapters),
-// with the writing tools' model: the documents go into the system prompt in a fixed order, so a
-// check after an edit reads them from the cache. Only clear contradictions come back, each with
-// the passage's own words and the reference's.
+// A passage checked against documents you choose (character profiles, lore, earlier chapters), or
+// a question asked about it ("does this fit her profile?"), with the writing tools' model. The
+// documents go into the system prompt in a fixed order, the same for checking and asking, so a
+// check after an edit, or a question after a check, reads them from the cache.
 
-const CONTINUITY_RULES = `You check a passage of fiction for continuity against the writer's own reference documents (character profiles, world notes, earlier chapters), given as <reference> blocks.
-Find where the passage contradicts a reference: it states or shows something that can't be true if the reference holds (how someone looks, who is related to whom, where someone is, who is alive, what someone owns, how the world works). New details the references don't cover are not contradictions, and neither is style. If the references show something changing over the story, judge the passage by where it sits.
+const CONTINUITY_SYSTEM = `You help a fiction writer keep their story consistent. Their own reference documents (character profiles, world notes, earlier chapters) follow as <reference> blocks. Judge only by what they say, and quote them exactly when you rely on them.`
+
+const CHECK_TASK = `Check the passage below against the references.
+A contradiction is where the passage states or shows something that can't be true if a reference holds (how someone looks, who is related to whom, where someone is, who is alive, what someone owns, how the world works). New details the references don't cover are not contradictions, and neither is style. If the references show something changing over the story, judge the passage by where it sits.
 Report only clear contradictions; most passages have none. Quote the passage's words exactly, and the reference's words exactly.
+Also sum up in two to four plain sentences what in the passage you could check against the references and how it holds up, naming the details (a character's eyes, a place, an event), and say plainly what the references don't cover.
 Answer with JSON only, no other text:
-{"issues": [{"quote": "exact words from the passage", "reference": "the reference's title", "evidence": "exact words from the reference", "why": "one short sentence"}]}`
+{"summary": "…", "issues": [{"quote": "exact words from the passage", "reference": "the reference's title", "evidence": "exact words from the reference", "why": "one short sentence"}]}`
+
+const ASK_TASK = `Answer the writer's question about the passage below, using the references. Be direct: start with the answer (yes, no, partly), then say why in a few sentences, quoting the passage and the references where it helps and naming which reference each quote is from. If the references don't say, tell them so rather than guessing. Plain prose, no headings.`
 
 /** Finds `quote` in `text` with spacing and case aside, giving back the text's own words. */
 function locate(text: string, quote: string): string | null {
@@ -84,21 +89,20 @@ function locate(text: string, quote: string): string | null {
   return new RegExp(words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s+'), 'i').exec(text)?.[0] ?? null
 }
 
-export async function checkContinuity(docPath: string, passage: string, references: string[]): Promise<ContinuityIssue[]> {
+/** The chosen documents read, in a fixed order, and the model call both continuity tools make. */
+async function continuityRun(docPath: string, references: string[], user: string, kind: string): Promise<{ text: string; titled: { path: string; title: string; text: string }[] }> {
   if (!references.length) throw new Error('Choose at least one document to check against.')
   const defaults = getDefaults()
   const config = getProvider(defaults.providerId)
   const settings: ChatSettings = { ...defaults, maxTokens: 4000, messageLimit: null, webSearch: false, webFetch: false }
   const titled: { path: string; title: string; text: string }[] = []
-  // A fixed order, so the cached system prompt stays the same from one check to the next.
   for (const path of [...references].sort()) {
     if (path === docPath) continue
     const doc = await readDoc(path).catch(() => null)
     if (doc) titled.push({ path, title: path.replace(/\.md$/i, ''), text: doc.text })
   }
   if (!titled.length) throw new Error("The chosen documents couldn't be read.")
-  const system = `${CONTINUITY_RULES}\n\n${titled.map((d) => `<reference title="${escapeAttr(d.title)}">\n${d.text}\n</reference>`).join('\n\n')}`
-  const user = `<passage title="${escapeAttr(docPath.replace(/\.md$/i, ''))}">\n${passage}\n</passage>\n\nCheck this passage against the references.`
+  const system = `${CONTINUITY_SYSTEM}\n\n${titled.map((d) => `<reference title="${escapeAttr(d.title)}">\n${d.text}\n</reference>`).join('\n\n')}`
   const result = await implFor(config).generate({
     config,
     apiKey: getApiKey(config.id),
@@ -117,18 +121,32 @@ export async function checkContinuity(docPath: string, passage: string, referenc
     onThinking: () => undefined
   })
   if (result.error) throw new Error(result.error)
-  appendLog({ kind: 'continuity', doc: docPath, references: titled.map((d) => d.path), model: result.modelId, response: result.text })
-  const answer = parseJson(result.text) as { issues?: unknown }
-  const out: ContinuityIssue[] = []
+  appendLog({ kind, doc: docPath, references: titled.map((d) => d.path), model: result.modelId, request: user, response: result.text })
+  return { text: result.text, titled }
+}
+
+const passageBlock = (docPath: string, passage: string): string => `<passage title="${escapeAttr(docPath.replace(/\.md$/i, ''))}">\n${passage}\n</passage>`
+
+export async function checkContinuity(docPath: string, passage: string, references: string[]): Promise<ContinuityResult> {
+  const { text, titled } = await continuityRun(docPath, references, `${CHECK_TASK}\n\n${passageBlock(docPath, passage)}`, 'continuity')
+  const answer = parseJson(text) as { summary?: unknown; issues?: unknown }
+  const issues: ContinuityIssue[] = []
   for (const raw of (Array.isArray(answer.issues) ? answer.issues : []) as { quote?: unknown; reference?: unknown; evidence?: unknown; why?: unknown }[]) {
     // Only what's really there: the passage's words, and a reference it was given.
     const quote = typeof raw?.quote === 'string' ? locate(passage, raw.quote) : null
     const ref = titled.find((d) => typeof raw?.reference === 'string' && (d.title.toLowerCase() === raw.reference.trim().toLowerCase() || d.title.toLowerCase().endsWith(raw.reference.trim().toLowerCase())))
     if (!quote || !ref) continue
     const evidence = typeof raw.evidence === 'string' ? (locate(ref.text, raw.evidence) ?? raw.evidence.trim()) : ''
-    out.push({ id: randomUUID(), quote, reference: ref.path, evidence, why: typeof raw.why === 'string' ? raw.why.trim() : '' })
+    issues.push({ id: randomUUID(), quote, reference: ref.path, evidence, why: typeof raw.why === 'string' ? raw.why.trim() : '' })
   }
-  return out
+  return { summary: typeof answer.summary === 'string' ? answer.summary.trim() : '', issues }
+}
+
+/** A question about the passage, answered from the chosen documents. */
+export async function askContinuity(docPath: string, passage: string, references: string[], question: string): Promise<string> {
+  if (!question.trim()) throw new Error('Ask a question first.')
+  const { text } = await continuityRun(docPath, references, `${ASK_TASK}\n\n${passageBlock(docPath, passage)}\n\nQuestion: ${question.trim()}`, 'continuity-ask')
+  return text.trim()
 }
 
 export function runWritingTool(contents: WebContents, requestId: string, req: WritingRequest): void {

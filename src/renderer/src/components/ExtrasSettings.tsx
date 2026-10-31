@@ -1,4 +1,4 @@
-import { setExtras, useExtras, type Extras, type SkyTime } from '../extras'
+import { setExtras, useExtras, type Extras, type Horizon, type SkyTime } from '../extras'
 import { ScrollFxPicker } from './LookSettings'
 
 const SKY_TIMES: { id: SkyTime; label: string }[] = [
@@ -7,6 +7,15 @@ const SKY_TIMES: { id: SkyTime; label: string }[] = [
   { id: 'day', label: 'Day' },
   { id: 'dusk', label: 'Dusk' },
   { id: 'night', label: 'Night' }
+]
+
+const HORIZONS: { id: Horizon; label: string; note: string }[] = [
+  { id: 'grid', label: 'Grid', note: 'A neon grid running toward you, the way it started.' },
+  { id: 'ocean', label: 'Ocean', note: "A dark sea with the sun's reflection on slow swells, and a lighthouse sweeping its beam." },
+  { id: 'mountains', label: 'Mountains', note: 'Low-poly ridges fading into mist toward the horizon.' },
+  { id: 'city', label: 'City', note: 'A skyline at dusk, with windows lighting up here and there.' },
+  { id: 'dunes', label: 'Dunes', note: 'Desert dunes catching the last light on their crests.' },
+  { id: 'cyberpunk', label: 'Cyberpunk', note: 'A pixel-art city of neon and billboards, flying cars weaving through it, all mirrored in the wet street.' }
 ]
 
 /** One switch with a line on exactly what it does. */
@@ -25,7 +34,7 @@ function Switch({ name, label, note }: { name: keyof Extras; label: string; note
 
 /** Settings → Extras: the sky, small motions, celebrations and comforts, each its own switch. */
 export function ExtrasSettings() {
-  const { sky } = useExtras()
+  const { sky, horizon } = useExtras()
   return (
     <>
       <div className="settings-card">
@@ -41,6 +50,15 @@ export function ExtrasSettings() {
         <p className="field-note">
           {sky === 'clock' ? 'Dawn, day, dusk and night as the hours pass, with a moon after dark.' : 'Held at this time of day, whatever the clock says.'}
         </p>
+        <span className="field-label extras-horizon-label">Under the sky</span>
+        <div className="tw-seg extras-horizon" role="radiogroup" aria-label="What stands under the sky">
+          {HORIZONS.map((h) => (
+            <button key={h.id} role="radio" data-horizon={h.id} aria-checked={horizon === h.id} aria-pressed={horizon === h.id} onClick={() => setExtras({ horizon: h.id })}>
+              {h.label}
+            </button>
+          ))}
+        </div>
+        <p className="field-note">{HORIZONS.find((h) => h.id === horizon)?.note}</p>
         <Switch name="sessionSky" label="Night falls on a long session" note="The sky at the top of a chat slowly darkens over a few hours of writing. You'd only notice if you scroll up." />
         <Switch name="seasons" label="Seasons" note="Snow in winter, petals in spring, fireflies in summer, leaves in autumn, and a few special nights of the year." />
         <Switch name="easterEggs" label="Surprises" note="Sit and watch an empty chat for a while, and every so often something crosses the sky." />

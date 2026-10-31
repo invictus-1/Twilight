@@ -153,6 +153,7 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'branchMap',
   'voiceState',
   'checkContinuity',
+  'askContinuity',
   'continuityPresets',
   'saveContinuityPresets',
   'speak',

@@ -3,6 +3,7 @@ import type { ContinuityIssue, ContinuityPreset } from '@shared/types'
 import { formatTokens } from '@shared/pricing'
 import { editorText } from '../gameCopy'
 import { useWriting } from '../writingStore'
+import { renderMarkdownLive } from '../markdown'
 import { CloseIcon } from './Icons'
 
 // Writing → Continuity: check the selection (or the whole document) against documents you pick,
@@ -33,6 +34,11 @@ export function ContinuityPanel({ onClose }: { onClose: () => void }) {
   const [naming, setNaming] = useState(false)
   const [filter, setFilter] = useState('')
   const [issues, setIssues] = useState<ContinuityIssue[] | null>(null)
+  // What the check compared and how it holds up, so "nothing contradicts" says what was looked at.
+  const [summary, setSummary] = useState('')
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState<{ question: string; text: string } | null>(null)
+  const [asking, setAsking] = useState(false)
   const [scope, setScope] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -61,12 +67,29 @@ export function ContinuityPanel({ onClose }: { onClose: () => void }) {
     setBusy(true)
     setError(null)
     setIssues(null)
+    setSummary('')
     try {
-      setIssues(await window.twilight.checkContinuity(open.path, text, picked))
+      const result = await window.twilight.checkContinuity(open.path, text, picked)
+      setIssues(result.issues)
+      setSummary(result.summary)
     } catch (err) {
       setError(clean(err))
     } finally {
       setBusy(false)
+    }
+  }
+  const ask = async (): Promise<void> => {
+    const q = question.trim()
+    if (!q || !picked.length) return
+    setAsking(true)
+    setError(null)
+    try {
+      setAnswer({ question: q, text: await window.twilight.askContinuity(open.path, editorText.get?.() ?? open.text, picked, q) })
+      setQuestion('')
+    } catch (err) {
+      setError(clean(err))
+    } finally {
+      setAsking(false)
     }
   }
   const dismiss = (issue: ContinuityIssue): void => setIssues((list) => list?.filter((i) => i.id !== issue.id) ?? null)
@@ -157,10 +180,35 @@ export function ContinuityPanel({ onClose }: { onClose: () => void }) {
         </span>
         {busy && <span className="tw-spin" />}
       </div>
+      <form
+        className="continuity-ask"
+        onSubmit={(e) => {
+          e.preventDefault()
+          void ask()
+        }}
+      >
+        <input
+          value={question}
+          disabled={asking}
+          placeholder="Or ask about it: does this fit her profile?"
+          aria-label="Ask about the selection or the document"
+          onChange={(e) => setQuestion(e.target.value)}
+        />
+        <button className="tw-btn tw-btn-sm continuity-ask-btn" disabled={asking || !question.trim() || !picked.length}>
+          {asking ? 'Asking…' : 'Ask'}
+        </button>
+      </form>
+      {answer && (
+        <div className="continuity-answer">
+          <p className="field-note continuity-question">{answer.question}</p>
+          <div className="md" dangerouslySetInnerHTML={{ __html: renderMarkdownLive(answer.text) }} />
+        </div>
+      )}
       {error && <p className="form-error">{error}</p>}
       {issues && (
         <p className="field-note continuity-result">{issues.length === 0 ? `Nothing in ${scope} contradicts them.` : `${issues.length} possible ${issues.length === 1 ? 'clash' : 'clashes'} in ${scope}:`}</p>
       )}
+      {summary && !busy && <p className="continuity-summary">{summary}</p>}
       {issues && issues.length > 0 && (
         <ul className="continuity-list">
           {issues.map((issue) => (

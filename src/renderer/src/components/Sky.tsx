@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { clockTime, seasonFor } from '@shared/sky'
 import { useExtras, type SkyTime } from '../extras'
+import { HorizonScene, Meteors } from './Horizons'
 import balloon from '../assets/sky/balloon.webp'
 import lighthouse from '../assets/sky/lighthouse.webp'
 import platypus from '../assets/sky/platypus.webp'
@@ -118,17 +119,21 @@ export function EmptySky({ watch = false, session = false }: { watch?: boolean; 
   // Up to most of the way to night over three hours.
   const late = session && extras.sessionSky ? Math.min(0.75, (Date.now() - sessionStart) / (3 * 60 * 60 * 1000)) : 0
   return (
-    <div className="empty-sky is-retro" data-sky={time} aria-hidden="true" style={late ? ({ '--session-night': late.toFixed(2) } as React.CSSProperties) : undefined}>
+    <div className="empty-sky is-retro" data-sky={time} data-horizon={extras.horizon} aria-hidden="true" style={late ? ({ '--session-night': late.toFixed(2) } as React.CSSProperties) : undefined}>
       <span className="empty-galaxy" />
       <svg className="empty-field" viewBox="0 0 1000 600" preserveAspectRatio="xMidYMid slice">
         {FIELD.map((s, i) => (
-          <circle key={i} cx={s.x} cy={s.y} r={s.r} className={`empty-dot empty-dot-${s.tone}`} opacity={s.o} />
+          <g key={i}>
+            {/* The brightest have a soft halo, as a bright star does through air. */}
+            {s.r > 1.5 && <circle cx={s.x} cy={s.y} r={s.r * 3.2} className={`empty-dot empty-dot-${s.tone}`} opacity={s.o * 0.16} />}
+            <circle cx={s.x} cy={s.y} r={s.r} className={`empty-dot empty-dot-${s.tone}`} opacity={s.o} />
+          </g>
         ))}
       </svg>
       {STARS.map((s, i) => (
-        <span key={i} className={`empty-star ${s.big ? 'is-big' : ''}`} style={{ left: `${s.x}%`, top: `${s.y}%`, animationDelay: `${s.d}s` }} />
+        <span key={i} className={`empty-star ${s.big ? 'is-big' : ''} ${s.flare ? 'is-flare' : ''} ${s.tint}`} style={{ left: `${s.x}%`, top: `${s.y}%`, animationDelay: `${s.d}s`, animationDuration: `${s.t}s` }} />
       ))}
-      <span className="empty-shooting" />
+      <Meteors />
       {season && (
         <div className={`sky-season sky-${season}`}>
           {SEASON.map((p, i) => (
@@ -139,11 +144,7 @@ export function EmptySky({ watch = false, session = false }: { watch?: boolean; 
       {egg && <SkyEgg name={egg.name} spotted={egg.ducking} />}
       <span className="empty-sun" />
       <span className="empty-horizon" />
-      <div className="empty-floor">
-        <div className="empty-plane">
-          <span className="empty-grid" />
-        </div>
-      </div>
+      <HorizonScene kind={extras.horizon} time={time} />
       {late > 0 && <span className="sky-late" />}
     </div>
   )
@@ -173,7 +174,16 @@ const FIELD = Array.from({ length: 220 }, () => {
     tone: rand() > 0.88 ? (rand() > 0.5 ? 'iris' : 'horizon') : 'ink'
   }
 })
-const STARS = Array.from({ length: 16 }, (_, i) => ({ x: (i * 37.7 + 6) % 100, y: (i * 23.3 + 4) % 50, d: (i % 8) * 0.55, big: i % 5 === 0 }))
+// The stars that twinkle: a few big, the brightest with flares, some faintly warm or cool.
+const STARS = Array.from({ length: 26 }, (_, i) => ({
+  x: (i * 37.7 + 6) % 100,
+  y: (i * 23.3 + 4) % 52,
+  d: (i % 9) * 0.55,
+  t: 3 + (i % 5) * 0.7,
+  big: i % 4 === 0,
+  flare: i % 9 === 0,
+  tint: i % 6 === 1 ? 'is-warm' : i % 6 === 4 ? 'is-cool' : ''
+}))
 // A dozen pieces of the season: where each starts across the sky, its delay and how long it takes.
 const SEASON = Array.from({ length: 12 }, () => ({ x: Math.round(rand() * 96 + 2), d: Math.round(rand() * 120) / 10, t: Math.round(90 + rand() * 80) / 10 }))
 

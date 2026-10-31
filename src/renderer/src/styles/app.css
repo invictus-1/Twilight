@@ -1167,6 +1167,11 @@ body.resizing .resize-handle { pointer-events: auto; }
 .search-panel { width: min(760px, calc(100vw - 32px)); }
 
 /* Writing → Continuity */
+.continuity-ask { display: flex; gap: var(--space-2); }
+.continuity-ask input { flex: 1; min-width: 0; }
+.continuity-answer { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-raised); font-size: 13px; }
+.continuity-question { margin: 0 0 var(--space-1); font-style: italic; }
+.continuity-summary { margin: 0; font-size: 13px; color: var(--ink); line-height: 1.5; }
 .continuity-presets { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1); }
 .continuity-preset[aria-pressed="true"] { color: var(--iris); border-color: color-mix(in srgb, var(--iris) 50%, transparent); background: var(--iris-soft); }
 .continuity-preset-wrap { display: inline-flex; align-items: center; }
@@ -1226,7 +1231,9 @@ body.resizing .resize-handle { pointer-events: auto; }
 
 /* Multiverse drafts */
 /* Wide enough that up to five drafts sit side by side without a scroll bar; past five, the row scrolls. */
-.multiverse-panel { width: min(1880px, calc(100vw - 32px)); height: calc(100vh - 56px); max-height: none; }
+/* The same gap above and below the panel. */
+.multiverse-backdrop { padding-top: 40px; }
+.multiverse-panel { width: min(1880px, calc(100vw - 32px)); height: calc(100vh - 80px); max-height: none; }
 .multiverse-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-3); }
 .multiverse-grid.is-many { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(320px, 1fr); overflow-x: auto; }
 .multiverse-draft-message { margin: 0; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); background: var(--surface-raised); font-size: 13px; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }

@@ -16,7 +16,7 @@ import { chunk, gather, libraryStatus, reindex as reindexLibrary, searchLibrary,
 import { parseScoutCases, scout, testScout } from './scout'
 import * as local from './localModels'
 import { pickEngine } from './localModels'
-import { checkContinuity } from './writing'
+import { askContinuity, checkContinuity } from './writing'
 import { sentLabel } from '@shared/time'
 import * as voice from './voice'
 import { cleanTranscript, encodeWav, speakable } from '@shared/voice'
@@ -495,11 +495,15 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply = JSON.stringify({ strength: 'Clear scenes.', areas: [{ title: 'Vary openings', why: 'Many sentences start the same way.', evidence: ['Wren and Rowan climbed the stair'], exercise: 'Rewrite five openings.' }, { title: 'Trim adverbs', why: 'They pile up.', evidence: ['asked quietly'], exercise: 'Cut half.' }] })
       } else if (system.startsWith("You read a writer's own statistics")) {
         reply = JSON.stringify({ observations: [{ title: 'Steady mornings', text: 'Most words land before noon.' }, { title: 'Dialogue-heavy', text: 'A fifth of the words are spoken.' }], nextStep: 'Write one scene without dialogue.' })
-      } else if (system.startsWith('You check a passage of fiction for continuity')) {
+      } else if (system.startsWith('You help a fiction writer keep their story consistent') && lastUser.includes('Question: ')) {
+        // A question about the passage, answered from the references.
+        reply = `Partly. Profiles says "She has grey eyes", so the green eyes don't fit; the rest does. (${/Question: (.*)$/s.exec(lastUser)?.[1]})`
+      } else if (system.startsWith('You help a fiction writer keep their story consistent')) {
         // Eyes of the wrong colour against a reference that says grey; and two findings Twilight must drop:
         // words the passage doesn't hold, and a reference it wasn't given.
         const eyes = /\b(green|blue) eyes\b/i.exec(lastUser)?.[0]
         reply = JSON.stringify({
+          summary: eyes ? "Checked Wren's eyes against Profiles; they don't match. The lamp isn't covered by the references." : "Checked Wren against Profiles: nothing here goes against her profile.",
           issues: [
             ...(eyes && system.includes('grey eyes') ? [{ quote: eyes, reference: 'Profiles', evidence: 'She has  grey eyes', why: 'The profile says grey.' }] : []),
             { quote: 'a purple sky over the harbour', reference: 'Profiles', evidence: 'x', why: 'not in the passage' },
@@ -5613,13 +5617,23 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       const chapter56 = await docs.createDoc('Chapter nine')
       await docs.writeDoc(chapter56.path, 'Wren looked up at the lamp with green eyes and laughed.\n')
       const before56 = log.length
-      const found56 = await checkContinuity(chapter56.path, 'Wren looked up at the lamp with green eyes and laughed.', [profile56.path, chapter56.path])
-      const asked56 = log.slice(before56).find((r) => String(r.messages[0]?.content ?? '').startsWith('You check a passage of fiction for continuity'))
+      const result56 = await checkContinuity(chapter56.path, 'Wren looked up at the lamp with green eyes and laughed.', [profile56.path, chapter56.path])
+      const found56 = result56.issues
+      const asked56 = log.slice(before56).find((r) => String(r.messages[0]?.content ?? '').startsWith('You help a fiction writer keep their story consistent'))
       const system56 = String(asked56?.messages[0]?.content ?? '')
       check(
         'a passage is checked against the chosen documents only, with the clash quoted from both, nothing made up',
         found56.length === 1 && found56[0].quote === 'green eyes' && found56[0].reference === profile56.path && found56[0].evidence === 'She has grey eyes' && system56.includes('<reference title="Profiles">') && !system56.includes('<reference title="Chapter nine">'),
         { found56, refs: [...system56.matchAll(/<reference title="([^"]+)"/g)].map((m) => m[1]) }
+      )
+      check('a check also says what it compared and how it holds up', /^Checked Wren's eyes against Profiles/.test(result56.summary), result56.summary)
+      const beforeAsk56 = log.length
+      const answer56 = await askContinuity(chapter56.path, 'Wren looked up at the lamp with green eyes and laughed.', [profile56.path], 'Does this fit her profile?')
+      const askReq56 = log.slice(beforeAsk56)[0]
+      check(
+        'you can ask about a passage, answered from the chosen documents, which read from the same cached prompt as a check',
+        answer56.startsWith('Partly.') && answer56.includes('Does this fit her profile?') && String(askReq56?.messages[0]?.content) === system56,
+        answer56
       )
       let none56 = ''
       try {
@@ -5629,7 +5643,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       }
       check('a check needs at least one document', /Choose at least one document/.test(none56), none56)
       await js(`document.querySelector('.rail-item[data-mode="write"]')?.click()`)
-      const ui56 = await js<{ docs: number; tokens: string; result: string; issues: number; presets: string[]; afterPreset: number }>(`(async () => {
+      const ui56 = await js<{ docs: number; tokens: string; result: string; issues: number; presets: string[]; afterPreset: number; summary: string; answer: string }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.doc-item[data-path="Chapter nine.md"]'); ) await wait(25)
         document.querySelector('.doc-item[data-path="Chapter nine.md"]')?.click()
@@ -5655,17 +5669,76 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         const afterPreset = [...document.querySelectorAll('.continuity-panel .ref-item input')].filter((i) => i.checked).length
         document.querySelector('.continuity-check')?.click()
         for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.continuity-result'); ) await wait(50)
-        const out = { docs: boxes.length, tokens, result: document.querySelector('.continuity-result')?.textContent ?? '', issues: document.querySelectorAll('.continuity-issue').length, presets, afterPreset }
+        const out = { docs: boxes.length, tokens, result: document.querySelector('.continuity-result')?.textContent ?? '', issues: document.querySelectorAll('.continuity-issue').length, presets, afterPreset, summary: document.querySelector('.continuity-summary')?.textContent ?? '', answer: '' }
+        const q = document.querySelector('.continuity-ask input')
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(q, 'Does this fit her profile?')
+        q.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(30)
+        document.querySelector('.continuity-ask-btn')?.click()
+        for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.continuity-answer'); ) await wait(50)
+        out.answer = document.querySelector('.continuity-answer')?.textContent ?? ''
         document.querySelector('.continuity-panel .panel-head [aria-label="Close"]')?.click()
         return out
       })()`)
       check(
         'Writing → Continuity: pick documents, save them as a preset, check, and see the clash',
-        ui56.docs > 1 && /^1 document, about/.test(ui56.tokens) && ui56.presets.join() === 'Everything,Characters' && ui56.afterPreset === 1 && /^1 possible clash in the whole document/.test(ui56.result) && ui56.issues === 1,
+        ui56.docs > 1 && /^1 document, about/.test(ui56.tokens) && ui56.presets.join() === 'Everything,Characters' && ui56.afterPreset === 1 && /^1 possible clash in the whole document/.test(ui56.result) && ui56.issues === 1 && ui56.summary.startsWith('Checked') && ui56.answer.includes('Partly.'),
         ui56
       )
       check('presets are kept', JSON.stringify((db.kvGet('continuityPresets') as { name: string; paths: string[] }[] | undefined) ?? []) === JSON.stringify([{ name: 'Characters', paths: [profile56.path] }]))
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+
+      // 57. Under the sky: each horizon scene drawn on an empty chat, and shooting stars crossing it.
+      await key('N', ['control'])
+      await new Promise((r) => setTimeout(r, 300))
+      const scenes57: Record<string, unknown> = {}
+      for (const horizon57 of ['ocean', 'mountains', 'city', 'dunes', 'cyberpunk', 'grid']) {
+        await key(',', ['control'])
+        scenes57[horizon57] = await js(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-nav'); ) await wait(25)
+          ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Extras')?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.extras-horizon'); ) await wait(25)
+          document.querySelector('.extras-horizon [data-horizon="${horizon57}"]')?.click()
+          await wait(50)
+          const pressed = document.querySelector('.extras-horizon [aria-pressed="true"]')?.dataset.horizon
+          document.querySelector('.rail-item[data-mode="chat"]')?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.empty .empty-sky'); ) await wait(25)
+          await wait(1200)
+          const sky = document.querySelector('.empty .empty-sky')
+          const canvas = sky?.querySelector('.hz-cyber-canvas')
+          return {
+            pressed,
+            attr: sky?.dataset.horizon,
+            grid: !!sky?.querySelector('.empty-grid'),
+            ocean: !!sky?.querySelector('.hz-lighthouse') && !!sky?.querySelector('.hz-glint'),
+            ridges: sky?.querySelectorAll('.hz-ridge polygon').length ?? 0,
+            buildings: sky?.querySelectorAll('.hz-building').length ?? 0,
+            dunes: sky?.querySelectorAll('.hz-dune').length ?? 0,
+            canvas: canvas ? [canvas.width, canvas.height] : null,
+            cars: sky?.querySelectorAll('.hz-car').length ?? 0,
+            neon: sky?.querySelectorAll('.hz-neon').length ?? 0
+          }
+        })()`)
+        await shot(`e2e-horizon-${horizon57}.png`)
+      }
+      const s57 = scenes57 as Record<string, { pressed: string; attr: string; grid: boolean; ocean: boolean; ridges: number; buildings: number; dunes: number; canvas: number[] | null; cars: number; neon: number }>
+      check(
+        'Extras → Under the sky draws each scene on the horizon',
+        Object.entries(s57).every(([k, v]) => v.pressed === k && v.attr === k) &&
+          s57.grid.grid && s57.ocean.ocean && s57.mountains.ridges > 40 && s57.city.buildings > 30 && s57.dunes.dunes === 4 && !s57.ocean.grid,
+        s57
+      )
+      check('the cyberpunk city is drawn as pixel art with flying cars and flickering neon', !!s57.cyberpunk.canvas && s57.cyberpunk.canvas[0] > 100 && s57.cyberpunk.cars === 8 && s57.cyberpunk.neon > 0, s57.cyberpunk)
+      const meteor57 = await js<{ seen: boolean; head: boolean; tail: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 25000; Date.now() < end && !document.querySelector('.meteor'); ) await wait(30)
+        await wait(350)
+        const m = document.querySelector('.meteor')
+        return { seen: !!m, head: !!m?.querySelector('.meteor-head'), tail: !!m?.querySelector('.meteor-tail') }
+      })()`)
+      await shot('e2e-meteor.png')
+      check('shooting stars cross the sky now and then, with a head and a tail', meteor57.seen && meteor57.head && meteor57.tail, meteor57)
 
       // 54. Local power tools: token probabilities, branching from a word, samplers.
       const c54 = chat.create().id

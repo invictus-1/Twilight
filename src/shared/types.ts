@@ -469,6 +469,12 @@ export interface ContinuityIssue {
   why: string
 }
 
+/** A continuity check: a short account of what was compared and how it holds up, and the clashes. */
+export interface ContinuityResult {
+  summary: string
+  issues: ContinuityIssue[]
+}
+
 /** A named set of documents to check continuity against ("Characters", "Lore"). */
 export interface ContinuityPreset {
   name: string
@@ -648,7 +654,9 @@ export interface TwilightApi {
   runWritingTool(requestId: string, request: WritingRequest): Promise<void>
   stopWritingTool(requestId: string): Promise<void>
   /** A passage checked against the chosen documents, with the writing tools' model. */
-  checkContinuity(docPath: string, passage: string, references: string[]): Promise<ContinuityIssue[]>
+  checkContinuity(docPath: string, passage: string, references: string[]): Promise<ContinuityResult>
+  /** A question about a passage ("does this fit her profile?"), answered from the chosen documents. */
+  askContinuity(docPath: string, passage: string, references: string[], question: string): Promise<string>
   continuityPresets(): Promise<ContinuityPreset[]>
   saveContinuityPresets(presets: ContinuityPreset[]): Promise<ContinuityPreset[]>
 

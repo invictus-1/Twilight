@@ -6,9 +6,12 @@ import { useSyncExternalStore } from 'react'
 
 /** Where the sky's sun is: following the clock, or held at one time of day. */
 export type SkyTime = 'clock' | 'dawn' | 'day' | 'dusk' | 'night'
+/** What stands under the sky: the neon grid, or a scene of its own. */
+export type Horizon = 'grid' | 'ocean' | 'mountains' | 'city' | 'dunes' | 'cyberpunk'
 
 export interface Extras {
   sky: SkyTime
+  horizon: Horizon
   /** The top of a chat drifts toward night over a long session. */
   sessionSky: boolean
   /** Rare surprises in the sky if you sit and watch. */
@@ -37,6 +40,7 @@ export interface Extras {
 
 export const DEFAULT_EXTRAS: Extras = {
   sky: 'clock',
+  horizon: 'grid',
   sessionSky: true,
   easterEggs: false,
   seasons: false,

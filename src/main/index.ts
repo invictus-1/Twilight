@@ -445,6 +445,7 @@ function registerIpc(): void {
     runWritingTool: (e, requestId: string, request: WritingRequest) => writing.runWritingTool(e.sender, requestId, request),
     stopWritingTool: (_e, requestId: string) => writing.stopWritingTool(requestId),
     checkContinuity: (_e, docPath: string, passage: string, references: string[]) => writing.checkContinuity(docPath, passage, references),
+    askContinuity: (_e, docPath: string, passage: string, references: string[], question: string) => writing.askContinuity(docPath, passage, references, question),
     continuityPresets: () => db.kvGet<ContinuityPreset[]>('continuityPresets') ?? [],
     saveContinuityPresets: (_e, presets: ContinuityPreset[]) => {
       db.kvSet('continuityPresets', presets)
