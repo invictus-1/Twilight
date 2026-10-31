@@ -10,6 +10,7 @@ import type { GeneratedImage, ImageConfig, McpServerInput, McpServerView, ToolAp
 import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
 import type { BranchMap } from './branchMap'
+import type { ReplyConfidence, Samplers } from './confidence'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
 import type { JudgeInput, Judgment, JudgmentSummary, Leaderboard, Rubric } from './judge'
 import type { Library, Persona, SavedPrompt } from './library'
@@ -106,6 +107,10 @@ export interface ChatSettings {
   messageLimit: number | null
   /** JSON merged into the request body last, for anything the panel doesn't cover. */
   extraParams: string
+  /** Keep the model's token probabilities for a heatmap and branching from any word (OpenAI-compatible servers). */
+  confidence: boolean
+  /** Sampler settings for local servers (llama.cpp, LM Studio); null fields leave the server's default. */
+  samplers: Samplers
   /** Text-adventure choice cards: the model offers numbered options to click (see shared/choices.ts). */
   choiceCards: boolean
   /** Each way of offering choices has its own switch, so only the ones you use are active. */
@@ -177,6 +182,8 @@ export interface Usage {
   costUsd?: number
   /** Web searches Claude ran for the reply, billed per search on top of tokens. */
   webSearches?: number
+  /** The model's token probabilities were kept for this reply (Confidence). */
+  confidence?: boolean
 }
 
 /** Settings → Usage: how far back the numbers go. */
@@ -539,6 +546,10 @@ export interface TwilightApi {
   /** Saves a model's defaults, or clears them with null. */
   setModelDefaults(providerId: string, modelId: string, settings: Partial<ChatSettings> | null): Promise<Record<string, Partial<ChatSettings>>>
   regenerate(id: string, assistantNodeId: string, pane?: Pane): Promise<ConversationView>
+  /** A reply's token probabilities (Confidence), or null if none were kept. */
+  replyConfidence(id: string, nodeId: string): Promise<ReplyConfidence | null>
+  /** A new version of a reply that keeps its text up to `prefix` and lets the model carry on from there. */
+  branchFromWord(id: string, nodeId: string, prefix: string): Promise<ConversationView>
   /** Multiverse drafts: several new replies to a message at once (pane A), each kept as a version. */
   drafts(id: string, nodeId: string, count: number): Promise<ConversationView>
   /** Every version of the reply to a message of yours, oldest first. */

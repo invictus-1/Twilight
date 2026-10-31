@@ -4,7 +4,7 @@ import type { ChatSettings } from './types'
  * What a model's own defaults can hold: how it's asked, never what it's told. The system prompt
  * and the chat's tools belong to the chat, so a model brings only these when it's picked.
  */
-export const MODEL_DEFAULT_KEYS = ['effort', 'thinkingDisplay', 'showThinking', 'temperature', 'maxTokens', 'extraParams'] as const satisfies readonly (keyof ChatSettings)[]
+export const MODEL_DEFAULT_KEYS = ['effort', 'thinkingDisplay', 'showThinking', 'temperature', 'maxTokens', 'extraParams', 'confidence', 'samplers'] as const satisfies readonly (keyof ChatSettings)[]
 
 /** Each model's saved defaults, by provider and model id. */
 export type ModelDefaults = Record<string, Partial<ChatSettings>>

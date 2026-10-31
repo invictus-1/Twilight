@@ -1,5 +1,6 @@
 import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig, Usage } from '@shared/types'
 import type { NodeRow } from '../db'
+import type { TokenProb } from '@shared/confidence'
 
 export interface GenerateRequest {
   config: ProviderConfig
@@ -20,6 +21,8 @@ export interface GenerateRequest {
   clientTools?: ClientToolDef[]
   /** Runs a round of calls to those tools (asking you first where needed). */
   runTools?(calls: ClientCall[]): Promise<ClientOutcome[]>
+  /** The reply starts with this text and the model carries on from it (branching from a word). */
+  prefill?: string
 }
 
 export interface ClientToolDef {
@@ -57,6 +60,8 @@ export interface GenerateResult {
   modelId: string
   /** Set when the model finished without a normal answer (e.g. a refusal). */
   error?: string
+  /** Token probabilities, when Confidence asked for them and the server sent them. */
+  logprobs?: TokenProb[]
 }
 
 export interface Provider {

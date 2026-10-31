@@ -159,6 +159,8 @@ export function openDatabase(file: string): void {
   const nodeColumns = (db.prepare('PRAGMA table_info(nodes)').all() as { name: string }[]).map((c) => c.name)
   if (!nodeColumns.includes('attachments')) db.exec('ALTER TABLE nodes ADD COLUMN attachments TEXT')
   if (!nodeColumns.includes('deleted_at')) db.exec('ALTER TABLE nodes ADD COLUMN deleted_at INTEGER')
+  // Token probabilities (Confidence) live apart from nodes, so loading a chat never reads them.
+  db.exec('CREATE TABLE IF NOT EXISTS node_logprobs (node_id TEXT PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE, data TEXT NOT NULL)')
   db.exec(`
     CREATE TABLE IF NOT EXISTS deletions (
       id TEXT PRIMARY KEY,
@@ -341,6 +343,14 @@ export function insertNode(
     if (row.parent_id && activate) setActiveChild(row.parent_id, row.id)
   })()
   return row
+}
+
+export function setLogprobs(nodeId: string, data: string): void {
+  db.prepare('INSERT OR REPLACE INTO node_logprobs (node_id, data) VALUES (?, ?)').run(nodeId, data)
+}
+
+export function getLogprobs(nodeId: string): string | null {
+  return (db.prepare('SELECT data FROM node_logprobs WHERE node_id = ?').get(nodeId) as { data: string } | undefined)?.data ?? null
 }
 
 export function updateNode(id: string, fields: Partial<Omit<NodeRow, 'id' | 'conversation_id'>>): void {

@@ -4,6 +4,7 @@ import { isContextText } from '@shared/attachments'
 import { isLocalUrl, isOpenRouter } from '@shared/webTools'
 import type { ChatSettings, ModelInfo, ModelOptions, ProviderConfig, WebSource } from '@shared/types'
 import type { NodeRow } from '../db'
+import { readLogprobs, SAMPLER_FIELDS, TOP_ALTERNATIVES, type Samplers, type TokenProb } from '@shared/confidence'
 import { savePictureFrom } from '../generated'
 import { MAX_TOOL_ROUNDS, TOO_MANY_ROUNDS, mergeExtraParams, textBlocks, wantsChoiceTool, type ClientOutcome, type GenerateRequest, type GenerateResult, type Provider } from './types'
 
@@ -234,9 +235,23 @@ export const openaiProvider: Provider = {
     if (req.options?.imageOutput) body.modalities = ['image', 'text']
     const plugins = openRouterPlugins(base(req.config), settings)
     if (plugins) body.plugins = plugins
+    // Local power tools: each token's probability and its runners-up, and the samplers you set.
+    if (settings.confidence) {
+      body.logprobs = true
+      body.top_logprobs = TOP_ALTERNATIVES
+    }
+    for (const [key, field] of Object.entries(SAMPLER_FIELDS) as [keyof Samplers, string][]) {
+      const v = settings.samplers?.[key]
+      if (v != null) body[field] = v
+    }
+    // Branching from a word: the reply so far goes as the assistant's own unfinished message,
+    // which llama.cpp (and servers like it) continue rather than answer.
+    if (req.prefill) messages.push({ role: 'assistant', content: req.prefill })
     mergeExtraParams(body, settings.extraParams ?? '')
 
-    let text = ''
+    let text = req.prefill ?? ''
+    if (req.prefill) req.onText(req.prefill)
+    const tokens: TokenProb[] = []
     let thinking = ''
     // This round's text and tool calls; calls arrive in pieces, keyed by index: the id and name
     // first, the arguments in fragments.
@@ -286,11 +301,13 @@ export const openaiProvider: Provider = {
                   images?: { image_url?: { url?: string } }[]
                 }
                 message?: { annotations?: unknown; images?: { image_url?: { url?: string } }[] }
+                logprobs?: { content?: unknown }
                 finish_reason?: string | null
               }[]
               usage?: { prompt_tokens?: number; completion_tokens?: number; prompt_tokens_details?: { cached_tokens?: number }; cost?: number }
             }
             const delta = chunk.choices?.[0]?.delta
+            if (settings.confidence && !rounds.length) tokens.push(...readLogprobs(chunk.choices?.[0]?.logprobs?.content))
             // "length": it hit the max output tokens mid-thought, so the reply can offer Continue.
             if (chunk.choices?.[0]?.finish_reason === 'length') usage.cutOff = true
             addCitations(sources, delta?.annotations)
@@ -381,7 +398,8 @@ export const openaiProvider: Provider = {
         ...(sources.length ? [{ type: 'web_sources', sources }] : [])
       ],
       usage,
-      modelId: settings.modelId
+      modelId: settings.modelId,
+      ...(tokens.length ? { logprobs: tokens } : {})
     }
   }
 }

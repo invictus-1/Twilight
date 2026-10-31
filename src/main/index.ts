@@ -327,6 +327,8 @@ function registerIpc(): void {
       chat.send(e.sender, id, text, target, attachments),
     regenerate: (e, id: string, nodeId: string, pane?: Pane) => chat.regenerate(e.sender, id, nodeId, pane),
     drafts: (e, id: string, nodeId: string, count: number) => chat.drafts(e.sender, id, nodeId, count),
+    replyConfidence: (_e, id: string, nodeId: string) => chat.replyConfidence(id, nodeId),
+    branchFromWord: (e, id: string, nodeId: string, prefix: string) => chat.branchFromWord(e.sender, id, nodeId, prefix),
     versions: (_e, id: string, userNodeId: string) => chat.versions(id, userNodeId),
     deleteMessage: (_e, id: string, nodeId: string, kind: 'single' | 'below', pane?: Pane) => chat.deleteMessage(id, nodeId, kind, pane),
     listDeletions: (_e, id: string) => chat.listDeletions(id),

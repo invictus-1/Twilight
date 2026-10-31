@@ -1,3 +1,4 @@
+import type { Samplers } from '@shared/confidence'
 import { useEffect, useRef, useState } from 'react'
 import type { CacheTtl, ChatSettings, Pane, SettingsPreset } from '@shared/types'
 import type { Persona } from '@shared/library'
@@ -13,6 +14,37 @@ const PRESET_KEYS: (keyof ChatSettings)[] = [
 ]
 
 /** A switchable number with a slider, like "Max output tokens". Off means "not sent". */
+const SAMPLERS: { key: keyof Samplers; label: string; fallback: number; min: number; max: number; step: number; note: string }[] = [
+  { key: 'minP', label: 'Min P', fallback: 0.05, min: 0, max: 1, step: 0.01, note: 'Drops words less likely than this share of the top one.' },
+  { key: 'topP', label: 'Top P', fallback: 0.95, min: 0, max: 1, step: 0.01, note: 'Keeps the likeliest words that add up to this much.' },
+  { key: 'topK', label: 'Top K', fallback: 40, min: 0, max: 200, step: 1, note: 'Keeps only this many likeliest words (0 is all).' },
+  { key: 'repeatPenalty', label: 'Repeat penalty', fallback: 1.1, min: 1, max: 2, step: 0.01, note: 'Makes words already used less likely.' },
+  { key: 'dry', label: 'DRY', fallback: 0.8, min: 0, max: 5, step: 0.05, note: 'Penalises repeating whole phrases (0 is off).' },
+  { key: 'xtc', label: 'XTC', fallback: 0.5, min: 0, max: 1, step: 0.05, note: 'The chance of passing over the most obvious words, for less predictable prose.' },
+  { key: 'seed', label: 'Seed', fallback: 42, min: 0, max: 2147483647, step: 1, note: 'The same seed and settings write the same reply.' }
+]
+
+/** Sampler settings for a local model; each off (the server's default) until switched on. */
+function SamplerSettings({ samplers, onChange }: { samplers: Samplers; onChange: (s: Samplers) => void }) {
+  return (
+    <div className="sampler-settings">
+      {SAMPLERS.map((s) => (
+        <NumberSetting
+          key={s.key}
+          label={s.label}
+          value={samplers[s.key]}
+          fallback={s.fallback}
+          min={s.min}
+          max={s.max}
+          step={s.step}
+          note={samplers[s.key] === null ? `Off: the server's default. ${s.note}` : s.note}
+          onChange={(v) => onChange({ ...samplers, [s.key]: v })}
+        />
+      ))}
+    </div>
+  )
+}
+
 function NumberSetting(props: {
   label: string
   value: number | null
@@ -156,6 +188,7 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
   const { settings } = paneOf(current, shown)
   const provider = providers.find((p) => p.id === settings.providerId)
   const options = optionsFor(models, providers, settings.providerId, settings.modelId)
+  const local = models.find((m) => m.id === settings.modelId && m.providerId === settings.providerId)?.local ?? false
   const update = (patch: Partial<ChatSettings>): Promise<void> => useStore.getState().updateSettings(patch, shown)
   // Bumped when a persona is applied, so the prompt boxes below show what it put there.
   const [applied, setApplied] = useState(0)
@@ -448,6 +481,23 @@ export function ChatSettingsPanel({ onClose }: { onClose: () => void }) {
         />
         Show the cache status bar under the chat
       </label>
+
+      {provider?.kind === 'openai' && (
+        <>
+          <h3 className="settings-section">Local model tools</h3>
+          <label className="check confidence-switch">
+            <input type="checkbox" checked={settings.confidence} onChange={(e) => void update({ confidence: e.target.checked })} />
+            <span>
+              <span className="t-label">Confidence</span>
+              <span className="field-note">
+                Keep how sure the model was of each word, shown as a heatmap on the reply, where clicking a word offers the ones it nearly wrote and
+                branches from any of them. Needs a server that reports token probabilities, such as llama.cpp or LM Studio.
+              </span>
+            </span>
+          </label>
+          {local && <SamplerSettings samplers={settings.samplers} onChange={(samplers) => void update({ samplers })} />}
+        </>
+      )}
 
       <h3 className="settings-section">Advanced</h3>
       <label className="field">

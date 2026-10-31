@@ -125,6 +125,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
 - [x] **Chats opens a new chat** · Chat — the Chats button starts at a new chat, or the last one you were on if you choose
+- [x] **Local-model power tools** · Chat — a confidence heatmap from token probabilities, branching from any word, and more samplers
 - [x] **Blind arena** · Judge — split compare with the models shuffled and hidden, your vote, and a personal leaderboard
 - [x] **Multiverse drafts** · Chat — several versions of a reply at once, side by side, each kept as a branch
 - [x] **Branch map** · Chat — the whole conversation tree, drawn, with straight runs folded; click a message to show its branch
@@ -141,5 +142,4 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Ideas
 - **Ghost text** · Writing — autocomplete in the editor from a small local model
-- **Local-model power tools** · Chat — a confidence heatmap from logprobs, branching from any word, more samplers
 - **Offline voice** · Core — dictation and read-aloud without the cloud

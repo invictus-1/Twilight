@@ -63,6 +63,8 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'send',
   'regenerate',
   'drafts',
+  'replyConfidence',
+  'branchFromWord',
   'versions',
   'deleteMessage',
   'listDeletions',

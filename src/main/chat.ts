@@ -22,6 +22,7 @@ import { scout, scoutOn } from './scout'
 import { LIBRARY_OPEN, libraryBlock } from '@shared/docLibrary'
 import { modelInfo } from './providers'
 import { layoutBranchMap, type BranchMap } from '@shared/branchMap'
+import { NO_SAMPLERS, type ReplyConfidence } from '@shared/confidence'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -36,6 +37,8 @@ const DEFAULT_SETTINGS: ChatSettings = {
   maxTokens: null,
   messageLimit: null,
   extraParams: '',
+  confidence: false,
+  samplers: NO_SAMPLERS,
   choiceCards: false,
   choiceTool: false,
   choiceFenced: true,
@@ -308,6 +311,28 @@ export function regenerate(contents: WebContents, id: string, nodeId: string, pa
   const userId = node?.role === 'user' ? node.id : node?.parent_id
   if (!userId) throw new Error('Nothing to regenerate.')
   generate(contents, id, userId, pane)
+  return view(id)
+}
+
+/** A reply's token probabilities (Confidence), or null if none were kept. */
+export function replyConfidence(id: string, nodeId: string): ReplyConfidence | null {
+  if (!db.loadNodes(id).has(nodeId)) return null
+  const data = db.getLogprobs(nodeId)
+  return data ? (JSON.parse(data) as ReplyConfidence) : null
+}
+
+/**
+ * Branching from a word: a new version of a reply that keeps its text up to `prefix` (ending
+ * with the word you picked) and lets the model carry on from there. OpenAI-compatible servers
+ * only; Claude's newer models no longer continue a reply begun for them.
+ */
+export function branchFromWord(contents: WebContents, id: string, nodeId: string, prefix: string): ConversationView {
+  if (isRunning(id, 'a')) throw new Error('A reply is still streaming in this chat.')
+  const node = db.loadNodes(id).get(nodeId)
+  if (node?.role !== 'assistant' || !node.parent_id) throw new Error('Pick a word in a reply.')
+  const settings = settingsFor(db.getConversation(id), 'a')
+  if (getProvider(settings.providerId).kind !== 'openai') throw new Error('Branching from a word needs a model on an OpenAI-compatible server, such as llama.cpp or LM Studio.')
+  generate(contents, id, node.parent_id, 'a', undefined, { prefill: prefix })
   return view(id)
 }
 
@@ -770,7 +795,7 @@ function generate(
   userNodeId: string,
   pane: Pane,
   after?: Promise<void>,
-  { slot = 0, activate = true }: { slot?: number; activate?: boolean } = {}
+  { slot = 0, activate = true, prefill }: { slot?: number; activate?: boolean; prefill?: string } = {}
 ): Promise<void> {
   const conv = db.getConversation(conversationId)
   const settings = settingsFor(conv, pane)
@@ -849,6 +874,7 @@ function generate(
         history,
         settings,
         signal: controller.signal,
+        prefill,
         onText: (delta) => {
           first()
           if (!firstTextAt) firstTextAt = Date.now()
@@ -881,12 +907,19 @@ function generate(
             }
           : {})
       })
+      if (result.logprobs?.length) db.setLogprobs(assistant.id, JSON.stringify({ offset: prefill?.length ?? 0, tokens: result.logprobs } satisfies ReplyConfidence))
       db.updateNode(assistant.id, {
         text: result.text,
         thinking: result.thinking ?? null,
         content: result.content ? JSON.stringify(result.content) : null,
         model: result.modelId,
-        usage: JSON.stringify({ ...result.usage, cacheTtl: settings.cacheTtl, ttftMs: firstTokenAt ? firstTokenAt - requestedAt : undefined, thinkMs: thinking ? (firstTextAt || Date.now()) - requestedAt : undefined }),
+        usage: JSON.stringify({
+          ...result.usage,
+          cacheTtl: settings.cacheTtl,
+          ttftMs: firstTokenAt ? firstTokenAt - requestedAt : undefined,
+          thinkMs: thinking ? (firstTextAt || Date.now()) - requestedAt : undefined,
+          confidence: result.logprobs?.length ? true : undefined
+        }),
         status: controller.signal.aborted ? 'stopped' : result.error ? 'error' : 'done',
         error: result.error ?? null
       })

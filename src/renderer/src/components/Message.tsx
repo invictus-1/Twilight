@@ -17,8 +17,9 @@ import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
 import { savedCount } from './Multiverse'
 import { useBlind } from './Arena'
+import { ConfidenceView } from './Confidence'
 import { DiffBody, useDiffed } from './SplitDiff'
-import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, GridIcon, PaperclipIcon, PenIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
+import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, GridIcon, PaperclipIcon, PenIcon, PulseIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
 
 const COLLAPSE_AT = 3000
 
@@ -613,6 +614,8 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
   const diffed = useDiffed(pane, node.id)
   const streaming = node.status === 'streaming'
   const blind = useBlind()
+  // The confidence heatmap stands in for the body while it's on (replies whose probabilities were kept).
+  const [heatmap, setHeatmap] = useState(false)
   if (editing) {
     return (
       <div className="msg tw-msg-ai">
@@ -641,7 +644,8 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
               <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />
             </DiffBody>
           )}
-          {body && !diffed && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />}
+          {body && !diffed && heatmap && <ConfidenceView node={node} />}
+          {body && !diffed && !heatmap && <div className="tw-msg-body md" dangerouslySetInnerHTML={{ __html: renderMarkdown(node.id, body) }} />}
           {node.images && node.images.length > 0 && <Pictures images={node.images} />}
           {node.web && node.web.cited.length > 0 && <WebSources sources={node.web.cited} />}
           {choices && (
@@ -673,6 +677,17 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
             <BranchSwitcher node={node} />
             <CopyIconButton text={() => body} />
             <StarButton nodeId={node.id} />
+            {node.usage?.confidence && pane === 'a' && (
+              <button
+                className="tw-btn tw-btn-ghost tw-btn-icon conf-toggle"
+                aria-label="Confidence"
+                aria-pressed={heatmap}
+                title={heatmap ? 'Back to the reply' : 'Confidence: how sure the model was of each word, and the words it nearly wrote'}
+                onClick={() => setHeatmap((h) => !h)}
+              >
+                <PulseIcon />
+              </button>
+            )}
             <button
               className="tw-btn tw-btn-ghost tw-btn-icon"
               aria-label="Regenerate"

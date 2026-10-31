@@ -68,6 +68,8 @@ interface State {
   setOverlay(overlay: Overlay, searchQuery?: string): void
   /** The message of yours whose replies the multiverse panel shows side by side. */
   multiverseFor: string | null
+  /** A new version of a reply that keeps it up to `prefix` and writes on from there (Confidence). */
+  branchFromWord(nodeId: string, prefix: string): Promise<void>
   /** Opens the multiverse panel on a message (or a reply's message), writing `count` new drafts first if given. */
   openMultiverse(nodeId: string, count?: number): Promise<void>
   updates: UpdateState | null
@@ -303,6 +305,7 @@ export const useStore = create<State>((set, get) => {
     },
 
     regenerate: (nodeId, pane) => withCurrent((id) => api.regenerate(id, nodeId, pane)),
+    branchFromWord: (nodeId, prefix) => withCurrent((id) => api.branchFromWord(id, nodeId, prefix)),
     async openMultiverse(nodeId, count) {
       const node = get().current?.path.find((n) => n.id === nodeId)
       const userId = node?.role === 'assistant' ? node.parentId : nodeId

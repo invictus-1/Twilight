@@ -7,6 +7,7 @@ import { logsFolder } from './logs'
 import { join } from 'node:path'
 import * as chat from './chat'
 import { layoutBranchMap } from '@shared/branchMap'
+import { NO_SAMPLERS } from '@shared/confidence'
 import * as code from './code/agent'
 import * as mcp from './mcp'
 import { contextMenuItems, setSpellcheck, showContextMenus } from './contextMenu'
@@ -474,6 +475,9 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         reply = JSON.stringify({ observations: [{ title: 'Steady mornings', text: 'Most words land before noon.' }, { title: 'Dialogue-heavy', text: 'A fifth of the words are spoken.' }], nextStep: 'Write one scene without dialogue.' })
       } else if (toolResult) {
         reply = `Answering the tool result: ${toolResult}`
+      } else if (parsed.messages.at(-1)?.role === 'assistant') {
+        // A reply begun for the model (branching from a word): it carries on from there.
+        reply = ' the tide turned at last.'
       } else if (lastUser.includes('MULTICHOICE')) {
         reply = 'The gate creaked.\n\nOUTFIT · Day 2 Morning\nPlace: a cold pier, then a warm cabin.\n1 · PLAIN: \n\n* Pieces: wool coat\n\n2 · BOLD\n\n* Pieces: red scarf\n\n3 · SOMETHING ELSE\n\nChoices (Morning)\n\n1. Head out\n2. Stay in\n3. Something else.'
       } else if (lastUser.includes('LONGSTREAM')) {
@@ -500,7 +504,12 @@ function startMockServer(log: LoggedRequest[]): Promise<Server> {
         // out at once, so it doesn't run past the wait for a reply.
         if (i < 300) await new Promise((r) => setTimeout(r, 8))
         entry.firstTokenAt ??= Date.now()
-        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: w } }] })}\n\n`)
+        // Asked for logprobs: every third word was a close call, with two runners-up.
+        const sure = i % 3 === 1 ? 0.3 : 0.97
+        const logprobs = (parsed as { logprobs?: boolean }).logprobs
+          ? { content: [{ token: w, logprob: Math.log(sure), top_logprobs: [{ token: w, logprob: Math.log(sure) }, { token: ' lantern', logprob: Math.log(0.2) }, { token: ' harbour', logprob: Math.log(0.05) }] }] }
+          : undefined
+        res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: w }, ...(logprobs ? { logprobs } : {}) }] })}\n\n`)
       }
       // A reply that ran into the max output tokens says so.
       if (lastUser.includes('CUTOFF')) res.write(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: 'length' }] })}\n\n`)
@@ -1741,9 +1750,12 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         out.aside = getComputedStyle(document.querySelector('.rm-aside')).display !== 'none'
         out.steps = [...document.querySelectorAll('.rm-step-v')].map((e) => e.textContent)
         ;[...document.querySelectorAll('.rm-step-btn')].find((b) => b.querySelector('.rm-step-v')?.textContent === '0.4')?.click()
-        await wait(900)
-        const box = document.querySelector('.settings-content').getBoundingClientRect()
-        out.jumped = Math.abs(document.querySelector('[data-release="0.4.0"]').getBoundingClientRect().top - box.top) < 120
+        // A smooth scroll: wait until it stops. Near the page's end it stops short, as far as it goes.
+        const content = document.querySelector('.settings-content')
+        await wait(150)
+        for (let last = -1, end = Date.now() + 3000; Date.now() < end && content.scrollTop !== last; ) { last = content.scrollTop; await wait(120) }
+        const box = content.getBoundingClientRect()
+        out.jumped = content.scrollTop > 0 && (Math.abs(document.querySelector('[data-release="0.4.0"]').getBoundingClientRect().top - box.top) < 120 || content.scrollTop + content.clientHeight >= content.scrollHeight - 2)
         document.querySelector('.settings-content').scrollTop = 0
         ;[...document.querySelectorAll('.rm-chip')].find((b) => b.textContent.startsWith('Core'))?.click()
         await wait(200)
@@ -1752,7 +1764,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(600)
         return out
       })()`)
-      check('roadmap shows planned work as cards', roadmapUi.cards >= 1 && roadmapUi.ideas > 3 && roadmapUi.doing >= 1, roadmapUi)
+      check('roadmap shows planned work as cards', roadmapUi.cards >= 1 && roadmapUi.ideas >= 1 && roadmapUi.doing >= 1, roadmapUi)
       check('roadmap timeline lists the releases', roadmapUi.releases.join() === '1.3.0,1.2.0,1.1.0,1.0.0,0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check(
         'a wide window shows the way to 1.0 beside the roadmap, and a step jumps to its release',
@@ -5427,6 +5439,72 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         ui52.first >= 2 && ui52.more === ui52.first + 2 && ui52.shown === 1 && ui52.closed && !!ui52.used && chat.view(c48).path.some((n) => n.id === ui52.used),
         ui52
       )
+
+      // 54. Local power tools: token probabilities, branching from a word, samplers.
+      const c54 = chat.create().id
+      chat.updateSettings(c54, { confidence: true, samplers: { ...NO_SAMPLERS, minP: 0.05, topK: 40, dry: 0.8, seed: 7 } })
+      chat.send(contents, c54, 'Tell me about the lamps.')
+      await idle(c54)
+      const body54 = log.at(-1)!.body as Record<string, unknown>
+      check(
+        'Confidence asks for token probabilities, and the samplers you set go with the request',
+        body54.logprobs === true && body54.top_logprobs === 5 && body54.min_p === 0.05 && body54.top_k === 40 && body54.dry_multiplier === 0.8 && body54.seed === 7 && !('top_p' in body54) && !('xtc_probability' in body54),
+        Object.fromEntries(Object.entries(body54).filter(([k]) => k !== 'messages'))
+      )
+      const reply54 = chat.view(c54).path.at(-1)!
+      const conf54 = chat.replyConfidence(c54, reply54.id)
+      check(
+        'each token of the reply is kept with its probability and runners-up, apart from the chat',
+        !!reply54.usage?.confidence && !!conf54 && conf54.offset === 0 && conf54.tokens.map((t) => t.t).join('') === reply54.text && conf54.tokens[1].alt.map((a) => a[0]).join() === ' lantern, harbour' && Math.abs(Math.exp(conf54.tokens[1].p) - 0.3) < 1e-9,
+        { tokens: conf54?.tokens.length, first: conf54?.tokens.slice(0, 2) }
+      )
+      const prefix54 = conf54!.tokens[0].t + ' lantern'
+      chat.branchFromWord(contents, c54, reply54.id, prefix54)
+      await idle(c54)
+      const sent54 = log.at(-1)!.messages.at(-1)
+      const branched54 = chat.view(c54).path.at(-1)!
+      check(
+        'a word from the alternatives starts a new version that carries on from it',
+        sent54?.role === 'assistant' && sent54.content === prefix54 && branched54.text === prefix54 + ' the tide turned at last.' && branched54.siblingCount === 2 && chat.replyConfidence(c54, branched54.id)?.offset === prefix54.length,
+        { sent54, text: branched54.text }
+      )
+      const claude54 = chat.create().id
+      chat.updateSettings(claude54, { providerId: 'anthropic', modelId: 'claude-opus-5-5' })
+      let refused54 = ''
+      try {
+        chat.branchFromWord(contents, claude54, reply54.id, 'x')
+      } catch (e) {
+        refused54 = String(e)
+      }
+      check('branching from a word is refused where it cannot work', /Pick a word in a reply|OpenAI-compatible/.test(refused54), refused54)
+      db.updateConversation(c54, { started: 1, title: 'Confidence chat' })
+      await reloadUi()
+      const ui54 = await js<{ tokens: number; warm: number; alts: number; panel: boolean; samplers: number }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Confidence chat')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.conf-toggle'); ) await wait(25)
+        ;[...document.querySelectorAll('.tw-msg-ai')].at(-1)?.querySelector('.conf-toggle')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.conf-tok'); ) await wait(25)
+        const out = { tokens: document.querySelectorAll('.conf-tok').length, warm: [...document.querySelectorAll('.conf-tok')].filter((t) => t.style.background).length, alts: 0, panel: false, samplers: 0 }
+        document.querySelector('.conf-tok[data-i="1"]')?.click()
+        await wait(100)
+        out.alts = document.querySelectorAll('.conf-pop .conf-alt').length
+        document.querySelector('.conf-alt[data-word=" harbour"]')?.click()
+        await wait(600)
+        ;[...document.querySelectorAll('.chat-head button')].find((b) => b.textContent.includes('Model settings'))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-panel'); ) await wait(25)
+        out.panel = !!document.querySelector('.settings-panel .confidence-switch input:checked')
+        out.samplers = document.querySelectorAll('.settings-panel .sampler-settings .num-setting').length
+        document.querySelector('.settings-panel .panel-head [aria-label="Close"]')?.click()
+        return out
+      })()`)
+      await idle(c54)
+      check(
+        'the heatmap draws each token, warmer where unsure, and offers the runners-up to branch from',
+        ui54.tokens === chat.replyConfidence(c54, branched54.id)!.tokens.length && ui54.warm > 0 && ui54.alts === 2 && chat.versions(c54, reply54.parentId!).length === 3,
+        { ui54, versions: chat.versions(c54, reply54.parentId!).length }
+      )
+      check('Model settings has Confidence and the samplers for a local model', ui54.panel && ui54.samplers === 7, ui54)
 
       // 53. The blind arena: the split's models shuffled and hidden, a vote, then who was who.
       const c53 = chat.create().id
