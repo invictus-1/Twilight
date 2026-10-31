@@ -785,6 +785,8 @@ export interface TwilightApi {
   getInsights(): Promise<InsightsSummary>
   rescanInsights(): Promise<InsightsSummary>
   setCharacters(list: TrackedCharacter[]): Promise<InsightsSummary>
+  /** A held jump in words: count it as written on its day, or let it go. */
+  answerWordJump(id: string, count: boolean): Promise<InsightsSummary>
   onInsights(listener: (event: InsightsEvent) => void): () => void
   getAiState(): Promise<AiState>
   setAiConfig(config: AiConfig): Promise<AiState>

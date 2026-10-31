@@ -498,14 +498,47 @@ function AppearanceSection() {
     setThemeState(t)
   }
   return (
-    <div className="settings-card">
-      <h3 className="t-heading">Theme</h3>
-      <ThemePicker value={theme} onPick={pick} custom />
-      {theme === 'custom' && <ThemeBuilder />}
-      <BackgroundPicker />
-      <MotionPicker />
-      <ChatTextPicker />
+    <div className="look-layout">
+      <div className="settings-card">
+        <h3 className="t-heading">Theme</h3>
+        <ThemePicker value={theme} onPick={pick} custom />
+        {theme === 'custom' && <ThemeBuilder />}
+        <BackgroundPicker />
+        <MotionPicker />
+        <ChatTextPicker />
+      </div>
+      <LookPreview />
     </div>
+  )
+}
+
+/**
+ * A few lines of chat beside the Appearance settings, drawn with the chat's own styles, so the
+ * theme, the text size and the colours of bold and italic words show as you pick them.
+ */
+function LookPreview() {
+  return (
+    <aside className="look-preview" aria-label="Preview">
+      <span className="field-label">Preview</span>
+      <div className="look-preview-window">
+        <div className="thread look-preview-thread">
+          <div className="msg msg-user-row warm">
+            <div className="tw-msg-user">Wren lights the lamps. What does Rowan see from the boat?</div>
+          </div>
+          <div className="msg warm">
+            <div className="tw-msg-body md">
+              <p>
+                From the water, Rowan watches the lamps come on one by one, <strong>warm and steady</strong> along the harbour wall.
+              </p>
+              <p>
+                Above them, Wren's lantern <em>swings</em> as she climbs the last stair, and the light finds the boat.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div className="look-preview-composer">Ask anything</div>
+      </div>
+    </aside>
   )
 }
 

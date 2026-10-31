@@ -773,7 +773,9 @@ body.resizing .resize-handle { pointer-events: auto; }
 }
 
 /* Model providers: a list on the left, the selected provider on the right */
-.settings-content { max-width: 1320px; }
+/* Settings sits in a centred column: the scroll area fills the window (its scroll bar at the edge)
+   and the padding either side shares out the room left over. */
+.settings-content { --settings-col: 1320px; max-width: none; padding-inline: max(var(--space-8), calc((100% - var(--settings-col)) / 2)); container-type: inline-size; }
 .providers-layout { display: grid; grid-template-columns: minmax(220px, 280px) minmax(0, 1fr); gap: var(--space-4); align-items: start; }
 .provider-list { position: sticky; top: 0; display: flex; flex-direction: column; gap: 4px; }
 .provider-item { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); border: 1px solid transparent; cursor: pointer; transition: background 120ms, border-color 120ms; }
@@ -865,6 +867,12 @@ body.resizing .resize-handle { pointer-events: auto; }
 .ins-bar.now { background: linear-gradient(180deg, #ffd3a8, var(--horizon)); opacity: 1; box-shadow: 0 0 18px -4px var(--horizon); }
 .ins-bar-col:hover .ins-bar { opacity: 1; }
 .ins-bar-label { position: absolute; bottom: -20px; font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+/* Words that appeared at once, waiting to be counted or let go. */
+.ins-jumps { display: flex; flex-direction: column; gap: var(--space-2); border-color: color-mix(in srgb, var(--horizon) 40%, var(--line)); }
+.ins-jump { display: flex; align-items: center; gap: var(--space-2); }
+.ins-jump-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ins-jump-text strong { font-weight: 600; color: var(--ink); }
+.ins-jump-text span { font-size: 12px; color: var(--ink-faint); }
 /* The label over a chart's bar or day (InsightsView: useChartTip): instant, in the theme's colours. */
 .chart-tip { position: fixed; z-index: 3000; transform: translate(-50%, calc(-100% - 10px)); pointer-events: none; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 6px 11px; border-radius: 9px; background: color-mix(in srgb, var(--surface-overlay) 92%, transparent); border: 1px solid color-mix(in srgb, var(--iris) 45%, var(--line)); box-shadow: var(--shadow-lg), 0 0 18px -6px color-mix(in srgb, var(--iris) 60%, transparent); white-space: nowrap; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); animation: chart-tip-in 90ms ease-out; }
 .chart-tip::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; margin-left: -4px; rotate: 45deg; background: inherit; border-right: inherit; border-bottom: inherit; }
@@ -1471,7 +1479,7 @@ div.continuity-target { padding: var(--space-2) var(--space-3); border-radius: v
 .backup-name { font-weight: 500; }
 
 /* The Roadmap's side panel: only on a window wide enough to have room beside the page. */
-.settings-content:has(.rm-layout) { max-width: 1760px; }
+.settings-content:has(.rm-layout) { --settings-col: 1760px; }
 .rm-layout { display: block; }
 .rm-aside { display: none; }
 @media (min-width: 1700px) {
@@ -1773,3 +1781,17 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .hub-model-head:focus-visible { box-shadow: var(--focus-ring); border-radius: var(--radius-xs); }
 .hub-model-head .field-note { flex: none; }
 .hub-variants { display: flex; flex-direction: column; gap: var(--space-1); padding: 0 0 var(--space-2) var(--space-6); }
+
+/* Appearance: the settings, and beside them when there's room, a few lines of chat that show them. */
+.settings-content:has(.look-layout) { --settings-col: 1600px; }
+.look-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--space-4); align-items: start; }
+.look-preview { display: none; }
+@container (min-width: 1240px) {
+  .look-layout { grid-template-columns: minmax(0, 1fr) 380px; }
+  .look-preview { display: flex; flex-direction: column; gap: var(--space-2); position: sticky; top: 0; }
+}
+.look-preview-window { border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--night); overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow-sm); }
+.look-preview-thread { max-width: none; margin: 0; padding: var(--space-4) var(--space-4) var(--space-2); }
+.look-preview-thread > .msg { margin-bottom: var(--space-4); }
+.look-preview-thread .md p:last-child { margin-bottom: 0; }
+.look-preview-composer { margin: 0 var(--space-3) var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface-raised); color: var(--ink-faint); font-size: var(--chat-size); }

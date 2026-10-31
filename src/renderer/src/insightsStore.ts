@@ -16,6 +16,8 @@ interface InsightsState {
   rescan(): Promise<void>
   setCharacters(list: TrackedCharacter[]): Promise<void>
   dismissUnlocked(): void
+  /** Count a held jump in words as written, or let it go. */
+  answerJump(id: string, count: boolean): Promise<void>
 }
 
 const api = window.twilight
@@ -53,5 +55,6 @@ export const useInsights = create<InsightsState>((set, get) => ({
     set({ summary: await api.setCharacters(list) })
   },
 
-  dismissUnlocked: () => set({ unlocked: [] })
+  dismissUnlocked: () => set({ unlocked: [] }),
+  answerJump: async (id, count) => set({ summary: await api.answerWordJump(id, count) })
 }))

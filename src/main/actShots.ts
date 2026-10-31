@@ -40,7 +40,9 @@ const MOMENTS = process.env.TWILIGHT_ACTS_AT ? process.env.TWILIGHT_ACTS_AT.spli
 
 export function runActShots(win: BrowserWindow, outDir: string): void {
   mkdirSync(outDir, { recursive: true })
-  win.setContentSize(1600, 900)
+  // TWILIGHT_ACTS_SIZE (like 2560x1400) looks at a larger window.
+  const [w, h] = (process.env.TWILIGHT_ACTS_SIZE ?? '1600x900').split('x').map(Number)
+  win.setContentSize(w, h)
   // Your own mouse passing over the window would clear the sky and restart an act mid-capture.
   win.setIgnoreMouseEvents(true)
   const only = process.env.TWILIGHT_ACTS_ONLY?.split(',')

@@ -2,8 +2,9 @@
 // (in a worker thread, skipping files that haven't changed) and keeps each file's analysis. Words
 // written are measured as growth between scans and booked to the day and hour they happened:
 //   - the first scan of a folder is a baseline, so a finished manuscript isn't "written today";
-//   - a new file counts as written, unless it's over IMPORT_LIMIT words (an import, not a day's work),
-//     and so does growth, unless one file jumps by more than that between scans (a paste);
+//   - a new file counts as written, and so does growth; but a new file over IMPORT_LIMIT words, or
+//     one file jumping by more than that between scans, may be an import or a paste rather than a
+//     day's work, so it's held aside and the dashboard asks whether to count it;
 //   - shrinking a file books removed words, never negative writing.
 // Scans run at launch, when the folder changes on disk (debounced), and on Rescan.
 
@@ -18,7 +19,8 @@ import {
   type DayCount,
   type DocAnalysis,
   type InsightsSummary,
-  type TrackedCharacter
+  type TrackedCharacter,
+  type WordJump
 } from '@shared/insights'
 import type { InsightsEvent } from '@shared/types'
 import createWorker from './insights.worker?nodeWorker'
@@ -158,6 +160,7 @@ async function runScan(): Promise<void> {
   let written = 0
   let removed = 0
   let done = 0
+  const jumps: { path: string; words: number }[] = []
   // A file that vanished and one that appeared with the same size is a move or a rename, not new
   // writing: the new path picks up where the old one left off.
   const present = new Set(list.map((d) => d.path))
@@ -177,10 +180,14 @@ async function runScan(): Promise<void> {
     const row = known.get(d.path)
     if (row) {
       const delta = analysis.words - row.words
-      // A jump this size between two scans is a paste or an import, not writing.
+      // A jump this size between two scans may be a paste or an import: held aside, to ask about.
       if (delta > 0 && delta <= IMPORT_LIMIT) written += delta
+      else if (delta > IMPORT_LIMIT) jumps.push({ path: d.path, words: delta })
       else if (delta < 0) removed -= delta
-    } else if (!baseline && analysis.words <= IMPORT_LIMIT) written += analysis.words
+    } else if (!baseline) {
+      if (analysis.words <= IMPORT_LIMIT) written += analysis.words
+      else jumps.push({ path: d.path, words: analysis.words })
+    }
     upsert.run(d.path, d.mtime, d.size, analysis.words, key, JSON.stringify(analysis))
     if (++done % 4 === 0 || done === todo.length) emitInsights({ kind: 'progress', done, total: todo.length })
   }
@@ -199,6 +206,11 @@ async function runScan(): Promise<void> {
     db.kvSet('insights.baselined', true)
     if (!db.kvGet<string>('insights.since')) db.kvSet('insights.since', dayOf())
   }
+  if (jumps.length) {
+    const at = Date.now()
+    const held = db.kvGet<WordJump[]>('insights.jumps') ?? []
+    db.kvSet('insights.jumps', [...held, ...jumps.map((j, i) => ({ id: `${at}-${i}`, path: j.path, words: j.words, day: dayOf(new Date(at)), at }))])
+  }
   db.kvSet('insights.scannedAt', Date.now())
   cache = null
 
@@ -212,6 +224,28 @@ async function runScan(): Promise<void> {
     }
   }
   unlockAchievements(baseline)
+}
+
+/** Your answer to a held jump: counted as written on the day it appeared, or let go. */
+export function answerJump(id: string, count: boolean): InsightsSummary {
+  const held = db.kvGet<WordJump[]>('insights.jumps') ?? []
+  const jump = held.find((j) => j.id === id)
+  if (jump && count) {
+    db.handle()
+      .prepare('INSERT INTO writing_days (day, written, removed) VALUES (?, ?, 0) ON CONFLICT(day) DO UPDATE SET written = written + excluded.written')
+      .run(jump.day, jump.words)
+    const hours = db.kvGet<number[]>('insights.hours') ?? Array(24).fill(0)
+    hours[new Date(jump.at).getHours()] += jump.words
+    db.kvSet('insights.hours', hours)
+  }
+  db.kvSet(
+    'insights.jumps',
+    held.filter((j) => j.id !== id)
+  )
+  cache = null
+  if (jump && count) unlockAchievements(false)
+  emitInsights({ kind: 'updated' })
+  return summary()
 }
 
 // ——— Achievements ———
@@ -365,7 +399,8 @@ export function summary(): InsightsSummary {
       .sort((x, y) => y[1] - x[1])
       .slice(0, 24)
       .map(([name, count]) => ({ name, count })),
-    achievements: ACHIEVEMENTS.map((def) => ({ def, value: stats[def.metric], unlockedAt: unlocked[def.id] ?? null }))
+    achievements: ACHIEVEMENTS.map((def) => ({ def, value: stats[def.metric], unlockedAt: unlocked[def.id] ?? null })),
+    jumps: db.kvGet<WordJump[]>('insights.jumps') ?? []
   }
   return cache
 }

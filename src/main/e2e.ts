@@ -1866,6 +1866,12 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await docs.writeDoc(pasteDoc.path, 'paste '.repeat(21000))
       await insights.scan()
       check('pasting a novel into an existing file is not writing', insights.summary().today === beforePaste, { before: beforePaste, after: insights.summary().today })
+      const jumps32 = insights.summary().jumps
+      check(
+        'the big new file and the big paste are held aside, to ask about',
+        jumps32.length === 2 && jumps32.some((j) => j.path.includes('Imported novel') && j.words === 25000) && jumps32.some((j) => j.path.includes('Pasted chapter') && j.words === 21000),
+        jumps32
+      )
       await insights.setCharacters([
         { name: 'Wren', aliases: [], color: '' },
         { name: 'Rowan', aliases: ['Ro'], color: '#ffb48a' }
@@ -1884,6 +1890,14 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(500)
         const page = (label) => [...document.querySelectorAll('.insights-nav-item')].find((b) => b.textContent.startsWith(label))?.click()
         const out = { hero: !!document.querySelector('.ins-hero .ins-hero-n'), tabs: document.querySelectorAll('.insights-nav-item').length, stats: [...document.querySelectorAll('.ins-stat-label')].map((e) => e.textContent), bars: document.querySelectorAll('.ins-bar').length }
+        // Words that appeared at once wait on the dashboard: the paste is counted, the import let go.
+        out.jumps = [...document.querySelectorAll('.ins-jump strong')].map((e) => e.textContent)
+        const jumpCard = (name) => [...document.querySelectorAll('.ins-jump')].find((e) => e.textContent.includes(name))
+        jumpCard('Pasted chapter')?.querySelector('.ins-jump-count')?.click()
+        await wait(300)
+        jumpCard('Imported novel')?.querySelector('.ins-jump-skip')?.click()
+        await wait(300)
+        out.jumpsAfter = document.querySelectorAll('.ins-jump').length
         // Pointing at a bar, or a day on the heatmap, shows its label at once, drawn by Twilight rather than the browser.
         const hover = async (el) => (el?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })), await wait(50))
         const leave = async (el) => (el?.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body })), await wait(50))
@@ -1912,6 +1926,12 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('insights pages listed', insUi.tabs === 9, insUi.tabs)
       check('dashboard shows today, the stat cards and 14 bars', insUi.hero === true && insUi.stats.includes('Best day') && insUi.bars === 14, insUi)
       check('heatmap marks today', insUi.heatCells >= 1, insUi.heatCells)
+      const counted32 = insights.summary()
+      check(
+        'the dashboard asks about each: Count them books the words to their day, Not my writing lets them go',
+        insUi.jumps.length === 2 && insUi.jumps.some((t: string) => t === '21,000 words appeared in Pasted chapter at once') && insUi.jumpsAfter === 0 && counted32.jumps.length === 0 && counted32.today === beforePaste + 21000,
+        { shown: insUi.jumps, after: insUi.jumpsAfter, today: counted32.today, expected: beforePaste + 21000 }
+      )
       check(
         'pointing at a bar or a heatmap day shows its date and words at once, in the theme, not the browser\'s slow label',
         insUi.barTip.length === 2 && /words?$/.test(insUi.barTip[1]) && !insUi.barTitle && insUi.tipGone && insUi.heatTip.length === 2 && /words?$/.test(insUi.heatTip[1]),
@@ -3464,6 +3484,43 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('Settings offers the theme, six gradients and your picture', lookUi.options === 8, lookUi.options)
       check('a gradient goes behind the whole window', lookUi.aurora && /radial-gradient/.test(lookUi.layer), lookUi)
       check('motion can be turned off and back on', lookUi.motionOff === 'off' && lookUi.motionBack === null, lookUi)
+
+      // On a wide window Settings sits in a centred column, and Appearance shows a preview beside it
+      // that follows the text size and colours bold words; on a narrow one the preview stays out of the way.
+      const sizeLook = win.getSize()
+      const lookAt = async (w: number, h: number): Promise<{ centred: boolean; preview: boolean; bold: boolean; grows: boolean }> => {
+        win.setSize(w, h)
+        await new Promise((r) => setTimeout(r, 500))
+        return js(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+          const content = document.querySelector('.settings-content')
+          const outer = content.getBoundingClientRect()
+          const card = content.querySelector('.look-layout').getBoundingClientRect()
+          const left = card.left - outer.left
+          const right = outer.right - content.clientLeft - (content.offsetWidth - content.clientWidth) - card.right
+          const preview = document.querySelector('.look-preview')
+          const shown = !!preview && getComputedStyle(preview).display !== 'none'
+          const body = preview?.querySelector('.tw-msg-body')
+          const strong = preview?.querySelector('strong')
+          const bold = !!strong && getComputedStyle(strong).color !== getComputedStyle(body).color
+          const before = body ? parseFloat(getComputedStyle(body).fontSize) : 0
+          ;[...document.querySelectorAll('.look-block button')].find((b) => b.textContent === 'Large')?.click()
+          await wait(100)
+          const after = body ? parseFloat(getComputedStyle(body).fontSize) : 0
+          ;[...document.querySelectorAll('.look-block button')].find((b) => b.textContent === 'Medium')?.click()
+          await wait(50)
+          return { centred: Math.abs(left - right) < 24, preview: shown, bold, grows: after > before }
+        })()`)
+      }
+      const wideLook = await lookAt(2560, 1400)
+      const narrowLook = await lookAt(1200, 850)
+      win.setSize(sizeLook[0], sizeLook[1])
+      await new Promise((r) => setTimeout(r, 300))
+      check(
+        'Settings sits in a centred column, and Appearance previews the theme, text size and bold colour beside it when there is room',
+        wideLook.centred && wideLook.preview && wideLook.bold && wideLook.grows && !narrowLook.preview,
+        { wideLook, narrowLook }
+      )
 
       // Every gradient has to draw (a bare colour in the list once made two of them draw nothing),
       // and your picture can be zoomed and dragged to choose which part shows. The picture is put in

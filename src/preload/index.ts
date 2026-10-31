@@ -196,6 +196,7 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'getInsights',
   'rescanInsights',
   'setCharacters',
+  'answerWordJump',
   'getAiState',
   'setAiConfig',
   'estimateStory',

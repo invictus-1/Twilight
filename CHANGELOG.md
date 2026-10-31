@@ -5,6 +5,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 ## Unreleased
 
 - **Charts answer at once:** pointing at a bar on the Insights dashboard, a day on the heatmap or a bar in Usage shows its date and figure straight away, in the theme's colours, instead of the browser's plain label after a pause.
+- **Pasted writing can count:** when a lot of words appear in a file at once (over 20,000, so a paste or an import), Insights no longer quietly leaves them out. The dashboard asks: Count them books them as written on the day they appeared, Not my writing lets them go.
+- **Settings, centred:** each Settings page sits in a centred column, with the room either side shared out, rather than against the left with the rest empty.
+- **A preview in Appearance:** on a wide window, a few lines of chat sit beside the Appearance settings and show the theme, the chat text size and the colours of bold and italic words as you pick them.
 
 ## 1.5.0
 

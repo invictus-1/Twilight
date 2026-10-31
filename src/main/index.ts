@@ -419,6 +419,7 @@ function registerIpc(): void {
       return insights.summary()
     },
     setCharacters: (_e, list: TrackedCharacter[]) => insights.setCharacters(list),
+    answerWordJump: (_e, id: string, count: boolean) => insights.answerJump(id, count),
     getAiState: () => insightsAi.state(),
     setAiConfig: (_e, config: AiConfig) => insightsAi.setConfig(config),
     estimateStory: (_e, mode: 'quick' | 'deep', scope: string) => insightsAi.estimate(mode, scope),

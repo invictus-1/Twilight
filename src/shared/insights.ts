@@ -196,6 +196,16 @@ export interface DayCount {
   words: number
 }
 
+/** A big jump in one file between two scans (a paste or an import), held until you say whether it was your writing. */
+export interface WordJump {
+  id: string
+  path: string
+  words: number
+  /** The day and moment it appeared, which it's counted to if you say so. */
+  day: string
+  at: number
+}
+
 export interface InsightsSummary {
   scannedAt: number | null
   scanning: boolean
@@ -233,6 +243,8 @@ export interface InsightsSummary {
   pairs: { a: string; b: string; scenes: number }[]
   suggestions: { name: string; count: number }[]
   achievements: { def: AchievementDef; value: number; unlockedAt: number | null }[]
+  /** Big jumps waiting for you to say whether they were your writing. */
+  jumps: WordJump[]
 }
 
 // ——— The AI pages (run only when asked, with a model you choose) ———

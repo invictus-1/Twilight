@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { AchievementDef, InsightsSummary, TrackedCharacter } from '@shared/insights'
+import type { AchievementDef, InsightsSummary, TrackedCharacter, WordJump } from '@shared/insights'
 import { useInsights, type InsightsPage } from '../insightsStore'
 import { useStore } from '../store'
 import {
@@ -220,6 +220,38 @@ function TodayHero({ s }: { s: InsightsSummary }) {
   )
 }
 
+/**
+ * Words that appeared in a file all at once (a paste or an import) aren't counted as writing on
+ * their own; each waits here for you to say whether it was yours, to be counted on its day.
+ */
+function Jumps({ jumps }: { jumps: WordJump[] }) {
+  const answer = useInsights((st) => st.answerJump)
+  if (!jumps.length) return null
+  const name = (path: string): string => path.split(/[\\/]/).pop()?.replace(/\.md$/i, '') ?? path
+  return (
+    <section className="ins-card ins-jumps" aria-label="Words that appeared at once">
+      {jumps.map((j) => (
+        <div key={j.id} className="ins-jump">
+          <div className="ins-jump-text">
+            <strong>
+              {n(j.words)} words appeared in {name(j.path)} at once
+            </strong>
+            <span>
+              {dayLabel(j.day, { weekday: 'long', month: 'short', day: 'numeric' })}. A paste or an import isn't counted as writing unless you say so.
+            </span>
+          </div>
+          <button className="tw-btn tw-btn-sm ins-jump-count" onClick={() => void answer(j.id, true)}>
+            Count them
+          </button>
+          <button className="tw-btn tw-btn-ghost tw-btn-sm ins-jump-skip" onClick={() => void answer(j.id, false)}>
+            Not my writing
+          </button>
+        </div>
+      ))}
+    </section>
+  )
+}
+
 function Dashboard({ s }: { s: InsightsSummary }) {
   const today = s.last14.at(-1)?.day
   const avg = s.activeDays ? s.written / s.activeDays : 0
@@ -227,6 +259,7 @@ function Dashboard({ s }: { s: InsightsSummary }) {
     <>
       <PageHead title="Dashboard" sub="Words written, counted as your files grow, wherever you write them" />
       <TodayHero s={s} />
+      <Jumps jumps={s.jumps} />
       <div className="ins-grid3">
         <Stat index={0} label="This week" value={s.week} sub="last 7 days" icon={<FeatherIcon />} tone="var(--dusk)" />
         <Stat index={1} label="This month" value={s.month} sub={new Date().toLocaleDateString(undefined, { month: 'long' })} icon={<TrendIcon />} tone="var(--horizon)" />
