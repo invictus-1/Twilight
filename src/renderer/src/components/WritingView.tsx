@@ -7,7 +7,8 @@ import { readGameFormat } from '../gameFormatSettings'
 import { useStore } from '../store'
 import { useWriting } from '../writingStore'
 import { Editor } from './Editor'
-import { CloseIcon, PlusIcon, SidebarIcon, SlidersIcon, UndoIcon } from './Icons'
+import { BookIcon, CloseIcon, PlusIcon, SidebarIcon, SlidersIcon, UndoIcon } from './Icons'
+import { ContinuityPanel } from './ContinuityPanel'
 import { ModelPicker } from './ModelPicker'
 
 const STATUS = { saved: 'Saved', unsaved: 'Edited', saving: 'Saving…', error: "Couldn't save" } as const
@@ -102,6 +103,7 @@ export function WritingView() {
   const hasContext = useWriting((s) => !!s.context && (s.context.instructions.trim() !== '' || s.context.references.length > 0 || s.context.wholeManuscript))
   const toggleSidebar = useStore((s) => s.toggleSidebar)
   const [contextOpen, setContextOpen] = useState(false)
+  const [continuityOpen, setContinuityOpen] = useState(false)
   const [copied, setCopied] = useState(false)
 
   return (
@@ -145,6 +147,15 @@ export function WritingView() {
               <SlidersIcon />
               Context
             </button>
+            <button
+              className="tw-btn tw-btn-ghost tw-btn-sm no-drag continuity-open"
+              aria-expanded={continuityOpen}
+              title="Check the selection, or the document, against your story bible"
+              onClick={() => setContinuityOpen((o) => !o)}
+            >
+              <BookIcon />
+              Continuity
+            </button>
           </>
         )}
         <div className="no-drag" title="Model used by the writing tools">
@@ -152,6 +163,7 @@ export function WritingView() {
         </div>
       </header>
       {contextOpen && open && <ContextPanel key={open.path} onClose={() => setContextOpen(false)} />}
+      {continuityOpen && open && <ContinuityPanel key={`continuity:${open.path}`} onClose={() => setContinuityOpen(false)} />}
       {open ? (
         <Editor key={open.path} docPath={open.path} />
       ) : (

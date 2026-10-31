@@ -50,8 +50,11 @@ function ask(message: string, recent: string, candidates: LibraryHit[], final: b
     .join('\n\n')
 }
 
-/** One question to the scout model; the JSON it answers with. */
-async function call(user: string, signal: AbortSignal): Promise<{ pick?: unknown; search?: unknown }> {
+/**
+ * One question to the scout model (also the story bible's reader and the continuity watcher):
+ * its text answer. Quick, not deep: no effort, no tools, a modest output allowance.
+ */
+export async function askSmall(system: string, user: string, signal: AbortSignal, maxTokens = 2000, kind = 'scout'): Promise<string> {
   const { scoutProviderId, scoutModelId } = librarySettings()
   if (!scoutProviderId || !scoutModelId) throw new Error('No scout model is chosen.')
   const provider = getProvider(scoutProviderId)
@@ -62,7 +65,7 @@ async function call(user: string, signal: AbortSignal): Promise<{ pick?: unknown
     systemPrompt: '',
     // Quick, not deep: the scout picks, it doesn't write.
     effort: null,
-    maxTokens: 2000,
+    maxTokens,
     messageLimit: null,
     temperature: null,
     extraParams: '',
@@ -73,7 +76,7 @@ async function call(user: string, signal: AbortSignal): Promise<{ pick?: unknown
   const result = await implFor(provider).generate({
     config: provider,
     apiKey: getApiKey(provider.id),
-    system: SCOUT_SYSTEM,
+    system,
     history: [
       {
         id: 'scout', conversation_id: 'scout', parent_id: null, role: 'user', text: user,
@@ -88,9 +91,12 @@ async function call(user: string, signal: AbortSignal): Promise<{ pick?: unknown
     onThinking: () => undefined
   })
   if (result.error) throw new Error(result.error)
-  appendLog({ kind: 'scout', model: result.modelId, response: result.text })
-  return parseJson(result.text) as { pick?: unknown; search?: unknown }
+  appendLog({ kind, model: result.modelId, response: result.text })
+  return result.text
 }
+
+const call = async (user: string, signal: AbortSignal): Promise<{ pick?: unknown; search?: unknown }> =>
+  parseJson(await askSmall(SCOUT_SYSTEM, user, signal)) as { pick?: unknown; search?: unknown }
 
 const unique = (hits: LibraryHit[]): LibraryHit[] => [...new Map(hits.filter((h) => h.id !== undefined).map((h) => [h.id, h])).values()]
 

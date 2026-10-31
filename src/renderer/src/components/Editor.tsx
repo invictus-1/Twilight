@@ -23,6 +23,7 @@ import {
   type Suggestion
 } from '../editor/suggestion'
 import { twilightEditorTheme } from '../editor/theme'
+import { FIX_EVENT } from './ContinuityPanel'
 import { ChevronDown, CloseIcon, RedoIcon, UndoIcon } from './Icons'
 
 /** Accepted-edit history per document, kept across switching documents for this session. */
@@ -229,6 +230,20 @@ export function Editor({ docPath }: { docPath: string }) {
     view.focus()
   }, [reveal, docPath])
 
+  // The continuity panel's Fix the text: the passage is found and rewritten as a suggestion.
+  const runToolRef = useRef<((label: string, instruction: string, range?: { from: number; to: number }) => void) | null>(null)
+  useEffect(() => {
+    const onFix = (e: Event): void => {
+      const view = viewRef.current
+      const { quote, instruction } = (e as CustomEvent<{ quote: string; instruction: string }>).detail
+      if (!view) return
+      const at = view.state.doc.toString().indexOf(quote)
+      if (at >= 0) runToolRef.current?.('Continuity', instruction, { from: at, to: at + quote.length })
+    }
+    window.addEventListener(FIX_EVENT, onFix)
+    return () => window.removeEventListener(FIX_EVENT, onFix)
+  }, [])
+
   // Stream a tool's output into the suggestion, then switch it to a diff when done.
   useEffect(
     () =>
@@ -290,6 +305,7 @@ export function Editor({ docPath }: { docPath: string }) {
       manuscript: useWriting.getState().context?.wholeManuscript ? doc.toString() : undefined
     })
   }
+  runToolRef.current = runTool
 
   const retry = (): void => {
     const view = viewRef.current

@@ -1166,6 +1166,53 @@ body.resizing .resize-handle { pointer-events: auto; }
 
 .search-panel { width: min(760px, calc(100vw - 32px)); }
 
+/* The story bible */
+.bible-scroll { padding: var(--space-5) var(--space-6); }
+.bible-overview, .bible-entry { max-width: 820px; margin: 0 auto; display: flex; flex-direction: column; gap: var(--space-4); }
+.bible-switch { gap: var(--space-1); font-size: 13px; }
+.bible-files { display: flex; flex-direction: column; gap: 2px; max-height: 260px; overflow-y: auto; padding: var(--space-1) 0; }
+.bible-file { font-size: 13px; }
+.bible-proposal { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: var(--space-2) var(--space-3); }
+.bible-proposal + .bible-proposal { margin-top: var(--space-2); }
+.bible-proposal-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.bible-proposal-name { font-weight: 600; color: var(--ink); }
+.bible-facts { list-style: none; margin: var(--space-1) 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.bible-fact { display: flex; align-items: baseline; gap: var(--space-2); flex-wrap: wrap; padding: var(--space-1) var(--space-2); border-radius: var(--radius-xs); font-size: 14px; }
+.bible-fact:hover { background: var(--surface-hover); }
+.bible-fact.is-proposed { border-left: 2px solid var(--iris); }
+.bible-fact.is-removed .bible-fact-text { color: var(--ink-faint); text-decoration: line-through; }
+.bible-fact-text { flex: 1; min-width: 200px; color: var(--ink); }
+.bible-fact-where { font-size: 12px; }
+.bible-fact-owner { font-weight: 600; }
+.bible-fact-actions { display: inline-flex; gap: 2px; margin-left: auto; }
+.bible-fact-actions .tw-btn-icon { width: 24px; height: 24px; }
+.bible-fact-edit { flex: 1; min-width: 200px; }
+.bible-add-fact { display: flex; gap: var(--space-2); }
+.bible-add-fact input { flex: 1; }
+.bible-entry-head { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+.bible-name { font-size: 20px; font-weight: 600; border: 1px solid transparent; background: none; color: var(--ink); padding: var(--space-1) var(--space-2); border-radius: var(--radius-sm); min-width: 0; flex: 0 1 360px; }
+.bible-name:hover, .bible-name:focus { border-color: var(--line); outline: none; }
+.bible-waiting { color: var(--iris); }
+.bible-list { display: flex; flex-direction: column; gap: 2px; }
+.bible-search { margin: var(--space-1) 0 var(--space-2); }
+.bible-item { height: 30px; font-weight: 400; color: var(--ink); }
+.bible-item.is-proposed { color: var(--ink-muted); }
+.bible-dot { width: 6px; height: 6px; border-radius: var(--radius-full); background: var(--iris); margin-left: auto; flex: none; }
+.bible-waiting-count { margin-left: auto; }
+.bible-add { align-self: flex-start; margin-top: var(--space-2); }
+.bible-new { display: flex; flex-direction: column; gap: var(--space-1); padding: var(--space-2); }
+
+/* The continuity watcher, under a reply and in Writing */
+.continuity-note { margin-top: var(--space-2); padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); border: 1px solid color-mix(in srgb, var(--warning) 32%, transparent); background: color-mix(in srgb, var(--warning) 7%, transparent); font-size: 13px; }
+.continuity-note.is-checking { display: flex; align-items: center; gap: var(--space-2); border-color: var(--line); background: none; color: var(--ink-muted); }
+.continuity-head { display: flex; align-items: center; gap: var(--space-2); font-weight: 600; color: var(--ink); }
+.continuity-head .tw-icon { color: var(--warning); }
+.continuity-list { list-style: none; margin: var(--space-2) 0 0; padding: 0; display: flex; flex-direction: column; gap: var(--space-3); }
+.continuity-quote { margin: 0; font-style: italic; color: var(--ink); text-align: left; }
+.continuity-fact { margin: var(--space-1) 0 0; display: flex; align-items: center; gap: var(--space-1); color: var(--ink-muted); }
+.continuity-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
+.continuity-panel .continuity-issue { padding-top: var(--space-2); border-top: 1px solid var(--line); }
+
 /* Offline voice */
 .dictate.is-recording { width: auto; padding: 0 var(--space-2); gap: var(--space-1); color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .dictate.is-recording .tw-icon { animation: dictate-pulse 1.2s ease-in-out infinite; }

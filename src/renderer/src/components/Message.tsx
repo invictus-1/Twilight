@@ -19,6 +19,7 @@ import { savedCount } from './Multiverse'
 import { BlindContext } from './Arena'
 import { ConfidenceView } from './Confidence'
 import { ReadAloudButton } from './Dictate'
+import { ContinuityNote } from './ContinuityNote'
 import { DiffBody, useDiffed } from './SplitDiff'
 import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, GridIcon, PaperclipIcon, PenIcon, PulseIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
 
@@ -207,6 +208,14 @@ function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: bool
             <span className="tw-badge attach-chip instruction-chip library-chip" title={`From your document library:\n${node.library.map((l) => `${l.source}, line ${l.line}`).join('\n')}`}>
               <BookIcon size={13} />
               From your library · {node.library.length} passage{node.library.length === 1 ? '' : 's'}
+            </span>
+          </div>
+        )}
+        {node.bible && node.bible.length > 0 && (
+          <div className="msg-attachments">
+            <span className="tw-badge attach-chip instruction-chip bible-chip" title={`From your story bible: ${node.bible.join(', ')}`}>
+              <BookIcon size={13} />
+              From your bible · {node.bible.length <= 3 ? node.bible.join(', ') : `${node.bible.slice(0, 3).join(', ')} and ${node.bible.length - 3} more`}
             </span>
           </div>
         )}
@@ -654,6 +663,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
           )}
         </>
       )}
+      {!streaming && pane === 'a' && <ContinuityNote node={node} />}
       {node.status === 'error' && (
         <div className="tw-msg-error" role="alert">
           <AlertIcon className="err-icon" />
@@ -765,6 +775,7 @@ export const Message = memo(
     a.node.siblingIndex === b.node.siblingIndex &&
     a.node.siblingCount === b.node.siblingCount &&
     a.node.usage === b.node.usage &&
+    a.node.continuity === b.node.continuity &&
     a.isLast === b.isLast &&
     a.next?.id === b.next?.id &&
     a.next?.text === b.next?.text

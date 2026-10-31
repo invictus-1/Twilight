@@ -12,6 +12,7 @@ import type { ChoiceSet } from './choices'
 import type { BranchMap } from './branchMap'
 import type { ReplyConfidence, Samplers } from './confidence'
 import type { VoiceState } from './voice'
+import type { BibleKind, BibleState, ContinuityIssue } from './bible'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
 import type { JudgeInput, Judgment, JudgmentSummary, Leaderboard, Rubric } from './judge'
 import type { Library, Persona, SavedPrompt } from './library'
@@ -112,6 +113,8 @@ export interface ChatSettings {
   confidence: boolean
   /** Sampler settings for local servers (llama.cpp, LM Studio); null fields leave the server's default. */
   samplers: Samplers
+  /** The continuity watcher: each finished reply is checked against the story bible. */
+  continuity: boolean
   /** Text-adventure choice cards: the model offers numbered options to click (see shared/choices.ts). */
   choiceCards: boolean
   /** Each way of offering choices has its own switch, so only the ones you use are active. */
@@ -276,6 +279,10 @@ export interface NodeView {
   images?: GeneratedImage[]
   /** Passages from the document library that went with a message of yours. */
   library?: { source: string; line: number }[]
+  /** Who and what the story bible told the model about, with a message of yours. */
+  bible?: string[]
+  /** What the continuity watcher found in this reply (empty: checked, nothing found). */
+  continuity?: ContinuityIssue[]
 }
 
 /** A page the model found or read. */
@@ -682,6 +689,24 @@ export interface TwilightApi {
   /** A 16 kHz WAV of your speech, as text (whisper.cpp, on this PC). */
   transcribe(wav: Uint8Array): Promise<string>
   onVoice(listener: (state: VoiceState) => void): () => void
+  /** The story bible: entries, the documents it reads, and reading progress. */
+  bibleState(): Promise<BibleState>
+  setBibleSettings(patch: { on?: boolean; sources?: string[] }): Promise<BibleState>
+  /** Reads the chosen documents that changed and proposes entries; progress arrives through onBible. */
+  readBible(): Promise<void>
+  stopBibleReading(): Promise<void>
+  reviewBible(action: 'accept' | 'remove' | 'restore', ids: { entries?: string[]; facts?: string[] }): Promise<BibleState>
+  editBibleEntry(id: string, patch: { name?: string; kind?: BibleKind; aliases?: string[]; notes?: string }): Promise<BibleState>
+  editBibleFact(id: string, text: string): Promise<BibleState>
+  addBibleEntry(name: string, kind: BibleKind): Promise<BibleState>
+  addBibleFact(entryId: string, text: string): Promise<BibleState>
+  /** Text checked against the story bible (a draft in Writing). */
+  checkContinuity(text: string): Promise<ContinuityIssue[]>
+  /** Settles a flagged contradiction; for a chat reply, gives back what's left on it. */
+  resolveContinuity(issue: ContinuityIssue, action: 'update' | 'ignore' | 'fixed', where: string, nodeId?: string): Promise<ContinuityIssue[]>
+  onBible(listener: (state: BibleState) => void): () => void
+  /** The watcher's findings on a reply: null while it checks. */
+  onContinuity(listener: (event: { conversationId: string; nodeId: string; issues: ContinuityIssue[] | null; error?: string }) => void): () => void
   onDocLibrary(listener: (status: LibraryStatus) => void): () => void
   /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
   getSpellcheck(): Promise<boolean>

@@ -31,7 +31,8 @@ const CodeView = screen(() => import('./CodeView').then((m) => m.CodeView))
 const InsightsView = screen(() => import('./InsightsView').then((m) => m.InsightsView))
 const Welcome = screen(() => import('./Welcome').then((m) => m.Welcome))
 const WritingView = screen(() => import('./WritingView').then((m) => m.WritingView))
-const screens = [SettingsView, JudgeView, CodeView, InsightsView, Welcome, WritingView]
+const BibleView = screen(() => import('./BibleView').then((m) => m.BibleView))
+const screens = [SettingsView, JudgeView, CodeView, InsightsView, Welcome, WritingView, BibleView]
 import { ChatView } from './ChatView'
 import { CloseIcon, TrophyIcon } from './Icons'
 import { useDragResize, usePersistentNumber } from '../resize'
@@ -45,6 +46,7 @@ import { SearchPanel } from './SearchPanel'
 import { PersonaChooser } from './PersonaChooser'
 import { BranchMapPanel } from './BranchMap'
 import { MultiversePanel } from './Multiverse'
+import { setChecking } from '../continuity'
 
 /** Your background, under everything, with the night laid over it so text stays readable. */
 function Backdrop() {
@@ -120,7 +122,11 @@ export function App() {
     })
     void useWriting.getState().init()
     void useJudge.getState().init()
-    return window.twilight.onStream((event) => {
+    const offContinuity = window.twilight.onContinuity((e) => {
+      setChecking(e.nodeId, e.issues === null)
+      if (e.issues && useStore.getState().current?.id === e.conversationId) useStore.getState().setContinuity(e.nodeId, e.issues)
+    })
+    const offStream = window.twilight.onStream((event) => {
       handleStreamEvent(event)
       if (event.kind !== 'done') return
       // Writing-tool runs finish inside the editor (Editor.tsx); judge runs in the judgment.
@@ -128,6 +134,10 @@ export function App() {
         void useJudge.getState().reload(event.node.parentId ?? '').then(() => clearStream(event.nodeId))
       } else if (event.conversationId !== 'writing') useStore.getState().applyDone(event.conversationId, event.node, event.asked)
     })
+    return () => {
+      offStream()
+      offContinuity()
+    }
   }, [])
 
   useEffect(() => {
@@ -179,6 +189,8 @@ export function App() {
           <InsightsView />
         ) : mode === 'code' ? (
           <CodeView />
+        ) : mode === 'bible' ? (
+          <BibleView />
         ) : (
           <WritingView />
         )}

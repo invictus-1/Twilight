@@ -3,6 +3,7 @@ import { openFind } from './components/FindBar'
 import { useSyncExternalStore } from 'react'
 import { useInsights } from './insightsStore'
 import { useCode } from './codeStore'
+import { useBible } from './bibleStore'
 import { useJudge } from './judgeStore'
 import { useLibrary } from './libraryStore'
 import { useStore, type Mode } from './store'
@@ -37,6 +38,7 @@ export function openMode(mode: Mode): void {
   else if (mode === 'judge') void useJudge.getState().refresh()
   else if (mode === 'insights') void useInsights.getState().init()
   else if (mode === 'code') void useCode.getState().init()
+  else if (mode === 'bible') void useBible.getState().init()
 }
 const go = openMode
 
@@ -143,6 +145,7 @@ export const COMMANDS: Command[] = [
   { id: 'go-write', title: 'Writing', group: 'Go to', keys: 'Ctrl+2', run: () => go('write') },
   { id: 'go-judge', title: 'Judge', group: 'Go to', keys: 'Ctrl+3', run: () => go('judge') },
   { id: 'go-insights', title: 'Writer insights', group: 'Go to', keys: 'Ctrl+4', run: () => go('insights') },
+  { id: 'go-bible', title: 'Story bible', group: 'Go to', keys: 'Ctrl+6', hint: 'characters places facts continuity', run: () => go('bible') },
   { id: 'go-code', title: 'Code', group: 'Go to', keys: 'Ctrl+5', hint: 'agent project folder', run: () => go('code') },
   { id: 'code-new', title: 'New code session', group: 'Code', hint: 'agent project folder', run: () => { go('code'); void useCode.getState().create() } },
   { id: 'settings', title: 'Settings', group: 'Go to', keys: 'Ctrl+,', run: () => settings() },

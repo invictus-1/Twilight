@@ -2,6 +2,7 @@ import { CLOCK_OPEN, INSTRUCTION_OPEN, clockOf, instructionOf } from '@shared/at
 import { webActivityOf } from '@shared/webTools'
 import { imagesOf, toolStepsOf } from '@shared/mcp'
 import { LIBRARY_OPEN, librarySourcesOf } from '@shared/docLibrary'
+import { BIBLE_OPEN } from '@shared/bible'
 import Database from 'better-sqlite3'
 import { randomUUID } from 'node:crypto'
 import { CHOICES_TOOL_NAME, choicesFromTool, type ChoiceSet } from '@shared/choices'
@@ -161,6 +162,13 @@ export function openDatabase(file: string): void {
   if (!nodeColumns.includes('deleted_at')) db.exec('ALTER TABLE nodes ADD COLUMN deleted_at INTEGER')
   // Token probabilities (Confidence) live apart from nodes, so loading a chat never reads them.
   db.exec('CREATE TABLE IF NOT EXISTS node_logprobs (node_id TEXT PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE, data TEXT NOT NULL)')
+  // The story bible, and what the continuity watcher found in each reply it checked.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS bible_entries (id TEXT PRIMARY KEY, kind TEXT NOT NULL, name TEXT NOT NULL, aliases TEXT NOT NULL DEFAULT '[]', notes TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS bible_facts (id TEXT PRIMARY KEY, entry_id TEXT NOT NULL REFERENCES bible_entries(id) ON DELETE CASCADE, text TEXT NOT NULL, source TEXT NOT NULL DEFAULT '', line INTEGER, section TEXT NOT NULL DEFAULT '', status TEXT NOT NULL, created_at INTEGER NOT NULL);
+    CREATE INDEX IF NOT EXISTS bible_facts_entry ON bible_facts(entry_id);
+    CREATE TABLE IF NOT EXISTS continuity (node_id TEXT PRIMARY KEY REFERENCES nodes(id) ON DELETE CASCADE, data TEXT NOT NULL);
+  `)
   db.exec(`
     CREATE TABLE IF NOT EXISTS deletions (
       id TEXT PRIMARY KEY,
@@ -418,6 +426,7 @@ export function toView(node: NodeRow, nodes: Map<string, NodeRow>): NodeView {
     instructionUpdate: node.role === 'user' ? instructionUpdateOf(node.content) : undefined,
     dateTime: node.role === 'user' ? dateTimeOf(node.content) : undefined,
     library: node.role === 'user' ? libraryOf(node.content) : undefined,
+    bible: node.role === 'user' ? bibleOf(node.content) : undefined,
     web: node.role === 'assistant' ? webOf(node.content) : undefined,
     ...(node.role === 'assistant' ? toolsOf(node.content) : {}),
     ...(node.role === 'assistant' && node.content?.startsWith('[{"type":"compaction"') ? { compaction: compactionView(node.content) } : {})
@@ -443,6 +452,13 @@ function libraryOf(content: string | null): NodeView['library'] {
   if (!content || !content.includes(LIBRARY_OPEN)) return undefined
   const block = (JSON.parse(content) as { type: string; text?: string }[]).find((b) => b.type === 'text' && b.text?.startsWith(LIBRARY_OPEN))
   return block?.text ? librarySourcesOf(block.text) : undefined
+}
+
+/** Who and what the story bible told the model about, with a message of yours. */
+function bibleOf(content: string | null): string[] | undefined {
+  if (!content || !content.includes(BIBLE_OPEN)) return undefined
+  const block = (JSON.parse(content) as { type: string; text?: string }[]).find((b) => b.type === 'text' && b.text?.startsWith(BIBLE_OPEN))
+  return block?.text ? [...block.text.matchAll(/^## (.+?) \(/gm)].map((m) => m[1]) : undefined
 }
 
 function dateTimeOf(content: string | null): string | undefined {

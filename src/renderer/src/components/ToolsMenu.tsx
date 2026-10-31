@@ -58,10 +58,12 @@ export function ToolsMenu() {
   const allServers = useStore((s) => s.mcpServers)
   const [hasImageModel, setHasImageModel] = useState(false)
   const [libraryFolders, setLibraryFolders] = useState(0)
+  const [bible, setBible] = useState<{ on: boolean; entries: number } | null>(null)
   useEffect(() => {
     if (!open) return
     void window.twilight.getImageConfig().then((c) => setHasImageModel(!!c))
     void window.twilight.getDocLibrary().then((l) => setLibraryFolders(l.settings.folders.length))
+    void window.twilight.bibleState().then((b) => setBible({ on: b.settings.on && b.model, entries: b.entries.filter((e) => e.status === 'accepted').length }))
   }, [open])
   useEffect(() => {
     if (!open) return
@@ -94,7 +96,7 @@ export function ToolsMenu() {
   const fetchOn = settings.webFetch && fetchHas.fetch === null
   const servers = allServers.filter((m) => m.enabled)
   const mcpOn = servers.filter((m) => settings.mcpServers.includes(m.id)).length
-  const active = (settings.choiceCards ? 1 + (settings.choiceTool ? 1 : 0) : 0) + (searchOn ? 1 : 0) + (fetchOn ? 1 : 0) + (settings.dateTime ? 1 : 0) + mcpOn + (settings.imageGen ? 1 : 0) + (settings.library ? 1 : 0)
+  const active = (settings.choiceCards ? 1 + (settings.choiceTool ? 1 : 0) : 0) + (searchOn ? 1 : 0) + (fetchOn ? 1 : 0) + (settings.dateTime ? 1 : 0) + mcpOn + (settings.imageGen ? 1 : 0) + (settings.library ? 1 : 0) + (settings.continuity ? 1 : 0)
   return (
     <div className="tools-menu" ref={box}>
       <Hint title="Tools" text="Switch on what the model can use in this chat: choice cards, web search and fetch, the date and time, MCP servers and pictures.">
@@ -186,6 +188,18 @@ export function ToolsMenu() {
             checked={settings.library && libraryFolders > 0}
             disabled={!libraryFolders}
             onChange={(on) => update({ library: on })}
+          />
+          <Row
+            tool="continuity"
+            label="Continuity watcher"
+            note={
+              bible?.on && bible.entries
+                ? 'Each finished reply is checked against your story bible, and anything that contradicts it is flagged under the reply.'
+                : 'Switch on the story bible and accept some entries first (the Bible section).'
+            }
+            checked={settings.continuity && !!bible?.on}
+            disabled={!bible?.on || !bible.entries}
+            onChange={(on) => update({ continuity: on })}
           />
           <div className="tools-head">MCP servers and pictures{split ? ' · both panes' : ''}</div>
           {servers.map((m) => (

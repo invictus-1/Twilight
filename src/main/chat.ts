@@ -23,6 +23,8 @@ import { LIBRARY_OPEN, libraryBlock } from '@shared/docLibrary'
 import { modelInfo } from './providers'
 import { layoutBranchMap, type BranchMap } from '@shared/branchMap'
 import { NO_SAMPLERS, type ReplyConfidence } from '@shared/confidence'
+import { BIBLE_OPEN } from '@shared/bible'
+import { bibleContext, continuityFor, watchReply } from './bible'
 
 const DEFAULT_SETTINGS: ChatSettings = {
   providerId: 'anthropic',
@@ -39,6 +41,7 @@ const DEFAULT_SETTINGS: ChatSettings = {
   extraParams: '',
   confidence: false,
   samplers: NO_SAMPLERS,
+  continuity: false,
   choiceCards: false,
   choiceTool: false,
   choiceFenced: true,
@@ -139,7 +142,12 @@ function panes(target: SendTarget, conv: db.ConversationRow): Pane[] {
 export function view(id: string): ConversationView {
   const conv = db.getConversation(id)
   const nodes = db.loadNodes(id)
-  const toViews = (rows: db.NodeRow[]): ConversationView['path'] => rows.slice(1).map((n) => db.toView(n, nodes))
+  const toViews = (rows: db.NodeRow[]): ConversationView['path'] => {
+    const views = rows.slice(1).map((n) => db.toView(n, nodes))
+    // What the continuity watcher found, on the replies it checked.
+    const found = continuityFor(views.filter((v) => v.role === 'assistant').map((v) => v.id))
+    return found.size ? views.map((v) => (found.has(v.id) ? { ...v, continuity: found.get(v.id) } : v)) : views
+  }
   const split = splitOf(conv)
   return {
     id,
@@ -466,7 +474,7 @@ export function editMessage(contents: WebContents, id: string, nodeId: string, t
     // takes the time now (when the pane sends it) instead of the original's.
     const blocks = node.content ? (JSON.parse(node.content) as { type: string; text?: string }[]) : []
     const kept = blocks.filter(
-      (b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text) && !b.text.startsWith(CLOCK_OPEN) && !b.text.startsWith(LIBRARY_OPEN))
+      (b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text) && !b.text.startsWith(CLOCK_OPEN) && !b.text.startsWith(LIBRARY_OPEN) && !b.text.startsWith(BIBLE_OPEN))
     )
     const docs = [...(settingsFor(db.getConversation(id), pane).dateTime ? [{ type: 'text', text: clockBlock(new Date()) }] : []), ...kept]
     edited = db.insertNode(
@@ -660,11 +668,11 @@ async function addLibraryPassages(conversationId: string, userNodeId: string, se
   const row = nodes.get(userNodeId)
   if (!row || row.role !== 'user') return false
   const blocks = row.content ? (JSON.parse(row.content) as { type: string; text?: string }[]) : [{ type: 'text', text: row.text }]
-  if (blocks.some((b) => b.type === 'text' && b.text?.startsWith(LIBRARY_OPEN)) || !row.text.trim()) return false
+  if (blocks.some((b) => b.type === 'text' && (b.text?.startsWith(LIBRARY_OPEN) || b.text?.startsWith(BIBLE_OPEN))) || !row.text.trim()) return false
+  const parent = row.parent_id ? nodes.get(row.parent_id) : undefined
   let block: string | null = null
   if (scoutOn()) {
     activity('Scouting your library')
-    const parent = row.parent_id ? nodes.get(row.parent_id) : undefined
     try {
       const found = await scout(row.text, parent?.role === 'assistant' ? parent.text : '', signal)
       // The scout may find that nothing bears on this message; then nothing goes in.
@@ -677,10 +685,12 @@ async function addLibraryPassages(conversationId: string, userNodeId: string, se
     const hits = await searchLibrary(row.text)
     block = hits.length ? libraryBlock(hits) : ''
   }
-  if (!block) return false
+  // The story bible's entries for who and what the message (or the reply before it) names.
+  const bible = bibleContext(`${parent?.role === 'assistant' ? parent.text.slice(-1500) : ''}\n${row.text}`)
+  if (!block && !bible) return false
   // Just before what you typed, after any other context.
   const at = blocks.length && blocks.at(-1)?.type === 'text' && !isContextText(blocks.at(-1)?.text ?? '') ? blocks.length - 1 : blocks.length
-  blocks.splice(at, 0, { type: 'text', text: block })
+  blocks.splice(at, 0, ...[bible, block].filter((t): t is string => !!t).map((text) => ({ type: 'text', text })))
   db.updateNode(userNodeId, { content: JSON.stringify(blocks) })
   return true
 }
@@ -936,6 +946,8 @@ function generate(
         const askedRow = asked ? nodes.get(userNodeId) : undefined
         emit({ kind: 'done', conversationId, nodeId: assistant.id, node: db.toView(row, nodes), ...(askedRow ? { asked: db.toView(askedRow, nodes) } : {}) })
         signalDone(contents, db.getConversation(conversationId).title, Date.now() - row.created_at)
+        // The continuity watcher reads a finished reply against the story bible, in the background.
+        if (row.status === 'done' && settings.continuity) void watchReply(contents, conversationId, row.id, row.text)
         appendLog({
           kind: 'chat',
           conversationId,
