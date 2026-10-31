@@ -16,6 +16,10 @@ export interface Extras {
   sessionSky: boolean
   /** Rare surprises in the sky if you sit and watch. */
   easterEggs: boolean
+  /** Rain or snow over the scene now and then. */
+  weather: boolean
+  /** Snow only in the winter months, or any time the weather turns. */
+  snow: 'winter' | 'always'
   /** Snow in winter, leaves in autumn, and a few special nights. */
   seasons: boolean
   /** A small sun on the horizon under a reply rises while it streams. */
@@ -43,6 +47,8 @@ export const DEFAULT_EXTRAS: Extras = {
   horizon: 'grid',
   sessionSky: true,
   easterEggs: false,
+  weather: false,
+  snow: 'winter',
   seasons: false,
   sunProgress: false,
   glidingRail: true,

@@ -9,6 +9,10 @@ Each version's section becomes its release notes on the releases page (`npm run 
 - **Each scene gets its own acts:** on the city, the saucer beams the platypus up off a rooftop, the whale floats by as a blimp trailing FREE HUGS, the platypus runs the skyline, scrambling up the tall towers and nose-diving off the drops, and the pumpkin floats in to a little noodle bar on a roof, eats with his back to you and turns round grinning when he's done. On the cyberpunk city the platypus fights off robots and runs, police drones chase the saucer, a holographic whale swims past and the pumpkin hauls a noodle cart. In the dunes the platypus drives a buggy, the saucer takes a cactus, the whale breaches through the sand and the pumpkin sunbathes. At sea the platypus surfs, the saucer goes fishing, the whale breaches with a spout and the pumpkin rows out and catches a boot. The pumpkin also roller-skates under a disco ball on the grid and skis down the mountains. The city's acts play on the skyline's own roofs, wherever the window puts them.
 - **More to the ocean and the dunes:** islands with lights, sailboats, gulls, a buoy, sparkles and soft foam at sea; buttes, saguaros, a camel caravan, rippled sand, a tumbleweed and sand blowing off the crests in the desert.
 - The platypus is the same green one in every act.
+- **Weather** (Extras): now and then the sky clouds over and it rains, with a far-off flicker of lightning, or it snows, for twenty minutes or so. Snow comes in the winter months only, or any time if you choose. Never over the desert.
+
+**Fixes**
+- Opening Settings → Voice for the first time no longer stalls: Windows' voices are read from the registry in a moment, instead of by starting PowerShell, which could hold the processor for several seconds after a restart.
 
 ## 1.4.0
 

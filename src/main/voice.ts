@@ -51,12 +51,28 @@ function powershell(script: string): Promise<string> {
 
 const quote = (s: string): string => `'${s.replace(/'/g, "''")}'`
 
+/** The names under one of the registry's voice lists, as System.Speech shows them. */
+const registryVoices = (key: string): Promise<string[]> =>
+  new Promise((resolve) =>
+    execFile('reg', ['query', key, '/s', '/v', 'Name'], { windowsHide: true, timeout: 10_000 }, (err, out) =>
+      resolve(err ? [] : [...out.matchAll(/^\s+Name\s+REG_SZ\s+(.+?)\s*$/gm)].map((m) => m[1]))
+    )
+  )
+
 let voicesCache: Promise<string[]> | null = null
 export function voices(): Promise<string[]> {
-  voicesCache ??= powershell(
-    'Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | Where-Object Enabled | ForEach-Object { $_.VoiceInfo.Name }'
-  )
-    .then((out) => out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))
+  // The registry lists the voices in a few milliseconds. Asking System.Speech means starting
+  // PowerShell and .NET, which after a restart can hold the processor for several seconds, so
+  // it's only the fallback.
+  voicesCache ??= Promise.all([registryVoices('HKLM\\SOFTWARE\\Microsoft\\Speech\\Voices\\Tokens'), registryVoices('HKCU\\SOFTWARE\\Microsoft\\Speech\\Voices\\Tokens')])
+    .then(([machine, user]) => [...new Set([...machine, ...user])])
+    .then((found) =>
+      found.length
+        ? found
+        : powershell(
+            'Add-Type -AssemblyName System.Speech; (New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | Where-Object Enabled | ForEach-Object { $_.VoiceInfo.Name }'
+          ).then((out) => out.split(/\r?\n/).map((s) => s.trim()).filter(Boolean))
+    )
     .catch(() => [])
   return voicesCache
 }

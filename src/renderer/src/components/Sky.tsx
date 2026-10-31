@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { clockTime, seasonFor } from '@shared/sky'
+import { clockTime, seasonFor, weatherFor, type Weather } from '@shared/sky'
+import { useDevSky } from '../devSky'
 import { useExtras, type Horizon, type SkyTime } from '../extras'
 import { actFor } from './SkyActs'
 import { HorizonScene, Meteors } from './Horizons'
@@ -38,6 +39,14 @@ const STAYS: Record<Egg, number> = { ufo: 14_000, whale: 20_000, comet: 6_000, b
 const forced = (): Egg | null => {
   try {
     return location.hash === '#e2e' ? (localStorage.getItem('twilight.e2eEgg') as Egg | null) : null
+  } catch {
+    return null
+  }
+}
+// And test runs can set the weather.
+const forcedWeather = (): Weather | null => {
+  try {
+    return location.hash === '#e2e' ? (localStorage.getItem('twilight.e2eWeather') as Weather | null) : null
   } catch {
     return null
   }
@@ -99,6 +108,51 @@ function useEasterEgg(watching: boolean, horizon: Horizon): { name: Egg; ducking
   return egg
 }
 
+/** The weather for this spell (rolled again each minute, so it turns when a spell ends). */
+function useWeather(on: boolean, horizon: Horizon, snow: 'winter' | 'always'): Weather {
+  const dev = useDevSky().weather
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    if (!on) return
+    const timer = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(timer)
+  }, [on])
+  if (dev !== 'auto') return dev
+  const test = forcedWeather()
+  if (test) return test
+  return on ? weatherFor(now, horizon, snow) : 'clear'
+}
+
+/** A visitor called up from the dev panel (temporary): shown at once for its usual time, and not cleared by moving. */
+function useDevEgg(watch: boolean, horizon: Horizon): { name: Egg; at: number } | null {
+  const { egg } = useDevSky()
+  const [shown, setShown] = useState<{ name: Egg; at: number } | null>(null)
+  useEffect(() => {
+    if (!watch || !egg) return setShown(null)
+    const name = egg.name as Egg
+    // Only while its time isn't up, so opening another chat later doesn't play it again.
+    const left = (actFor(name, horizon)?.ms ?? STAYS[name]) - (Date.now() - egg.at)
+    if (left <= 0) return setShown(null)
+    setShown({ name, at: egg.at })
+    const timer = setTimeout(() => setShown(null), left)
+    return () => clearTimeout(timer)
+  }, [egg, watch, horizon])
+  return shown
+}
+
+/** Rain or snow: layers of streaks or flakes falling at different speeds, in front of the scene. */
+function SkyWeather({ kind }: { kind: Exclude<Weather, 'clear'> }) {
+  return (
+    <div className={`sky-weather is-${kind}`} data-weather={kind}>
+      {kind === 'rain' && <span className="wx-gloom" />}
+      {kind === 'rain' && <span className="wx-flash" />}
+      <span className="wx-layer is-far" />
+      <span className="wx-layer is-mid" />
+      <span className="wx-layer is-near" />
+    </div>
+  )
+}
+
 /** One visitor in the sky. The strolling platypus, when spotted, bolts: its walk sped up ninefold from wherever it is. */
 function SkyEgg({ name, spotted, horizon }: { name: Egg; spotted: boolean; horizon: Horizon }) {
   const el = useRef<HTMLSpanElement>(null)
@@ -128,7 +182,11 @@ function SkyEgg({ name, spotted, horizon }: { name: Egg; spotted: boolean; horiz
 export function EmptySky({ watch = false, session = false }: { watch?: boolean; session?: boolean }) {
   const extras = useExtras()
   const time = useSkyTime()
-  const egg = useEasterEgg(watch && extras.easterEggs, extras.horizon)
+  const surprise = useEasterEgg(watch && extras.easterEggs, extras.horizon)
+  const devEgg = useDevEgg(watch, extras.horizon)
+  const egg = devEgg ? { name: devEgg.name, ducking: false } : surprise
+  const eggKey = devEgg ? `${devEgg.name}-${devEgg.at}` : surprise?.name
+  const weather = useWeather(extras.weather, extras.horizon, extras.snow)
   const season = extras.seasons ? seasonFor() : null
   // Up to most of the way to night over three hours.
   const late = session && extras.sessionSky ? Math.min(0.75, (Date.now() - sessionStart) / (3 * 60 * 60 * 1000)) : 0
@@ -156,11 +214,12 @@ export function EmptySky({ watch = false, session = false }: { watch?: boolean; 
         </div>
       )}
       {/* A visitor crossing the sky goes behind the sun and the scene; an act plays in front of them. */}
-      {egg && !actFor(egg.name, extras.horizon) && <SkyEgg name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
+      {egg && !actFor(egg.name, extras.horizon) && <SkyEgg key={eggKey} name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
       <span className="empty-sun" />
       <span className="empty-horizon" />
       <HorizonScene kind={extras.horizon} time={time} />
-      {egg && actFor(egg.name, extras.horizon) && <SkyEgg name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
+      {egg && actFor(egg.name, extras.horizon) && <SkyEgg key={eggKey} name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
+      {weather !== 'clear' && <SkyWeather kind={weather} />}
       {late > 0 && <span className="sky-late" />}
     </div>
   )

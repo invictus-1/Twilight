@@ -63,7 +63,7 @@ import { placement } from './windowState'
 import { shouldSignal } from './doneNotice'
 import { sinceCompaction } from './providers/compactionBlocks'
 import { locatePassage } from '@shared/passage'
-import { clockTime, seasonFor } from '@shared/sky'
+import { clockTime, seasonFor, weatherFor, WEATHER_SPELL_MS } from '@shared/sky'
 import { modelKey, pickModelDefaults } from '@shared/modelDefaults'
 
 // Dev-only end-to-end check, run with TWILIGHT_E2E=<output folder> (and a throwaway profile, see
@@ -3580,7 +3580,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       extrasUi.clock = await js<string>(`document.querySelector('.empty .empty-sky')?.dataset.sky ?? ''`)
       check(
         'Extras: the sky holds a time you pick or follows the clock, seasons show, and the warm light switches on and off',
-        extrasUi.switches === 12 && extrasUi.held === 'night' && /sky-halloween|sky-snow|sky-petals|sky-fireflies|sky-leaves|sky-newyear/.test(extrasUi.season ?? '') && extrasUi.clock === clockTime() && extrasUi.warm && extrasUi.warmOff,
+        extrasUi.switches === 13 && extrasUi.held === 'night' && /sky-halloween|sky-snow|sky-petals|sky-fireflies|sky-leaves|sky-newyear/.test(extrasUi.season ?? '') && extrasUi.clock === clockTime() && extrasUi.warm && extrasUi.warmOff,
         extrasUi
       )
       const glideUi = await js<{ shown: boolean; matches: boolean }>(`(async () => {
@@ -5566,7 +5566,11 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('whisper output is cleaned into plain text', cleanTranscript('[00:00:00.000 --> 00:00:02.000]   Hello there.\n[BLANK_AUDIO]\n  The ferry is in.\n') === 'Hello there. The ferry is in.')
       const wav55 = encodeWav(new Float32Array(16000).map((_, i) => Math.sin(i / 8) / 2), 16000)
       check('dictation is recorded as a 16 kHz mono WAV', wav55.length === 44 + 32000 && Buffer.from(wav55.slice(0, 4)).toString() === 'RIFF' && new DataView(wav55.buffer).getUint32(24, true) === 16000)
+      const voicesAt55 = Date.now()
       const voices55 = await voice.voices()
+      const voicesMs55 = Date.now() - voicesAt55
+      // Read from the registry, not by starting PowerShell, so the Voice tab opens at once.
+      check("Windows' voices are listed in a moment, without starting PowerShell", voices55.length > 0 && voicesMs55 < 1000 && voices55.every((v) => !/ - /.test(v)), { voices: voices55, ms: voicesMs55 })
       const spoken55 = voices55.length ? await voice.speak('The lamps are lit along the harbour.') : new Uint8Array()
       check(
         "a reply is spoken in one of Windows' own voices, as WAV audio",
@@ -5875,7 +5879,94 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         turns57
       )
       await shot('e2e-city-act.png')
+
+      // The temporary sky dev tools: Ctrl+Alt+D, then any visitor plays at once, and isn't cleared by moving.
+      const dev57 = await js<{ open: boolean; act: boolean; kept: boolean; closed: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const press = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, altKey: true }))
+        press()
+        await wait(100)
+        const open = !!document.querySelector('.dev-sky')
+        document.querySelector('.dev-sky [data-visitor="pumpkin"]')?.click()
+        await wait(300)
+        const act = !!document.querySelector('.empty .act-dinner')
+        window.dispatchEvent(new PointerEvent('pointermove'))
+        await wait(200)
+        const kept = !!document.querySelector('.empty .act-dinner')
+        document.querySelector('.dev-sky button')?.click()
+        await wait(50)
+        press()
+        await wait(50)
+        document.querySelector('.dev-sky button')?.click()
+        await wait(50)
+        return { open, act, kept, closed: !document.querySelector('.dev-sky') }
+      })()`)
+      check('the sky dev tools play any visitor at once (temporary)', dev57.open && dev57.act && dev57.kept && dev57.closed, dev57)
       await surprises57()
+
+      // Weather: rolled once per spell, mostly clear, never over the desert, snow only in winter unless asked for.
+      const spells57 = (from: string, snow: 'winter' | 'always', horizon = 'city'): Record<string, number> => {
+        const tally: Record<string, number> = { clear: 0, rain: 0, snow: 0 }
+        const start = new Date(from).getTime()
+        for (let i = 0; i < 2000; i++) tally[weatherFor(new Date(start + i * WEATHER_SPELL_MS), horizon, snow)]++
+        return tally
+      }
+      const roll57 = {
+        summer: spells57('2026-07-01T00:00:00', 'winter'),
+        summerAnyTime: spells57('2026-07-01T00:00:00', 'always'),
+        winter: spells57('2026-12-10T00:00:00', 'winter'),
+        desert: spells57('2026-12-10T00:00:00', 'always', 'dunes'),
+        steady: new Set([0, 1, 5, 19].map((m) => weatherFor(new Date(Math.floor(Date.now() / WEATHER_SPELL_MS) * WEATHER_SPELL_MS + m * 60_000), 'city', 'always'))).size
+      }
+      check(
+        'weather is mostly clear, rains now and then, snows in winter (or any time if asked), never over the desert, and holds through a spell',
+        roll57.summer.snow === 0 && roll57.summer.rain > 250 && roll57.summer.rain < 550 && roll57.summer.clear > 1300 &&
+          roll57.summerAnyTime.snow > 100 && roll57.winter.snow > 300 && roll57.winter.snow > roll57.winter.rain &&
+          roll57.desert.clear === 2000 && roll57.steady === 1,
+        roll57
+      )
+      // Drawn: rain clouds the sky over with three layers of streaks; snow falls in three layers of flakes.
+      const drawn57: Record<string, unknown> = {}
+      for (const w of ['rain', 'snow', '']) {
+        await js(`localStorage.setItem('twilight.e2eWeather', '${w}')`)
+        await pickHorizon57('city')
+        drawn57[w || 'none'] = await js(`(async () => {
+          await new Promise((r) => setTimeout(r, 300))
+          const sky = document.querySelector('.empty .sky-weather')
+          const layers = [...(sky?.querySelectorAll('.wx-layer') ?? [])]
+          return { kind: sky?.dataset.weather ?? null, layers: layers.length, moving: layers.filter((l) => l.getAnimations().length > 0).length, tiled: layers.every((l) => getComputedStyle(l).backgroundImage.startsWith('url(')), gloom: !!sky?.querySelector('.wx-gloom') }
+        })()`)
+        if (w === 'rain') await shot('e2e-weather-rain.png')
+      }
+      await js(`localStorage.removeItem('twilight.e2eWeather')`)
+      const d57 = drawn57 as Record<string, { kind: string | null; layers: number; moving: number; tiled: boolean; gloom: boolean }>
+      check(
+        'rain and snow are drawn over the scene in moving layers, and nothing when the sky is clear',
+        d57.rain.kind === 'rain' && d57.rain.layers === 3 && d57.rain.moving === 3 && d57.rain.tiled && d57.rain.gloom && d57.snow.kind === 'snow' && d57.snow.layers === 3 && d57.snow.moving === 3 && !d57.snow.gloom && d57.none.kind === null,
+        d57
+      )
+      // Settings → Extras: the Weather switch, and when it's on, when it may snow.
+      await key(',', ['control'])
+      const weatherUi57 = await js<{ hidden: boolean; shown: boolean; picked: string | null }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-nav'); ) await wait(25)
+        ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Extras')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.extras-switch'); ) await wait(25)
+        const hidden = !document.querySelector('.extras-snow')
+        const toggle = () => [...document.querySelectorAll('.extras-switch label')].find((l) => l.textContent.includes('Weather'))?.querySelector('input').click()
+        toggle()
+        await wait(50)
+        const shown = !!document.querySelector('.extras-snow')
+        document.querySelector('.extras-snow [data-snow="always"]')?.click()
+        await wait(50)
+        const picked = JSON.parse(localStorage.getItem('twilight.extras') || '{}').snow ?? null
+        document.querySelector('.extras-snow [data-snow="winter"]')?.click()
+        toggle()
+        await wait(50)
+        return { hidden, shown, picked }
+      })()`)
+      await key('Escape')
+      check('Extras has a Weather switch, and once on, snow in winter only or any time', weatherUi57.hidden && weatherUi57.shown && weatherUi57.picked === 'always', weatherUi57)
       await pickHorizon57('grid')
 
       // 54. Local power tools: token probabilities, branching from a word, samplers.

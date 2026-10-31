@@ -18,6 +18,11 @@ const HORIZONS: { id: Horizon; label: string; note: string }[] = [
   { id: 'cyberpunk', label: 'Cyberpunk', note: 'A pixel-art city of neon and billboards, flying cars weaving through it, all mirrored in the wet street.' }
 ]
 
+const SNOW: { id: Extras['snow']; label: string }[] = [
+  { id: 'winter', label: 'Snow in winter only' },
+  { id: 'always', label: 'Snow any time' }
+]
+
 /** One switch with a line on exactly what it does. */
 function Switch({ name, label, note }: { name: keyof Extras; label: string; note: string }) {
   const extras = useExtras()
@@ -34,7 +39,8 @@ function Switch({ name, label, note }: { name: keyof Extras; label: string; note
 
 /** Settings → Extras: the sky, small motions, celebrations and comforts, each its own switch. */
 export function ExtrasSettings() {
-  const { sky, horizon } = useExtras()
+  const extras = useExtras()
+  const { sky, horizon } = extras
   return (
     <>
       <div className="settings-card">
@@ -61,6 +67,16 @@ export function ExtrasSettings() {
         <p className="field-note">{HORIZONS.find((h) => h.id === horizon)?.note}</p>
         <Switch name="sessionSky" label="Night falls on a long session" note="The sky at the top of a chat slowly darkens over a few hours of writing. You'd only notice if you scroll up." />
         <Switch name="seasons" label="Seasons" note="Snow in winter, petals in spring, fireflies in summer, leaves in autumn, and a few special nights of the year." />
+        <Switch name="weather" label="Weather" note="Now and then the sky clouds over and it rains, or snows, for a while. Never over the desert." />
+        {extras.weather && (
+          <div className="tw-seg extras-snow" role="radiogroup" aria-label="When it snows">
+            {SNOW.map((s) => (
+              <button key={s.id} role="radio" data-snow={s.id} aria-checked={extras.snow === s.id} aria-pressed={extras.snow === s.id} onClick={() => setExtras({ snow: s.id })}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+        )}
         <Switch name="easterEggs" label="Surprises" note="Sit and watch an empty chat for a while, and every so often something crosses the sky." />
       </div>
       <div className="settings-card">

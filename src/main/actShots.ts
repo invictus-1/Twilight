@@ -39,7 +39,7 @@ export function runActShots(win: BrowserWindow, outDir: string): void {
     const wait = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
     for (const [egg, horizon, ms] of ACTS) {
       if (only && !only.includes(`${egg}:${horizon}`)) continue
-      await js(`localStorage.setItem('twilight.extras', JSON.stringify({ ...JSON.parse(localStorage.getItem('twilight.extras') || '{}'), horizon: '${horizon}', easterEggs: true, sky: 'dusk' })); localStorage.setItem('twilight.e2eEgg', '${egg}')`)
+      await js(`localStorage.setItem('twilight.extras', JSON.stringify({ ...JSON.parse(localStorage.getItem('twilight.extras') || '{}'), horizon: '${horizon}', easterEggs: true, sky: 'dusk' })); localStorage.setItem('twilight.e2eEgg', '${egg}'); localStorage.setItem('twilight.e2eWeather', '${process.env.TWILIGHT_ACTS_WEATHER ?? ''}')`)
       win.webContents.reload()
       await new Promise((r) => win.webContents.once('did-finish-load', () => r(null)))
       // The visitor comes after the quiet spell (1.2 s in test runs); then each moment in turn.
