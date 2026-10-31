@@ -4,6 +4,11 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.5.1 · October 2026
+- [x] **Charts answer at once** · Core — a themed label over Insights' and Usage's bars and the heatmap's days, the moment you point at one
+- [x] **Pasted writing can count** · Writing — words that appear in a file all at once are asked about on the dashboard, instead of quietly left out
+- [x] **Settings, centred** · Core — every Settings page in a centred column, and a live chat preview beside Appearance on a wide window
+
 ### 1.5.0 · October 2026
 - [x] **Visitors with acts of their own** · Core — the UFO, whale, platypus and a pumpkin plush take turns, each playing a scene on the city, cyberpunk, dunes and ocean, the city's on its own rooftops
 - [x] **A busier ocean and desert** · Core — islands, sailboats, gulls and foam at sea; buttes, saguaros, a caravan and blowing sand in the dunes
