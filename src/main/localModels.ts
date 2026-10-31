@@ -77,7 +77,7 @@ export function hardware(): Promise<Hardware> {
 
 // ——— Hugging Face ———
 
-async function getJson<T>(url: string): Promise<T> {
+export async function getJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { headers: { accept: 'application/json' } })
   if (!res.ok) throw new Error(`${new URL(url).host} answered ${res.status}.`)
   return (await res.json()) as T
@@ -198,7 +198,7 @@ export function cancelDownload(key: string): void {
 }
 
 /** A file from the web, written as `dest`.part (resumed if it's there) and renamed when whole. */
-async function fetchTo(url: string, dest: string, signal: AbortSignal, progress: (bytes: number) => void): Promise<void> {
+export async function fetchTo(url: string, dest: string, signal: AbortSignal, progress: (bytes: number) => void): Promise<void> {
   const part = `${dest}.part`
   const have = (await fs.stat(part).catch(() => null))?.size ?? 0
   if (have) progress(have)
@@ -321,7 +321,7 @@ export async function installEngine(): Promise<void> {
   }
 }
 
-async function findFile(dir: string, name: string): Promise<string | null> {
+export async function findFile(dir: string, name: string): Promise<string | null> {
   for (const e of await fs.readdir(dir, { withFileTypes: true })) {
     const full = join(dir, e.name)
     if (e.isFile() && e.name.toLowerCase() === name) return full

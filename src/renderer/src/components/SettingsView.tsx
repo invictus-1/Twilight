@@ -20,12 +20,13 @@ import { ToolsSection } from './ToolsSection'
 import { DataSection } from './DataSection'
 import { LibraryCard } from './LibraryCard'
 import { LocalModelsSection } from './LocalModelsSection'
+import { VoiceSection } from './VoiceSection'
 import { ChipIcon, CloseIcon, CloudIcon, PenIcon, PlusIcon, RefreshIcon, TrashIcon } from './Icons'
 
 // The Settings page: a section list on the left, one section on the right. Each section opens
 // with a line saying what it's for.
 
-type Section = 'providers' | 'local' | 'tools' | 'prices' | 'usage' | 'general' | 'appearance' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
+type Section = 'providers' | 'local' | 'tools' | 'voice' | 'prices' | 'usage' | 'general' | 'appearance' | 'library' | 'writing' | 'data' | 'shortcuts' | 'extras' | 'updates' | 'roadmap' | 'about'
 
 // Grouped by what people come looking for: how the app behaves and looks, what you write with,
 // the models, and Twilight itself. Each page holds one kind of thing, named the way you'd ask for it.
@@ -33,6 +34,7 @@ const SECTIONS: { id: Section; group: string; label: string; description: string
   { id: 'general', group: 'App', label: 'General', description: 'How chats behave: what the Chats button opens, the cache status line, spelling, and Game Format for copying replies into a game.' },
   { id: 'appearance', group: 'App', label: 'Appearance', description: 'How Twilight looks: the theme, a background, motion, the size of chat text and the colour of bold words.' },
   { id: 'data', group: 'App', label: 'Data', description: 'Where Twilight keeps your chats and settings, backups you can go back to, moving it all, and request logs.' },
+  { id: 'voice', group: 'App', label: 'Voice', description: 'Replies read aloud in a voice Windows already has, and dictation into the message box, transcribed on this PC by whisper.cpp. Nothing is sent anywhere.' },
   { id: 'shortcuts', group: 'App', label: 'Keyboard shortcuts', description: 'Every shortcut Twilight knows, and your own bindings.' },
   { id: 'extras', group: 'App', label: 'Extras', description: "Just for fun: the sky through the day, small motions and celebrations. None of them change how anything works; each has its own switch." },
   { id: 'library', group: 'Writing', label: 'Personas and prompts', description: 'Your personas and prompts. A persona starts a chat with its instructions; a prompt goes into the message box from the composer.' },
@@ -702,6 +704,7 @@ export function SettingsView() {
           <p className="section-description">{current.description}</p>
           {section === 'providers' && <ProvidersSection />}
           {section === 'local' && <LocalModelsSection />}
+          {section === 'voice' && <VoiceSection />}
           {section === 'tools' && <ToolsSection />}
           {section === 'prices' && <PricesSection />}
           {section === 'usage' && <UsageSection />}

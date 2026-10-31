@@ -18,6 +18,7 @@ import { ChoiceCard } from './ChoiceCard'
 import { savedCount } from './Multiverse'
 import { useBlind } from './Arena'
 import { ConfidenceView } from './Confidence'
+import { ReadAloudButton } from './Dictate'
 import { DiffBody, useDiffed } from './SplitDiff'
 import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, GridIcon, PaperclipIcon, PenIcon, PulseIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
 
@@ -676,6 +677,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
           <div className="tw-msg-actions">
             <BranchSwitcher node={node} />
             <CopyIconButton text={() => body} />
+            {body && <ReadAloudButton id={node.id} text={body} />}
             <StarButton nodeId={node.id} />
             {node.usage?.confidence && pane === 'a' && (
               <button

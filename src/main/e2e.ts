@@ -16,6 +16,8 @@ import { chunk, gather, libraryStatus, reindex as reindexLibrary, searchLibrary,
 import { parseScoutCases, scout, testScout } from './scout'
 import * as local from './localModels'
 import { pickEngine } from './localModels'
+import * as voice from './voice'
+import { cleanTranscript, encodeWav, speakable } from '@shared/voice'
 import { bestStarter, fitFor, quantOf, type Hardware } from '@shared/localModels'
 
 // A PC for the fit checks: 32 GB of memory and an 8 GB graphics card.
@@ -92,6 +94,12 @@ const installerBytes = (version: string): Buffer => Buffer.from(`MZ fake install
 const HUB_FILES: Record<string, number> = { 'tiny-Q4_K_M.gguf': 2000, 'tiny-Q8_0.gguf': 4000, 'big/tiny-F16-00001-of-00002.gguf': 3000, 'big/tiny-F16-00002-of-00002.gguf': 3000, 'mmproj-F16.gguf': 500, 'MTP/mtp-tiny-Q4_0.gguf': 300 }
 function mockHub(url: string, headers: import('node:http').IncomingHttpHeaders, res: import('node:http').ServerResponse): void {
   const path = url.replace(/^\/hf/, '')
+  // A whisper.cpp speech model, small.
+  if (path === '/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin') {
+    res.writeHead(200, { 'content-type': 'application/octet-stream', 'content-length': '2500' })
+    res.end(Buffer.alloc(2500, 3))
+    return
+  }
   if (path.startsWith('/api/models?')) {
     res.setHeader('content-type', 'application/json')
     res.end(JSON.stringify([
@@ -159,6 +167,18 @@ http.createServer((req, res) => {
     res.end('data: [DONE]\\n\\n')
   })
 }).listen(Number(arg('--port')), arg('--host'))
+`
+
+/**
+ * whisper.cpp's stand-in: checks it was given a model and a WAV, and answers the way whisper-cli
+ * can (a timestamped line and a blank-audio marker), which Twilight cleans into plain text.
+ */
+const FAKE_WHISPER = `
+const fs = require('node:fs')
+const arg = (name) => { const i = process.argv.indexOf(name); return i >= 0 ? process.argv[i + 1] : '' }
+const wav = fs.readFileSync(arg('-f'))
+if (!fs.existsSync(arg('-m')) || wav.toString('latin1', 0, 4) !== 'RIFF' || wav.readUInt32LE(24) !== 16000) { console.error('bad input'); process.exit(2) }
+process.stdout.write('[00:00:00.000 --> 00:00:02.000]   The lamps are lit, ' + arg('-l') + '.\\n[BLANK_AUDIO]\\n')
 `
 
 function mockGithub(url: string, base: string, res: import('node:http').ServerResponse): void {
@@ -5439,6 +5459,66 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         ui52.first >= 2 && ui52.more === ui52.first + 2 && ui52.shown === 1 && ui52.closed && !!ui52.used && chat.view(c48).path.some((n) => n.id === ui52.used),
         ui52
       )
+
+      // 55. Offline voice: Windows' voices read aloud; whisper.cpp (a stand-in) for dictation.
+      const fakeWhisper = join(outDir, 'fake-whisper.cjs')
+      writeFileSync(fakeWhisper, FAKE_WHISPER)
+      voice.useTestVoice(`http://127.0.0.1:${port}/hf`, `http://127.0.0.1:${port}/gh/none`, { command: process.execPath, args: [fakeWhisper], env: { ELECTRON_RUN_AS_NODE: '1' } })
+      const asset55 = (name: string) => ({ name, size: 9, browser_download_url: 'https://example.com/' + name })
+      const pick55 = voice.pickWhisper([
+        { tag_name: 'v1.9.5', assets: [] },
+        { tag_name: 'b5454', assets: [asset55('whisper-bin-win-cuda-12.4.0-x64.zip'), asset55('whisper-bin-x64.zip'), asset55('whisper-blas-bin-x64.zip')] }
+      ])
+      check('whisper.cpp comes from the newest release with a Windows build for the processor', pick55?.tag === 'b5454' && !!pick55?.url.endsWith('/whisper-bin-x64.zip'), pick55)
+      const md55 = '## The keeper\n\n**Wren** lit the [lamps](https://example.com).\n\n```js\nlight()\n```\n\n- one\n- two'
+      check('replies are read without their code and markup', speakable(md55) === 'The keeper\n\nWren lit the lamps.\n\none\ntwo', speakable(md55))
+      check('whisper output is cleaned into plain text', cleanTranscript('[00:00:00.000 --> 00:00:02.000]   Hello there.\n[BLANK_AUDIO]\n  The ferry is in.\n') === 'Hello there. The ferry is in.')
+      const wav55 = encodeWav(new Float32Array(16000).map((_, i) => Math.sin(i / 8) / 2), 16000)
+      check('dictation is recorded as a 16 kHz mono WAV', wav55.length === 44 + 32000 && Buffer.from(wav55.slice(0, 4)).toString() === 'RIFF' && new DataView(wav55.buffer).getUint32(24, true) === 16000)
+      const voices55 = await voice.voices()
+      const spoken55 = voices55.length ? await voice.speak('The lamps are lit along the harbour.') : new Uint8Array()
+      check(
+        "a reply is spoken in one of Windows' own voices, as WAV audio",
+        voices55.length > 0 && Buffer.from(spoken55.slice(0, 4)).toString() === 'RIFF' && spoken55.length > 20000,
+        { voices: voices55, bytes: spoken55.length }
+      )
+      let noModel55 = ''
+      try {
+        await voice.transcribe(wav55)
+      } catch (e) {
+        noModel55 = String(e)
+      }
+      check('dictation asks for a speech model before it has one', /speech model/.test(noModel55), noModel55)
+      const opens55 = await js<string>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        document.querySelector('.tw-composer .dictate')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.voice-dictate'); ) await wait(25)
+        return document.querySelector('.settings-content .t-title')?.textContent ?? ''
+      })()`)
+      check('the microphone opens Settings → Voice until dictation is set up', opens55 === 'Voice', opens55)
+      const ui55 = await js<{ voices: number; models: number; inUse: number; ready: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.voice-model'); ) await wait(25)
+        document.querySelector('.voice-model[data-file="ggml-base.en.bin"] .voice-download')?.click()
+        for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.voice-in-use'); ) await wait(50)
+        return { voices: document.querySelectorAll('.voice-pick option').length, models: document.querySelectorAll('.voice-model').length, inUse: document.querySelectorAll('.voice-in-use').length, ready: !!document.querySelector('.voice-ready') }
+      })()`)
+      check('Settings → Voice lists the voices and models; a downloaded model is put to use', ui55.voices === voices55.length + 1 && ui55.models === 3 && ui55.inUse === 1 && ui55.ready, ui55)
+      const heard55 = await voice.transcribe(wav55)
+      check('dictation is transcribed on this PC by whisper.cpp', heard55 === 'The lamps are lit, en.', heard55)
+      await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
+      const read55 = await js<{ button: boolean; reading: boolean; stopped: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.tw-msg-ai .read-aloud'); ) await wait(25)
+        const btn = [...document.querySelectorAll('.tw-msg-ai .read-aloud')].at(-1)
+        btn?.click()
+        for (let end = Date.now() + 8000; Date.now() < end && !(btn?.classList.contains('is-reading') && !btn.querySelector('.tw-spin')); ) await wait(50)
+        const reading = !!btn?.classList.contains('is-reading')
+        btn?.click()
+        await wait(150)
+        return { button: !!btn, reading, stopped: !btn?.classList.contains('is-reading') }
+      })()`)
+      check('the speaker on a reply reads it aloud, and stops when pressed again', read55.button && read55.reading && read55.stopped, read55)
 
       // 54. Local power tools: token probabilities, branching from a word, samplers.
       const c54 = chat.create().id

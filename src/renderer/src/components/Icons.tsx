@@ -120,6 +120,12 @@ export const ToolIcon = (p: Props) => (
   <Icon {...p}><path d="M14.5 6.5a4 4 0 0 0 5 5l-8.5 8.5a2.1 2.1 0 0 1-3-3zM14.5 6.5L17 4l3 3-2.5 2.5" /></Icon>
 )
 export const HistoryIcon = (p: Props) => <Icon {...p}><path d="M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 2" /></Icon>
+export const MicIcon = (p: Props) => (
+  <Icon {...p}><rect x="9" y="3.5" width="6" height="11" rx="3" /><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v2.5" /></Icon>
+)
+export const SpeakerIcon = (p: Props) => (
+  <Icon {...p}><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z" /><path d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11" /></Icon>
+)
 export const PulseIcon = (p: Props) => <Icon {...p}><path d="M3 12h4l2-6 4 12 2-6h6" /></Icon>
 export const SearchIcon = (p: Props) => <Icon {...p}><circle cx="11" cy="11" r="6.5" /><path d="M16 16l4.5 4.5" /></Icon>
 export const AlertIcon = (p: Props) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 8v5M12 16.5v.5" /></Icon>

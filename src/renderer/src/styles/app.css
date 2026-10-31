@@ -1166,6 +1166,20 @@ body.resizing .resize-handle { pointer-events: auto; }
 
 .search-panel { width: min(760px, calc(100vw - 32px)); }
 
+/* Offline voice */
+.dictate.is-recording { width: auto; padding: 0 var(--space-2); gap: var(--space-1); color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
+.dictate.is-recording .tw-icon { animation: dictate-pulse 1.2s ease-in-out infinite; }
+@keyframes dictate-pulse { 50% { opacity: .45; } }
+.dictate-time { font-size: 12px; font-variant-numeric: tabular-nums; }
+.read-aloud.is-reading { color: var(--iris); }
+.voice-models { display: flex; flex-direction: column; gap: var(--space-2); }
+.voice-model { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-2) var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.voice-model.is-chosen { border-color: color-mix(in srgb, var(--iris) 50%, transparent); }
+.voice-model .local-starter-text { flex: 1; min-width: 0; }
+.voice-in-use { color: var(--iris); }
+.voice-ready { display: flex; align-items: center; gap: var(--space-1); }
+.voice-rate { width: 220px; }
+
 /* Confidence: the heatmap and the words a model nearly wrote */
 .conf-toggle[aria-pressed="true"] { color: var(--iris); }
 .conf-legend { margin: 0 0 var(--space-2); }

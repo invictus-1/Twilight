@@ -11,6 +11,7 @@ import type { CustomPrice } from './pricing'
 import type { ChoiceSet } from './choices'
 import type { BranchMap } from './branchMap'
 import type { ReplyConfidence, Samplers } from './confidence'
+import type { VoiceState } from './voice'
 import type { AiConfig, AiState, InsightsSummary, StoryEstimate, TrackedCharacter } from './insights'
 import type { JudgeInput, Judgment, JudgmentSummary, Leaderboard, Rubric } from './judge'
 import type { Library, Persona, SavedPrompt } from './library'
@@ -669,6 +670,18 @@ export interface TwilightApi {
   stopLlama(): Promise<void>
   setLlamaAutoStart(on: boolean): Promise<void>
   onLocalModels(listener: (state: LocalState) => void): () => void
+  /** Offline voice: Windows' voices for reading aloud, whisper.cpp for dictation. */
+  voiceState(): Promise<VoiceState>
+  /** Text read in your chosen voice, as WAV bytes. */
+  speak(text: string): Promise<Uint8Array>
+  /** Fetches whisper.cpp from its official releases; progress arrives through onVoice. */
+  installWhisper(): Promise<void>
+  downloadVoiceModel(file: string): Promise<void>
+  cancelVoiceModel(file: string): Promise<void>
+  setVoiceSettings(patch: Partial<Pick<VoiceState, 'voice' | 'rate' | 'model' | 'language'>>): Promise<VoiceState>
+  /** A 16 kHz WAV of your speech, as text (whisper.cpp, on this PC). */
+  transcribe(wav: Uint8Array): Promise<string>
+  onVoice(listener: (state: VoiceState) => void): () => void
   onDocLibrary(listener: (status: LibraryStatus) => void): () => void
   /** Spelling checked as you type (Windows' own spellchecker; right-click a word for suggestions). */
   getSpellcheck(): Promise<boolean>

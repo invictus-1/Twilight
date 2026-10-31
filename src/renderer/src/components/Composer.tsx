@@ -6,6 +6,7 @@ import { useStore } from '../store'
 import { CloseIcon, DocIcon, PaperclipIcon, SendIcon, SlidersIcon, StopIcon } from './Icons'
 import { DocPicker } from './DocPicker'
 import { ModelPicker } from './ModelPicker'
+import { DictateButton } from './Dictate'
 import { PromptPicker } from './PromptPicker'
 import { Hint, ToolsMenu } from './ToolsMenu'
 
@@ -300,6 +301,7 @@ export function Composer() {
             </div>
           )}
           <span className="tw-spacer" />
+          {!streaming && <DictateButton onText={insert} />}
           {!split && <ModelPicker />}
           {streaming ? (
             <button className="tw-send" aria-label="Stop (Esc)" title="Stop (Esc)" onClick={() => void stop(target)}>

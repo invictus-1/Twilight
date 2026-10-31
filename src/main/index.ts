@@ -25,6 +25,7 @@ import * as db from './db'
 import * as docs from './docs'
 import * as judge from './judge'
 import * as library from './library'
+import * as voice from './voice'
 import * as logs from './logs'
 import * as workspaces from './workspaces'
 import type { JudgeInput, Rubric } from '@shared/judge'
@@ -123,7 +124,13 @@ function lockDownNetwork(): void {
       callback({ cancel: !allowed })
     }
   )
-  session.defaultSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false))
+  // The microphone only, for dictation, and only for Twilight's own page; everything else is refused.
+  const ownPage = (url: string): boolean => url.startsWith('file:') || (devOrigin !== null && url.includes(devOrigin))
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+    const audioOnly = permission === 'media' && 'mediaTypes' in details && (details.mediaTypes ?? []).every((t) => t === 'audio')
+    callback(audioOnly && ownPage(wc.getURL()))
+  })
+  session.defaultSession.setPermissionCheckHandler((wc, permission) => permission === 'media' && !!wc && ownPage(wc.getURL()))
 }
 
 /** Window frame colours per theme: the title bar overlay sits outside the page, so it's set here. */
@@ -454,6 +461,13 @@ function registerIpc(): void {
     searchDocLibrary: (_e, query: string) => searchLibrary(query),
     scoutDocLibrary: (_e, query: string) => scout(query, ''),
     getLocalModels: () => local.localState(),
+    voiceState: () => voice.voiceState(),
+    speak: (_e, text: string) => voice.speak(text),
+    installWhisper: () => void voice.installWhisper(),
+    downloadVoiceModel: (_e, file: string) => void voice.downloadVoiceModel(file),
+    cancelVoiceModel: (_e, file: string) => voice.cancelVoiceModel(file),
+    setVoiceSettings: (_e, patch) => voice.setVoiceSettings(patch),
+    transcribe: (_e, wav: Uint8Array) => voice.transcribe(wav),
     searchHubModels: (_e, query: string) => local.searchHub(query),
     hubModelVariants: (_e, repo: string) => local.hubVariants(repo),
     downloadLocalModel: (_e, repo: string, variant: HubVariant) => void local.downloadModel(repo, variant),

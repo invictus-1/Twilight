@@ -4,13 +4,14 @@ import type { CodeEvent } from '@shared/code'
 import type { McpServerView } from '@shared/mcp'
 import type { LibraryStatus } from '@shared/docLibrary'
 import type { LocalState } from '@shared/localModels'
+import type { VoiceState } from '@shared/voice'
 
 const invoke =
   (name: keyof TwilightApi) =>
   (...args: unknown[]) =>
     ipcRenderer.invoke(`twilight:${name}`, ...args)
 
-const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights' | 'onCode' | 'onMcp' | 'onDocLibrary' | 'onLocalModels'>[] = [
+const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights' | 'onCode' | 'onMcp' | 'onDocLibrary' | 'onLocalModels' | 'onVoice'>[] = [
   'listRubrics',
   'saveRubric',
   'deleteRubric',
@@ -149,6 +150,13 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'searchAll',
   'revealMessage',
   'branchMap',
+  'voiceState',
+  'speak',
+  'installWhisper',
+  'downloadVoiceModel',
+  'cancelVoiceModel',
+  'setVoiceSettings',
+  'transcribe',
   'setBlind',
   'voteArena',
   'arenaVotes',
@@ -218,6 +226,12 @@ api.onLocalModels = (listener: (state: LocalState) => void) => {
   const handler = (_e: unknown, state: LocalState): void => listener(state)
   ipcRenderer.on('twilight:localModels', handler)
   return () => ipcRenderer.removeListener('twilight:localModels', handler)
+}
+
+api.onVoice = (listener: (state: VoiceState) => void) => {
+  const handler = (_e: unknown, state: VoiceState): void => listener(state)
+  ipcRenderer.on('twilight:voice', handler)
+  return () => ipcRenderer.removeListener('twilight:voice', handler)
 }
 
 api.onMcp = (listener: (servers: McpServerView[]) => void) => {
