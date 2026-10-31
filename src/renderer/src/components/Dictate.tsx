@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { record, readAloud, useReading, type Recording } from '../voice'
+import { record, readAloud, useReadingOf, type Recording } from '../voice'
 import { useStore } from '../store'
 import { MicIcon, SpeakerIcon } from './Icons'
 
@@ -69,8 +69,8 @@ export function DictateButton({ onText }: { onText: (text: string) => void }) {
 
 /** Reads a reply aloud in a Windows voice; pressed again, it stops. */
 export function ReadAloudButton({ id, text }: { id: string; text: string }) {
-  const reading = useReading()
-  const on = reading.id === id
+  const state = useReadingOf(id)
+  const on = state !== 'off'
   return (
     <button
       className={`tw-btn tw-btn-ghost tw-btn-icon read-aloud ${on ? 'is-reading' : ''}`}
@@ -79,7 +79,7 @@ export function ReadAloudButton({ id, text }: { id: string; text: string }) {
       title={on ? 'Stop reading' : 'Read aloud (a Windows voice, on this PC)'}
       onClick={() => void readAloud(id, text).catch((err) => useStore.getState().setError(clean(err)))}
     >
-      {on && reading.loading ? <span className="tw-spin" /> : <SpeakerIcon />}
+      {state === 'loading' ? <span className="tw-spin" /> : <SpeakerIcon />}
     </button>
   )
 }

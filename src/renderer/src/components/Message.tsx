@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { memo, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { gameFormat } from '@shared/gameFormat'
 import { costOf, formatCost, formatTokens } from '@shared/pricing'
 import { readGameFormat } from '../gameFormatSettings'
@@ -16,7 +16,7 @@ import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
 import { savedCount } from './Multiverse'
-import { useBlind } from './Arena'
+import { BlindContext } from './Arena'
 import { ConfidenceView } from './Confidence'
 import { ReadAloudButton } from './Dictate'
 import { DiffBody, useDiffed } from './SplitDiff'
@@ -614,7 +614,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
   const slide = useSlideIn()
   const diffed = useDiffed(pane, node.id)
   const streaming = node.status === 'streaming'
-  const blind = useBlind()
+  const blind = useContext(BlindContext)
   // The confidence heatmap stands in for the body while it's on (replies whose probabilities were kept).
   const [heatmap, setHeatmap] = useState(false)
   if (editing) {

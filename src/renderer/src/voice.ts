@@ -20,11 +20,15 @@ const set = (next: Reading): void => {
   listeners.forEach((l) => l())
 }
 
+const subscribe = (cb: () => void): (() => void) => (listeners.add(cb), () => listeners.delete(cb))
+
 export function useReading(): Reading {
-  return useSyncExternalStore(
-    (cb) => (listeners.add(cb), () => listeners.delete(cb)),
-    () => reading
-  )
+  return useSyncExternalStore(subscribe, () => reading)
+}
+
+/** One reply's reading state only, so starting or stopping one doesn't redraw every speaker button. */
+export function useReadingOf(id: string): 'off' | 'loading' | 'on' {
+  return useSyncExternalStore(subscribe, () => (reading.id !== id ? 'off' : reading.loading ? 'loading' : 'on'))
 }
 
 export function stopReading(): void {

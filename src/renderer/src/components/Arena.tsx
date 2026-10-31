@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { createContext, useEffect, useState } from 'react'
 import type { ArenaVote, ArenaWinner, NodeView } from '@shared/types'
 import { ELO_K, ELO_START, tallyLeaderboard, type LeaderboardEntry } from '@shared/judge'
 import { modelName, useStore } from '../store'
@@ -10,6 +10,12 @@ import { CloseIcon, LockIcon, TrophyIcon } from './Icons'
 
 /** True while the open chat is in a blind round: model names, prices and the picker stay hidden. */
 export const useBlind = (): boolean => useStore((s) => !!s.current?.split && !!s.current?.blind)
+
+/**
+ * The same, handed down by each pane, so the messages in a long chat read it without each one
+ * subscribing to the store.
+ */
+export const BlindContext = createContext(false)
 
 export function BlindToggle() {
   const blind = useBlind()

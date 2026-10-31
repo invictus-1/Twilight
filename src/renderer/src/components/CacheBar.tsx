@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { cacheSaved, formatCost, formatTokens } from '@shared/pricing'
 import type { ChatSettings, ModelInfo, ModelOptions, NodeView, Usage } from '@shared/types'
 import { optionsFor, paneOf, useStore } from '../store'
@@ -83,6 +83,7 @@ export function CacheBar() {
   const current = useStore((s) => s.current)
   const models = useStore((s) => s.models)
   const providers = useStore((s) => s.providers)
+  const prices = useStore((s) => s.prices)
 
   useEffect(() => {
     const onChange = (): void => setHidden(readHidden())
@@ -90,11 +91,14 @@ export function CacheBar() {
     return () => window.removeEventListener('twilight-cachebar', onChange)
   }, [])
 
-  if (hidden || !current) return null
-  const { settings, path } = paneOf(current, 'a')
+  const path = current ? paneOf(current, 'a').path : null
+  // Worked out again only when the thread or a price changes, not on every redraw.
+  const saved = useMemo(() => (path ? chatSaved(path, models) : null), [path, models, prices])
+
+  if (hidden || !current || !path) return null
+  const { settings } = paneOf(current, 'a')
   const last = path.findLast((n) => n.role === 'assistant' && n.status !== 'streaming')
   const status = cacheStatus(last?.usage, settings, optionsFor(models, providers, settings.providerId, settings.modelId))
-  const saved = chatSaved(path, models)
   return (
     <div className={`cache-bar cache-${status.tone}`} role="status">
       <span className="cache-dot" aria-hidden="true" />

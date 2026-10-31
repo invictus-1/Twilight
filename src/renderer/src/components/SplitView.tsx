@@ -7,7 +7,7 @@ import { optionsFor, paneOf, useStore } from '../store'
 import { cacheStatus, ContextMeter } from './CacheBar'
 import { CloseIcon } from './Icons'
 import { ModelPicker } from './ModelPicker'
-import { useBlind } from './Arena'
+import { BlindContext, useBlind } from './Arena'
 import { Thread } from './Thread'
 
 /** The same stats, in the same order, under both panes so they compare at a glance. */
@@ -50,6 +50,7 @@ function PaneColumn({ pane }: { pane: Pane }) {
   const blind = useBlind()
   return (
     <PaneContext.Provider value={pane}>
+      <BlindContext.Provider value={blind}>
       <section className={`tw-pane tw-pane-${pane}`} aria-label={`Pane ${pane.toUpperCase()}`}>
         <header className="tw-pane-head">
           <span className="tw-pane-tag">{pane.toUpperCase()}</span>
@@ -74,6 +75,7 @@ function PaneColumn({ pane }: { pane: Pane }) {
         {empty ? <div className="pane-empty">Send a message to start this pane.</div> : <Thread />}
         <PaneFooter pane={pane} />
       </section>
+      </BlindContext.Provider>
     </PaneContext.Provider>
   )
 }
