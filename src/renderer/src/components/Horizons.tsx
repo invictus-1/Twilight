@@ -84,6 +84,10 @@ interface Tower {
   sign: { x: number; y: number; w: number; tone: 'iris' | 'horizon' } | null
 }
 
+// The skyline is laid out across a strip far wider than it is tall, and scaled to its height: a
+// wide window then shows more of the city instead of enlarging it until the tops are cut off.
+const CITY_WIDTH = 3600
+
 const CITY = (() => {
   const rand = seeded(1959)
   const rows = [
@@ -93,7 +97,7 @@ const CITY = (() => {
   ]
   return rows.map((row) => {
     const towers: Tower[] = []
-    for (let x = -12; x < 1012; ) {
+    for (let x = -12; x < CITY_WIDTH + 12; ) {
       const w = Math.round(row.min + rand() * (row.max - row.min))
       const h = Math.round(row.lo + rand() * (row.hi - row.lo))
       const top = 160 - h
@@ -144,59 +148,72 @@ const TRAFFIC = (() => {
   return Array.from({ length: 6 }, (_, i) => ({ left: i % 2 === 1, duration: 9 + rand() * 9, delay: -rand() * 18 }))
 })()
 
+// Thousands of shapes that never change: written out once as markup, so the sky at the top of
+// every chat costs a single parse rather than a React tree of every window.
+let skylineMarkup: string | null = null
+// The highest point drawn (spires and aerials included), where the drawing's frame starts.
+let skylineTop = 0
+function skyline(): string {
+  if (skylineMarkup) return skylineMarkup
+  let top = 160
+  const reach = (y: number): void => void (top = Math.min(top, y))
+  const r = (n: number): number => Math.round(n * 10) / 10
+  const rect = (cls: string, x: number, y: number, w: number, h: number, extra = ''): string => `<rect class="${cls}" x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}"${extra}/>`
+  const out: string[] = []
+  for (const row of CITY) {
+    out.push(`<g class="hz-row hz-row-${row.cls}">`)
+    row.towers.forEach((t, i) => {
+      const peak = t.tiers.length ? t.tiers[t.tiers.length - 1] : { x: t.x, w: t.w }
+      const peakTop = 160 - t.h - t.tiers.reduce((n, x) => n + x.h, 0)
+      reach(peakTop - (t.roof === 'spire' ? 26 : t.roof === 'slant' ? Math.round(peak.w * 0.45) : t.aerial ? 19 : t.water ? 13 : t.sign ? 9 : 0))
+      out.push(rect('hz-building', t.x, 160 - t.h, t.w, t.h))
+      t.tiers.forEach((tier, j) => out.push(rect('hz-building', tier.x, 160 - t.h - t.tiers.slice(0, j + 1).reduce((n, x) => n + x.h, 0), tier.w, tier.h + 1)))
+      if (t.roof === 'slant') out.push(`<polygon class="hz-building" points="${peak.x},${peakTop} ${peak.x + peak.w},${peakTop} ${peak.x + peak.w},${peakTop - Math.round(peak.w * 0.45)}"/>`)
+      if (t.roof === 'spire') out.push(`<polygon class="hz-building" points="${r(peak.x + peak.w * 0.3)},${peakTop} ${r(peak.x + peak.w * 0.7)},${peakTop} ${r(peak.x + peak.w / 2)},${peakTop - 26}"/>`)
+      // Rim light down the side facing the sunset.
+      out.push(rect('hz-rim', t.x, 160 - t.h, 1.2, t.h))
+      if (t.water) {
+        out.push(`<g class="hz-building">${rect('', peak.x + 6, peakTop - 9, 8, 7)}<polygon points="${peak.x + 5},${peakTop - 9} ${peak.x + 15},${peakTop - 9} ${peak.x + 10},${peakTop - 13}"/>${rect('', peak.x + 7, peakTop - 2, 1, 2)}${rect('', peak.x + 12, peakTop - 2, 1, 2)}</g>`)
+      }
+      if (t.aerial) {
+        out.push(rect('hz-building', peak.x + peak.w * 0.7, peakTop - 16, 1.5, 16))
+        out.push(`<circle class="hz-aerial-light" cx="${r(peak.x + peak.w * 0.7 + 0.75)}" cy="${peakTop - 17}" r="1.8" style="animation-delay:${(i % 5) * 0.7}s"/>`)
+      }
+      if (t.sign) out.push(rect(`hz-roof-sign is-${t.sign.tone}`, t.sign.x, t.sign.y, t.sign.w, 5, ' rx="1"'))
+      t.windows.forEach((w, j) => out.push(rect(`hz-window is-${w.tone}${w.blink ? ' is-blink' : ''}`, w.x, w.y, 2.6, 3.4, w.blink ? ` style="animation-delay:${(j % 7) * 1.3}s"` : '')))
+    })
+    out.push('</g>')
+  }
+  skylineMarkup = out.join('')
+  skylineTop = Math.floor(top) - 2
+  return skylineMarkup
+}
+
 function Skyline({ className }: { className: string }) {
-  return (
-    <svg className={className} viewBox="0 0 1000 160" preserveAspectRatio="xMidYMax slice">
-      {CITY.map((row) => (
-        <g key={row.cls} className={`hz-row hz-row-${row.cls}`}>
-          {row.towers.map((t, i) => {
-            const peak = t.tiers.length ? t.tiers[t.tiers.length - 1] : { x: t.x, w: t.w }
-            const peakTop = 160 - t.h - t.tiers.reduce((n, x) => n + x.h, 0)
-            return (
-              <g key={i}>
-                <rect className="hz-building" x={t.x} y={160 - t.h} width={t.w} height={t.h} />
-                {t.tiers.map((tier, j) => (
-                  <rect key={j} className="hz-building" x={tier.x} y={160 - t.h - t.tiers.slice(0, j + 1).reduce((n, x) => n + x.h, 0)} width={tier.w} height={tier.h + 1} />
-                ))}
-                {t.roof === 'slant' && <polygon className="hz-building" points={`${peak.x},${peakTop} ${peak.x + peak.w},${peakTop} ${peak.x + peak.w},${peakTop - Math.round(peak.w * 0.45)}`} />}
-                {t.roof === 'spire' && <polygon className="hz-building" points={`${peak.x + peak.w * 0.3},${peakTop} ${peak.x + peak.w * 0.7},${peakTop} ${peak.x + peak.w / 2},${peakTop - 26}`} />}
-                {/* Rim light down the side facing the sunset. */}
-                <rect className="hz-rim" x={t.x} y={160 - t.h} width={1.2} height={t.h} />
-                {t.water && (
-                  <g className="hz-building">
-                    <rect x={peak.x + 6} y={peakTop - 9} width={8} height={7} />
-                    <polygon points={`${peak.x + 5},${peakTop - 9} ${peak.x + 15},${peakTop - 9} ${peak.x + 10},${peakTop - 13}`} />
-                    <rect x={peak.x + 7} y={peakTop - 2} width={1} height={2} />
-                    <rect x={peak.x + 12} y={peakTop - 2} width={1} height={2} />
-                  </g>
-                )}
-                {t.aerial && (
-                  <>
-                    <rect className="hz-building" x={peak.x + peak.w * 0.7} y={peakTop - 16} width={1.5} height={16} />
-                    <circle className="hz-aerial-light" cx={peak.x + peak.w * 0.7 + 0.75} cy={peakTop - 17} r={1.8} style={{ animationDelay: `${(i % 5) * 0.7}s` }} />
-                  </>
-                )}
-                {t.sign && <rect className={`hz-roof-sign is-${t.sign.tone}`} x={t.sign.x} y={t.sign.y} width={t.sign.w} height={5} rx={1} />}
-                {t.windows.map((w, j) => (
-                  <rect key={j} className={`hz-window is-${w.tone} ${w.blink ? 'is-blink' : ''}`} x={w.x} y={w.y} width={2.6} height={3.4} style={w.blink ? { animationDelay: `${(j % 7) * 1.3}s` } : undefined} />
-                ))}
-              </g>
-            )
-          })}
-        </g>
-      ))}
-    </svg>
-  )
+  const markup = skyline()
+  return <svg className={className} viewBox={`0 ${skylineTop} ${CITY_WIDTH} ${160 - skylineTop}`} preserveAspectRatio="xMidYMax slice" dangerouslySetInnerHTML={{ __html: markup }} />
+}
+
+/** True after the first idle moment: heavy, still scenery waits for it, so opening a chat doesn't. */
+function useIdle(): boolean {
+  const [idle, setIdle] = useState(false)
+  useEffect(() => {
+    const handle = requestIdleCallback(() => setIdle(true), { timeout: 300 })
+    return () => cancelIdleCallback(handle)
+  }, [])
+  return idle
 }
 
 function City() {
+  const ready = useIdle()
   return (
     <>
       <span className="hz-city-glow" />
-      <Skyline className="hz-up hz-city" />
-      {/* The river: the skyline mirrored and broken by ripples, lamps along the bank, cars passing. */}
-      <div className="hz-floor hz-floor-city">
-        <Skyline className="hz-river" />
+      <div className="hz-floor hz-floor-city" />
+      {/* The skyline draws its own reflection in the river below it. */}
+      {ready && <Skyline className="hz-up hz-city" />}
+      {/* Over the reflection: ripples breaking it, lamps along the bank, cars passing. */}
+      <div className="hz-floor hz-river-top">
         <span className="hz-river-ripples" />
         <div className="hz-bank">
           {LAMPS.map((l, i) => (

@@ -4,6 +4,23 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.4.0 · October 2026
+- [x] **Under the sky** · Core — ocean, mountains, city, dunes or a pixel-art cyberpunk city on the horizon, in the theme's colours
+- [x] **Shooting stars** · Core — streaks across the whole sky with a glowing head and a long tail, and more detailed stars
+- [x] **Multiverse drafts, your way** · Chat — choose how many, and the same message for all or a different one for each, before anything is written
+- [x] **When you sent it** · Chat — how long ago each message of yours was sent, the exact time on hover
+- [x] **Continuity in Writing** · Writing — check a draft or a selected passage against the documents you pick, with presets, or ask about it, using the writing tools' model
+- [x] **Chats opens a new chat** · Chat — the Chats button starts at a new chat, or the last one you were on if you choose
+- [x] **Offline voice** · Core — replies read aloud in a Windows voice, and dictation transcribed on this PC by whisper.cpp
+- [x] **Local-model power tools** · Chat — a confidence heatmap from token probabilities, branching from any word, and more samplers
+- [x] **Blind arena** · Judge — split compare with the models shuffled and hidden, your vote, and a personal leaderboard
+- [x] **Multiverse drafts** · Chat — several versions of a reply at once, side by side, each kept as a branch
+- [x] **Branch map** · Chat — the whole conversation tree, drawn, with straight runs folded; click a message to show its branch
+- [x] **Cache savings meter** · Chat — what prompt caching saved, under each chat and in Usage
+- [x] **Context scout** · Writing — a small, fast model reads each message first and picks what the main model needs, as whole scenes in story order; with a test of your own questions against plain search
+- [x] **Local models, made easy** · Core — search and download models from Hugging Face, each size checked against what this PC can run, llama.cpp fetched and run for you with each model's own context and graphics card settings, what's loaded and Unload, and good first models, simple enough for anyone
+- [x] **Better retrieval underneath** · Writing — passages indexed with the headings they sit under, and chosen passages widened into whole scenes
+
 ### 1.3.0 · October 2026
 - [x] **Find on the page** · Core — Ctrl+F lights up matches in a chat and steps through them
 - [x] **A sky that keeps time** · Core — dawn, day, dusk and night with the clock, seasons, and surprises if you sit and watch
@@ -124,23 +141,8 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Next
 - [~] **Your feedback on 1.0** · Core — fixes from real use
-- [x] **Under the sky** · Core — ocean, mountains, city, dunes or a pixel-art cyberpunk city on the horizon, in the theme's colours
-- [x] **Shooting stars** · Core — streaks across the whole sky with a glowing head and a long tail, and more detailed stars
-- [x] **Multiverse drafts, your way** · Chat — choose how many, and the same message for all or a different one for each, before anything is written
-- [x] **When you sent it** · Chat — how long ago each message of yours was sent, the exact time on hover
-- [x] **Continuity in Writing** · Writing — check a draft or a selected passage against the documents you pick, with presets, or ask about it, using the writing tools' model
-- [x] **Chats opens a new chat** · Chat — the Chats button starts at a new chat, or the last one you were on if you choose
-- [x] **Offline voice** · Core — replies read aloud in a Windows voice, and dictation transcribed on this PC by whisper.cpp
-- [x] **Local-model power tools** · Chat — a confidence heatmap from token probabilities, branching from any word, and more samplers
-- [x] **Blind arena** · Judge — split compare with the models shuffled and hidden, your vote, and a personal leaderboard
-- [x] **Multiverse drafts** · Chat — several versions of a reply at once, side by side, each kept as a branch
-- [x] **Branch map** · Chat — the whole conversation tree, drawn, with straight runs folded; click a message to show its branch
-- [x] **Cache savings meter** · Chat — what prompt caching saved, under each chat and in Usage
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story
 - [x] **Retrieval research** · Writing — for 2.0, first: looked beyond graph RAG; the answer is a story ledger behind a context scout, judged on your own questions before anything bigger is built
-- [x] **Context scout** · Writing — for 2.0: a small, fast model reads each message first and picks what the main model needs, as whole scenes in story order; with a test of your own questions against plain search
-- [x] **Local models, made easy** · Core — for 2.0: search and download models from Hugging Face, each size checked against what this PC can run, llama.cpp fetched and run for you with each model's own context and graphics card settings, what's loaded and Unload, and good first models, simple enough for anyone
-- [x] **Better retrieval underneath** · Writing — for 2.0: passages indexed with the headings they sit under, and chosen passages widened into whole scenes
 

@@ -1821,10 +1821,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards >= 1 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '1.3.0,1.2.0,1.1.0,1.0.0,0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '1.4.0,1.3.0,1.2.0,1.1.0,1.0.0,0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check(
         'a wide window shows the way to 1.0 beside the roadmap, and a step jumps to its release',
-        roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.3,1.2,1.1,1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
+        roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.4,1.3,1.2,1.1,1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
         roadmapUi
       )
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Core'), roadmapUi.writingCards)
@@ -5761,6 +5761,42 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         s57
       )
       check('the cyberpunk city is drawn as pixel art with flying cars and flickering neon', !!s57.cyberpunk.canvas && s57.cyberpunk.canvas[0] > 100 && s57.cyberpunk.cars === 8 && s57.cyberpunk.neon > 0, s57.cyberpunk)
+      // The city on wide windows (a 4K screen at 150%, and wider): no tower top cut off.
+      const size57 = win.getSize()
+      const pickHorizon57 = async (h: string): Promise<void> => {
+        await key(',', ['control'])
+        await js(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-nav'); ) await wait(25)
+          ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Extras')?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.extras-horizon'); ) await wait(25)
+          document.querySelector('.extras-horizon [data-horizon="${h}"]')?.click()
+          await wait(50)
+          document.querySelector('.rail-item[data-mode="chat"]')?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.empty .empty-sky'); ) await wait(25)
+        })()`)
+      }
+      await pickHorizon57('city')
+      const wide57: { size: number[]; clipped: number; towers: number }[] = []
+      for (const [w, h] of [[2560, 1400], [3840, 1100], [1280, 900]]) {
+        win.setSize(w, h)
+        await new Promise((r) => setTimeout(r, 500))
+        wide57.push({
+          size: win.getSize(),
+          ...(await js<{ clipped: number; towers: number }>(`(() => {
+            const svg = document.querySelector('.empty .hz-city')
+            const top = svg.getBoundingClientRect().top
+            const shapes = [...svg.querySelectorAll('.hz-building')].map((b) => b.getBoundingClientRect()).filter((r) => r.width > 0 && r.right > 0 && r.left < innerWidth)
+            return { clipped: shapes.filter((r) => r.top < top - 0.5).length, towers: shapes.length }
+          })()`))
+        })
+      }
+      await shot('e2e-horizon-city-wide.png')
+      win.setSize(size57[0], size57[1])
+      await new Promise((r) => setTimeout(r, 300))
+      await pickHorizon57('grid')
+      check('the city keeps every tower top on wide windows, showing more of the city instead', wide57.every((s) => s.clipped === 0 && s.towers > 50), wide57)
+
       const meteor57 = await js<{ seen: boolean; head: boolean; tail: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         for (let end = Date.now() + 25000; Date.now() < end && !document.querySelector('.meteor'); ) await wait(30)
