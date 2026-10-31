@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+## 1.5.0
+
 **Extras**
 - **The visitors take turns:** sit and watch an empty chat and the UFO comes first, then the whale, then the platypus, then a new visitor: a pumpkin plush, orange and softly glowing, with a teal stem, thin green limbs, white gloves and round black feet, drawn with the soft nap and stitched seams of the real thing.
 - **Each scene gets its own acts:** on the city, the saucer beams the platypus up off a rooftop, the whale floats by as a blimp trailing FREE HUGS, the platypus runs the skyline, scrambling up the tall towers and nose-diving off the drops, and the pumpkin floats in to a little noodle bar on a roof, eats with his back to you and turns round grinning when he's done. On the cyberpunk city the platypus hops a laser, knocks one robot's head clean off, ducks another's swing and kicks it over, then runs from two more with lasers flying past; police drones chase the saucer, a holographic whale swims past and the pumpkin, side on, hauls a noodle cart down the street. In the dunes the platypus drives a buggy, the saucer takes a cactus, the whale breaches through the sand and the pumpkin floats across in a straw hat, sipping a drink. At sea the platypus surfs, the saucer goes fishing, the whale breaches with a spout and the pumpkin rows out and catches a boot. The pumpkin also roller-skates under a disco ball on the grid and snowboards along the mountain tops in a scarf, off the peaks and away to the right, and the platypus swims the mountain lake, diving and coming up further on. The city's acts play on the skyline's own roofs, wherever the window puts them.

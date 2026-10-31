@@ -1821,10 +1821,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards >= 1 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '1.4.0,1.3.0,1.2.0,1.1.0,1.0.0,0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '1.5.0,1.4.0,1.3.0,1.2.0,1.1.0,1.0.0,0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check(
         'a wide window shows the way to 1.0 beside the roadmap, and a step jumps to its release',
-        roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.4,1.3,1.2,1.1,1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
+        roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.5,1.4,1.3,1.2,1.1,1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
         roadmapUi
       )
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Core'), roadmapUi.writingCards)
@@ -5900,90 +5900,63 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       )
       await shot('e2e-city-act.png')
 
-      // The temporary sky dev tools: Ctrl+Alt+D, then any visitor plays at once, and isn't cleared by moving.
-      const dev57 = await js<{ open: boolean; act: boolean; kept: boolean; closed: boolean }>(`(async () => {
-        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        const press = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, altKey: true }))
-        press()
-        await wait(100)
-        const open = !!document.querySelector('.dev-sky')
-        document.querySelector('.dev-sky [data-visitor="pumpkin"]')?.click()
-        await wait(300)
-        const act = !!document.querySelector('.empty .act-dinner')
-        window.dispatchEvent(new PointerEvent('pointermove'))
-        await wait(200)
-        const kept = !!document.querySelector('.empty .act-dinner')
-        document.querySelector('.dev-sky button')?.click()
-        await wait(50)
-        press()
-        await wait(50)
-        document.querySelector('.dev-sky button')?.click()
-        await wait(50)
-        return { open, act, kept, closed: !document.querySelector('.dev-sky') }
-      })()`)
-      check('the sky dev tools play any visitor at once (temporary)', dev57.open && dev57.act && dev57.kept && dev57.closed, dev57)
-
-      // Each act as it should look, played from the dev tools: the pumpkin (a plush) side on with the
-      // noodle cart on the street, floating over the dunes in a straw hat with a drink, skiing in a
-      // scarf; the platypus swimming the mountain lake and fighting four robots; the peeking platypus
-      // somewhere new each time, over a roof in the city; and the comet flying head first.
-      const looks57 = await js<Record<string, unknown>>(`(async () => {
-        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        const press = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, altKey: true }))
-        const pick = async (scene, visitor) => {
-          document.querySelector('.dev-sky [data-scene="' + scene + '"]')?.click()
-          await wait(150)
-          // The city's skyline is drawn in an idle moment; a visitor 45 seconds later always finds it there.
-          for (let end = Date.now() + 3000; scene === 'city' && Date.now() < end && !document.querySelector('.empty .hz-row-front .hz-building'); ) await wait(30)
-          document.querySelector('.dev-sky [data-visitor="' + visitor + '"]')?.click()
+      // Each act as it should look, the visitor called up by the test hook after a quiet spell: the
+      // pumpkin (a plush) side on with the noodle cart on the street, floating over the dunes in a
+      // straw hat with a drink, snowboarding along the mountain tops in a scarf; the platypus swimming
+      // the mountain lake and fighting four robots; the peeking platypus somewhere new each time, in a
+      // pose of his own; and the comet flying head first.
+      const play57 = async (scene: string, visitor: string): Promise<void> => {
+        await js(`localStorage.setItem('twilight.e2eEgg', '${visitor}')`)
+        await pickHorizon57(scene)
+        await js(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+          for (let end = Date.now() + 6000; Date.now() < end && !document.querySelector('.empty :is(.act, .sky-egg)'); ) await wait(30)
           await wait(500)
-        }
-        const box = (sel) => document.querySelector('.empty ' + sel)?.getBoundingClientRect()
-        press()
-        await wait(100)
-        const out = {}
-        await pick('cyberpunk', 'pumpkin')
-        out.cart = { side: !!document.querySelector('.empty .act-puller .pumpkin.is-side'), plush: !!document.querySelector('.empty .act-puller .pk-plush[filter]'), onStreet: Math.abs(box('.act-cart').bottom - box('.empty-horizon').top) < 6 }
-        await pick('dunes', 'pumpkin')
-        out.dunes = { side: !!document.querySelector('.empty .act-float .pumpkin.is-side'), hat: !!document.querySelector('.empty .act-float .act-hat'), drink: !!document.querySelector('.empty .act-float .act-drink'), shades: !!document.querySelector('.empty .act-shades') }
-        await pick('mountains', 'pumpkin')
-        {
-          // The snowboard run: worked out from the ridges, starting off to the left and leaving off to the right.
-          const act = document.querySelector('.empty .act-snowboard')
-          const frames = act?.querySelector('.act-rider')?.getAnimations()[0]?.effect.getKeyframes() ?? []
-          const xy = (k) => (/translate\\(([-\\d.]+)px, ([-\\d.]+)px\\)/.exec(k?.transform ?? '') ?? []).slice(1).map(Number)
-          const [x0, y0] = xy(frames[0])
-          const [x1] = xy(frames.at(-1))
-          out.board = { side: !!act?.querySelector('.pumpkin.is-side'), scarf: !!act?.querySelector('.act-scarf-tail'), frames: frames.length, starts: x0 < 0, leaves: x1 > act.clientWidth, aboveGround: y0 < 0 }
-        }
-        await pick('mountains', 'platypus-trot')
-        out.swim = !!document.querySelector('.empty .act-swim .platypus')
-        await pick('cyberpunk', 'platypus-trot')
-        out.brawl = { bots: document.querySelectorAll('.empty .act-brawl .robot').length, heads: document.querySelectorAll('.empty .act-brawl .rb-head').length, lasers: document.querySelectorAll('.empty .act-brawl .act-laser').length, pows: document.querySelectorAll('.empty .act-brawl .act-pow').length }
-        const peeks = []
-        for (const scene of ['city', 'city', 'ocean', 'ocean', 'mountains', 'mountains']) {
-          await pick(scene, 'platypus')
-          const peek = document.querySelector('.empty .act-peek')
-          const win = box('.act-peek-window')
-          let near = win.bottom
-          if (scene === 'city') {
-            const tops = [...document.querySelectorAll('.empty .hz-row-front .hz-building')].map((b) => b.getBoundingClientRect().top)
-            near = tops.reduce((best, t) => (Math.abs(t - win.bottom) < Math.abs(best - win.bottom) ? t : best), -1e6)
-          } else if (scene === 'ocean') near = box('.empty-horizon').top
-          // On the mountains he's behind them: drawn before the ridges, and above the horizon.
-          const behind = scene === 'mountains' ? !!(peek.compareDocumentPosition(document.querySelector('.empty svg.hz-mountains')) & Node.DOCUMENT_POSITION_FOLLOWING) && win.bottom < box('.empty-horizon').top : true
-          peeks.push({ scene, placed: !!peek?.classList.contains('is-placed'), x: Math.round(win?.left ?? -1), pose: peek?.dataset.pose ?? '', onRoof: Math.abs(near - win.bottom) < 3 && behind })
-        }
-        out.peeks = peeks
-        await pick('grid', 'comet')
-        const comet = document.querySelector('.empty .sky-egg-comet')
-        out.comet = comet?.getAnimations().find((a) => a.animationName === 'egg-comet')?.effect.getKeyframes().at(-1)?.transform ?? null
-        ;[...document.querySelectorAll('.dev-sky button')].find((b) => b.textContent === 'Stop')?.click()
-        document.querySelector('.dev-sky button')?.click()
-        await wait(50)
-        return out
+        })()`)
+      }
+      const box57 = `const box = (sel) => document.querySelector('.empty ' + sel)?.getBoundingClientRect()`
+      const l57 = {} as { cart: Record<string, boolean>; dunes: Record<string, boolean>; swim: boolean; brawl: Record<string, number>; peeks: { placed: boolean; x: number; pose: string; onRoof: boolean }[]; comet: string | null; board: Record<string, boolean | number> }
+      await play57('cyberpunk', 'pumpkin')
+      l57.cart = await js(`(() => { ${box57}; return { side: !!document.querySelector('.empty .act-puller .pumpkin.is-side'), plush: !!document.querySelector('.empty .act-puller .pk-plush[filter]'), onStreet: Math.abs(box('.act-cart').bottom - box('.empty-horizon').top) < 6 } })()`)
+      await play57('dunes', 'pumpkin')
+      l57.dunes = await js(`({ side: !!document.querySelector('.empty .act-float .pumpkin.is-side'), hat: !!document.querySelector('.empty .act-float .act-hat'), drink: !!document.querySelector('.empty .act-float .act-drink'), shades: !!document.querySelector('.empty .act-shades') })`)
+      await play57('mountains', 'pumpkin')
+      // The snowboard run: worked out from the ridges, starting off to the left and leaving off to the right.
+      l57.board = await js(`(() => {
+        const act = document.querySelector('.empty .act-snowboard')
+        const frames = act?.querySelector('.act-rider')?.getAnimations()[0]?.effect.getKeyframes() ?? []
+        const xy = (k) => (/translate\\(([-\\d.]+)px, ([-\\d.]+)px\\)/.exec(k?.transform ?? '') ?? []).slice(1).map(Number)
+        const [x0, y0] = xy(frames[0])
+        const [x1] = xy(frames.at(-1))
+        return { side: !!act?.querySelector('.pumpkin.is-side'), scarf: !!act?.querySelector('.act-scarf-tail'), frames: frames.length, starts: x0 < 0, leaves: x1 > (act?.clientWidth ?? 1e9), aboveGround: y0 < 0 }
       })()`)
-      const l57 = looks57 as { cart: Record<string, boolean>; dunes: Record<string, boolean>; swim: boolean; brawl: Record<string, number>; peeks: { placed: boolean; x: number; pose: string; onRoof: boolean }[]; comet: string | null; board: Record<string, boolean | number> }
+      await play57('mountains', 'platypus-trot')
+      l57.swim = await js(`!!document.querySelector('.empty .act-swim .platypus')`)
+      await play57('cyberpunk', 'platypus-trot')
+      l57.brawl = await js(`({ bots: document.querySelectorAll('.empty .act-brawl .robot').length, heads: document.querySelectorAll('.empty .act-brawl .rb-head').length, lasers: document.querySelectorAll('.empty .act-brawl .act-laser').length, pows: document.querySelectorAll('.empty .act-brawl .act-pow').length })`)
+      l57.peeks = []
+      for (const scene of ['city', 'city', 'ocean', 'ocean', 'mountains', 'mountains']) {
+        await play57(scene, 'platypus')
+        l57.peeks.push(
+          await js(`(() => {
+            ${box57}
+            const scene = '${scene}'
+            const peek = document.querySelector('.empty .act-peek')
+            const win = box('.act-peek-window')
+            let near = win.bottom
+            if (scene === 'city') {
+              const tops = [...document.querySelectorAll('.empty .hz-row-front .hz-building')].map((b) => b.getBoundingClientRect().top)
+              near = tops.reduce((best, t) => (Math.abs(t - win.bottom) < Math.abs(best - win.bottom) ? t : best), -1e6)
+            } else if (scene === 'ocean') near = box('.empty-horizon').top
+            // On the mountains he's behind them: drawn before the ridges, and above the horizon.
+            const behind = scene === 'mountains' ? !!(peek.compareDocumentPosition(document.querySelector('.empty svg.hz-mountains')) & Node.DOCUMENT_POSITION_FOLLOWING) && win.bottom < box('.empty-horizon').top : true
+            return { scene, placed: !!peek?.classList.contains('is-placed'), x: Math.round(win?.left ?? -1), pose: peek?.dataset.pose ?? '', onRoof: Math.abs(near - win.bottom) < 3 && behind }
+          })()`)
+        )
+      }
+      await play57('grid', 'comet')
+      l57.comet = await js(`document.querySelector('.empty .sky-egg-comet')?.getAnimations().find((a) => a.animationName === 'egg-comet')?.effect.getKeyframes().at(-1)?.transform ?? null`)
+      await js(`localStorage.removeItem('twilight.e2eEgg')`)
       check(
         'the pumpkin is a plush, pulls the noodle cart side on along the street, floats over the dunes in a straw hat with a drink, and snowboards along the mountain tops in a scarf',
         l57.cart.side && l57.cart.plush && l57.cart.onStreet && l57.dunes.side && l57.dunes.hat && l57.dunes.drink && !l57.dunes.shades && !!l57.board.side && !!l57.board.scarf && (l57.board.frames as number) > 50 && !!l57.board.starts && !!l57.board.leaves && !!l57.board.aboveGround,

@@ -1,4 +1,3 @@
-import { DevSkyPanel } from './DevSkyPanel'
 import { Constellation, WritingGlow } from './Delights'
 import { useExtras } from '../extras'
 import { FindBar } from './FindBar'
@@ -192,7 +191,6 @@ export function App() {
       <FindBar />
       <WritingGlow />
       {overlay === 'commands' && <CommandMenu />}
-      <DevSkyPanel />
       {overlay === 'shortcuts' && <ShortcutSheet />}
       {overlay === 'search' && <SearchPanel />}
       {overlay === 'personas' && <PersonaChooser />}

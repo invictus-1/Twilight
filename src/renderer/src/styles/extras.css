@@ -177,11 +177,6 @@
 /* Snow lightens the air a little toward the horizon. */
 .is-snow::before { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 40%, color-mix(in srgb, var(--ink) 7%, transparent) var(--horizon-at), transparent); }
 
-/* —— Sky dev tools (temporary, see devSky.ts) —— */
-.dev-sky { position: fixed; right: 16px; bottom: 16px; z-index: 1000; width: 360px; max-width: calc(100vw - 32px); padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; background: var(--surface-overlay); border: 1px solid var(--line-strong); border-radius: 12px; box-shadow: var(--shadow-lg); }
-.dev-sky-head { display: flex; align-items: center; justify-content: space-between; font-weight: 600; }
-.dev-sky-row { display: flex; flex-wrap: wrap; gap: 4px; }
-
 /* Gentle and Off: nothing moves. */
 :root[data-motion='reduced'] .sky-season, :root[data-motion='off'] .sky-season,
 :root[data-motion='reduced'] .sky-egg, :root[data-motion='off'] .sky-egg,
