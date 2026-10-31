@@ -17,6 +17,7 @@ import { parseScoutCases, scout, testScout } from './scout'
 import * as local from './localModels'
 import { pickEngine } from './localModels'
 import { checkContinuity } from './writing'
+import { sentLabel } from '@shared/time'
 import * as voice from './voice'
 import { cleanTranscript, encodeWav, speakable } from '@shared/voice'
 import { bestStarter, fitFor, quantOf, type Hardware } from '@shared/localModels'
@@ -5463,33 +5464,88 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           sent52.slice(1).every((r) => r.startedAt >= (sent52[0].firstTokenAt ?? Infinity) && JSON.stringify(r.messages) === JSON.stringify(sent52[0].messages)),
         sent52.map((r) => [r.startedAt, r.firstTokenAt])
       )
-      const ui52 = await js<{ first: number; more: number; shown: number; closed: boolean; used: string }>(`(async () => {
+      // A draft with a message of its own goes under a new version of yours; the same message, under yours.
+      const asked52 = chat.view(c52).path.at(-2)!
+      const beforeEach52 = log.length
+      chat.drafts(contents, c52, asked52.id, 2, [asked52.text, 'Write one line about Rowan rowing out instead.'])
+      await idle(c52)
+      const family52 = chat.multiverse(c52, asked52.id)
+      const own52 = family52.find((c) => c.user.text === 'Write one line about Rowan rowing out instead.')
+      const sentEach52 = log.slice(beforeEach52).map((r) => String(r.messages.at(-1)?.content ?? ''))
+      check(
+        'each draft can have its own message: it goes in as a new version of yours, with its own reply',
+        family52.length === 6 && !!own52 && own52.user.id !== asked52.id && own52.user.parentId === asked52.parentId && own52.reply.status === 'done' &&
+          sentEach52.some((m) => m.endsWith('Write one line about Rowan rowing out instead.')) && sentEach52.some((m) => m.endsWith(asked52.text)) &&
+          chat.view(c52).path.at(-2)?.id === asked52.id,
+        { columns: family52.map((c) => c.user.text.slice(0, 30)), sentEach52 }
+      )
+      const ui52 = await js<{ setupFirst: boolean; first: number; setupAgain: boolean; noAutoRun: boolean; more: number; messages: number; fits: boolean; shown: number; closed: boolean; used: string }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         const settled = async (n) => { for (let end = Date.now() + 8000; Date.now() < end && (document.querySelectorAll('.multiverse-draft').length < n || document.querySelector('.multiverse-draft[data-status="streaming"]')); ) await wait(40) }
         const last = [...document.querySelectorAll('.tw-msg-ai')].at(-1)
-        const had = last?.querySelector('.tw-branch') ? 2 : 1
         last?.querySelector('.multiverse-open')?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.multiverse-panel'); ) await wait(25)
-        await settled(had === 1 ? 4 : 2)
+        await wait(200)
+        // A reply with one version opens on the setup: nothing is written until you press Write.
+        const setupFirst = !!document.querySelector('.multiverse-setup')
+        if (setupFirst) {
+          ;[...document.querySelectorAll('.multiverse-setup .tw-seg button')].find((b) => b.textContent === '2')?.click()
+          await wait(30)
+          document.querySelector('.multiverse-run')?.click()
+        }
+        await settled(2)
         const first = document.querySelectorAll('.multiverse-draft').length
-        ;[...document.querySelectorAll('.multiverse-write .tw-seg button')].find((b) => b.textContent === '2')?.click()
-        await wait(50)
         document.querySelector('.multiverse-more')?.click()
+        await wait(300)
+        const setupAgain = !!document.querySelector('.multiverse-setup')
+        const noAutoRun = !document.querySelector('.multiverse-draft[data-status="streaming"]')
+        ;[...document.querySelectorAll('.multiverse-setup .tw-seg button')].find((b) => b.textContent === '2')?.click()
+        await wait(30)
+        document.querySelector('.multiverse-each')?.click()
+        await wait(50)
+        const boxes = document.querySelectorAll('.multiverse-prompt textarea')
+        const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+        set.call(boxes[1], 'Answer as the ferryman would.')
+        boxes[1].dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(30)
+        document.querySelector('.multiverse-run')?.click()
         await settled(first + 2)
+        const grid = document.querySelector('.multiverse-grid')
         const more = document.querySelectorAll('.multiverse-draft').length
+        const messages = document.querySelectorAll('.multiverse-draft-message').length
+        const fits = !!grid && (more > 5 || grid.scrollWidth <= grid.clientWidth + 1)
         const shown = document.querySelectorAll('.multiverse-draft.is-shown').length
         const pick = [...document.querySelectorAll('.multiverse-draft:not(.is-shown)')][0]
         const used = pick?.dataset.node ?? ''
         pick?.querySelector('.multiverse-use')?.click()
         for (let end = Date.now() + 3000; Date.now() < end && document.querySelector('.multiverse-panel'); ) await wait(25)
         await wait(300)
-        return { first, more, shown, closed: !document.querySelector('.multiverse-panel'), used }
+        return { setupFirst, first, setupAgain, noAutoRun, more, messages, fits, shown, closed: !document.querySelector('.multiverse-panel'), used }
       })()`)
       check(
-        'the multiverse panel shows the versions side by side, writes more, and Use this shows one',
-        ui52.first >= 2 && ui52.more === ui52.first + 2 && ui52.shown === 1 && ui52.closed && !!ui52.used && chat.view(c48).path.some((n) => n.id === ui52.used),
+        'the multiverse panel asks first (how many, and the same or different messages), then shows the drafts side by side, and Use this shows one',
+        ui52.first >= 2 && ui52.setupAgain && ui52.noAutoRun && ui52.more === ui52.first + 2 && ui52.messages === ui52.more && ui52.shown === 1 && ui52.closed && !!ui52.used && chat.view(c48).path.some((n) => n.id === ui52.used),
         ui52
       )
+      check('up to five drafts fit side by side, with no scroll bar', ui52.fits, ui52)
+      const sentAt52 = await js<{ count: number; label: string; title: string }>(`(() => {
+        const t = document.querySelector('.tw-msg-user .sent-at, .msg .sent-at')
+        return { count: document.querySelectorAll('.sent-at').length, label: t?.textContent ?? '', title: t?.getAttribute('title') ?? '' }
+      })()`)
+      check('your messages say when they were sent, with the exact time on hover', sentAt52.count > 0 && sentAt52.label.length > 0 && /\d{4}/.test(sentAt52.title) && /\d:\d\d/.test(sentAt52.title), sentAt52)
+      const now52 = new Date(2026, 9, 30, 15, 0, 0).getTime()
+      check(
+        'sent times read naturally: just now, minutes, hours, yesterday, a weekday, then a date',
+        sentLabel(now52 - 20_000, now52) === 'just now' &&
+          sentLabel(now52 - 5 * 60_000, now52) === '5 min ago' &&
+          sentLabel(now52 - 60 * 60_000, now52) === '1 hour ago' &&
+          sentLabel(now52 - 3 * 3600_000, now52) === '3 hours ago' &&
+          sentLabel(new Date(2026, 9, 29, 21, 14).getTime(), now52).startsWith('Yesterday at ') &&
+          sentLabel(new Date(2026, 9, 26, 9, 0).getTime(), now52).endsWith(' at ' + new Date(2026, 9, 26, 9, 0).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })) &&
+          sentLabel(new Date(2026, 8, 2).getTime(), now52) === new Date(2026, 8, 2).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        [now52 - 20_000, now52 - 5 * 60_000, now52 - 3600_000, now52 - 3 * 3600_000].map((t) => sentLabel(t, now52))
+      )
+
 
       // 55. Offline voice: Windows' voices read aloud; whisper.cpp (a stand-in) for dictation.
       const fakeWhisper = join(outDir, 'fake-whisper.cjs')

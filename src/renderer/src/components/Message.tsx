@@ -15,10 +15,10 @@ import { readStream, subscribeStream } from '../stream'
 import { extractChoices } from '@shared/choices'
 import { useWriting } from '../writingStore'
 import { ChoiceCard } from './ChoiceCard'
-import { savedCount } from './Multiverse'
 import { BlindContext } from './Arena'
 import { ConfidenceView } from './Confidence'
 import { ReadAloudButton } from './Dictate'
+import { SentAt } from './SentAt'
 import { DiffBody, useDiffed } from './SplitDiff'
 import { AlertIcon, BookIcon, BranchIcon, CalendarIcon, ChevronLeft, ImageIcon, SlidersIcon, ChevronRight, CheckIcon, CopyIcon, DocIcon, GridIcon, PaperclipIcon, PenIcon, PulseIcon, RefreshIcon, SearchIcon, SplitIcon, StarIcon, ToolIcon, TrashIcon } from './Icons'
 
@@ -248,6 +248,7 @@ function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: bool
         )}
       </div>
       <div className="user-foot">
+        <SentAt at={node.createdAt} />
         {/* The newest message with no reply yet (an edit saved without sending): send it from here. */}
         {waiting && (
           <button className="tw-btn tw-btn-sm tw-btn-primary user-send" onClick={() => void useStore.getState().regenerate(node.id, pane)}>
@@ -703,7 +704,7 @@ function AssistantMessage({ node, next, isLast }: { node: NodeView; next?: NodeV
                 className="tw-btn tw-btn-ghost tw-btn-icon multiverse-open"
                 aria-label="Multiverse drafts"
                 title={node.siblingCount > 1 ? 'Multiverse: every version of this reply side by side, and more at once' : 'Multiverse: write several versions at once and compare them side by side'}
-                onClick={() => void useStore.getState().openMultiverse(node.id, node.siblingCount > 1 ? undefined : savedCount())}
+                onClick={() => useStore.getState().openMultiverse(node.id, node.siblingCount < 2)}
               >
                 <GridIcon />
               </button>

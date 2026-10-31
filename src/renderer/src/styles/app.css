@@ -1179,6 +1179,9 @@ body.resizing .resize-handle { pointer-events: auto; }
 .continuity-fact { margin: var(--space-1) 0 0; color: var(--ink-muted); }
 .continuity-actions { display: flex; gap: var(--space-2); flex-wrap: wrap; margin-top: var(--space-2); }
 
+/* When a message of yours was sent */
+.sent-at { font-size: 11.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: default; }
+
 /* Offline voice */
 .dictate.is-recording { width: auto; padding: 0 var(--space-2); gap: var(--space-1); color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, transparent); }
 .dictate.is-recording .tw-icon { animation: dictate-pulse 1.2s ease-in-out infinite; }
@@ -1222,9 +1225,16 @@ body.resizing .resize-handle { pointer-events: auto; }
 .arena-board { margin-top: var(--space-5); }
 
 /* Multiverse drafts */
-.multiverse-panel { width: min(1280px, calc(100vw - 32px)); height: calc(100vh - 96px); max-height: none; }
-.multiverse-write { display: inline-flex; align-items: center; gap: var(--space-2); }
-.multiverse-grid { flex: 1; min-height: 0; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(320px, 1fr); gap: var(--space-3); padding: var(--space-3); overflow-x: auto; }
+/* Wide enough that up to five drafts sit side by side without a scroll bar; past five, the row scrolls. */
+.multiverse-panel { width: min(1880px, calc(100vw - 32px)); height: calc(100vh - 56px); max-height: none; }
+.multiverse-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(var(--cols, 1), minmax(0, 1fr)); gap: var(--space-3); padding: var(--space-3); }
+.multiverse-grid.is-many { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(320px, 1fr); overflow-x: auto; }
+.multiverse-draft-message { margin: 0; padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); background: var(--surface-raised); font-size: 13px; color: var(--ink-muted); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.multiverse-setup { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-3); padding: var(--space-4); }
+.multiverse-setup-row { display: flex; align-items: center; gap: var(--space-4); flex-wrap: wrap; }
+.multiverse-message { margin: 0; padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-raised); white-space: pre-wrap; max-height: 160px; overflow-y: auto; }
+.multiverse-prompts { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: var(--space-3); }
+.multiverse-prompt textarea { resize: vertical; min-height: 120px; }
 .multiverse-draft { display: flex; flex-direction: column; min-height: 0; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--surface); }
 .multiverse-draft.is-shown { border-color: color-mix(in srgb, var(--iris) 60%, transparent); box-shadow: 0 0 0 1px color-mix(in srgb, var(--iris) 30%, transparent); }
 .multiverse-draft-head { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); border-bottom: 1px solid var(--line); }

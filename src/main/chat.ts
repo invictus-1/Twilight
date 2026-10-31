@@ -341,15 +341,38 @@ export function branchFromWord(contents: WebContents, id: string, nodeId: string
  * leads (and is the one shown); the rest wait for its first token, by when the prompt is cached,
  * so they read the same cache instead of each paying to write it.
  */
-export function drafts(contents: WebContents, id: string, nodeId: string, count: number): ConversationView {
+export function drafts(contents: WebContents, id: string, nodeId: string, count: number, prompts?: string[]): ConversationView {
   if (isRunning(id, 'a')) throw new Error('A reply is still streaming in this chat.')
-  const node = db.loadNodes(id).get(nodeId)
-  const userId = node?.role === 'user' ? node.id : node?.parent_id
-  if (!userId) throw new Error('Nothing to write drafts for.')
-  const n = Math.max(1, Math.min(6, Math.round(count)))
-  const lead = generate(contents, id, userId, 'a')
-  for (let i = 1; i < n; i++) void generate(contents, id, userId, 'a', lead, { slot: i, activate: false })
+  const nodes = db.loadNodes(id)
+  const node = nodes.get(nodeId)
+  const user = node?.role === 'user' ? node : node?.parent_id ? nodes.get(node.parent_id) : undefined
+  if (!user || user.role !== 'user') throw new Error('Nothing to write drafts for.')
+  const n = Math.max(1, Math.min(6, Math.round(prompts?.length ?? count)))
+  // A draft with a message of its own goes under a new version of your message (beside it in the
+  // tree); the same message, under the message itself. Only the lead is shown.
+  const target = (i: number): string => {
+    const text = prompts?.[i]?.trim()
+    return text && text !== user.text.trim() ? userVersion(id, user, text, 'a', i === 0).id : user.id
+  }
+  const lead = generate(contents, id, target(0), 'a')
+  for (let i = 1; i < n; i++) void generate(contents, id, target(i), 'a', lead, { slot: i, activate: false })
   return view(id)
+}
+
+/**
+ * Multiverse drafts side by side: every reply to a message of yours, and to each other version of
+ * that message (a draft with a message of its own is one), oldest first.
+ */
+export function multiverse(id: string, userNodeId: string): { user: NodeView; reply: NodeView }[] {
+  const nodes = db.loadNodes(id)
+  const user = nodes.get(userNodeId)
+  if (!user?.parent_id) return []
+  return db
+    .childrenOf(nodes, user.parent_id)
+    .filter((u) => u.role === 'user')
+    .flatMap((u) => db.childrenOf(nodes, u.id).map((reply) => ({ u, reply })))
+    .sort((a, b) => a.reply.created_at - b.reply.created_at)
+    .map(({ u, reply }) => ({ user: db.toView(u, nodes), reply: db.toView(reply, nodes) }))
 }
 
 /** Every version of the reply to a message of yours, oldest first. */
@@ -445,6 +468,36 @@ export function restoreDeletion(id: string, deletionId: string, pane: Pane = 'a'
   return view(id)
 }
 
+/**
+ * A new version of a message of yours with `text` typed instead: its attached documents kept, and
+ * the time (and fresh library passages) as of now, since it's sent now.
+ */
+function userVersion(id: string, node: db.NodeRow, text: string, pane: Pane, activate: boolean): db.NodeRow {
+  const blocks = node.content ? (JSON.parse(node.content) as { type: string; text?: string }[]) : []
+  const kept = blocks.filter(
+    (b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text) && !b.text.startsWith(CLOCK_OPEN) && !b.text.startsWith(LIBRARY_OPEN))
+  )
+  const docs = [...(settingsFor(db.getConversation(id), pane).dateTime ? [{ type: 'text', text: clockBlock(new Date()) }] : []), ...kept]
+  return db.insertNode(
+    {
+      id: randomUUID(),
+      conversation_id: id,
+      parent_id: node.parent_id,
+      role: 'user',
+      text,
+      content: JSON.stringify([...docs, ...(text ? [{ type: 'text', text }] : [])]),
+      thinking: null,
+      model: null,
+      provider_id: null,
+      usage: null,
+      status: 'done',
+      error: null,
+      attachments: node.attachments ?? null
+    },
+    { activate }
+  )
+}
+
 export function editMessage(contents: WebContents, id: string, nodeId: string, text: string, pane: Pane = 'a', send = true): ConversationView {
   if (isRunning(id, pane)) throw new Error('Wait for the reply to finish before editing.')
   const nodes = db.loadNodes(id)
@@ -462,17 +515,7 @@ export function editMessage(contents: WebContents, id: string, nodeId: string, t
   }
   let edited: db.NodeRow
   if (node.role === 'user') {
-    // Keep its attached documents; replace what was typed. The edited message is sent now, so it
-    // takes the time now (when the pane sends it) instead of the original's.
-    const blocks = node.content ? (JSON.parse(node.content) as { type: string; text?: string }[]) : []
-    const kept = blocks.filter(
-      (b) => b.type === 'image' || b.type === 'document' || (b.type === 'text' && !!b.text && isContextText(b.text) && !b.text.startsWith(CLOCK_OPEN) && !b.text.startsWith(LIBRARY_OPEN))
-    )
-    const docs = [...(settingsFor(db.getConversation(id), pane).dateTime ? [{ type: 'text', text: clockBlock(new Date()) }] : []), ...kept]
-    edited = db.insertNode(
-      { ...base, role: 'user', content: JSON.stringify([...docs, ...(text ? [{ type: 'text', text }] : [])]), model: null, provider_id: null, attachments: node.attachments ?? null },
-      { activate: pane === 'a' }
-    )
+    edited = userVersion(id, node, text, pane, pane === 'a')
   } else {
     edited = db.insertNode(
       { ...base, role: 'assistant', content: JSON.stringify([{ type: 'text', text }]), model: node.model, provider_id: node.provider_id },

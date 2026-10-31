@@ -70,8 +70,12 @@ interface State {
   multiverseFor: string | null
   /** A new version of a reply that keeps it up to `prefix` and writes on from there (Confidence). */
   branchFromWord(nodeId: string, prefix: string): Promise<void>
-  /** Opens the multiverse panel on a message (or a reply's message), writing `count` new drafts first if given. */
-  openMultiverse(nodeId: string, count?: number): Promise<void>
+  /** Opens the multiverse panel on a message (or a reply's message); `setup` opens it on choosing what to write. */
+  openMultiverse(nodeId: string, setup?: boolean): void
+  /** The panel starts on its setup (how many drafts, and their messages) rather than the drafts. */
+  multiverseSetup: boolean
+  /** Writes drafts of a reply: `prompts` gives each its own message (the same message where it's unchanged). */
+  writeDrafts(userNodeId: string, count: number, prompts?: string[]): Promise<void>
   updates: UpdateState | null
   error: string | null
   /** The current chat's recently deleted messages, newest first. */
@@ -174,6 +178,7 @@ export const useStore = create<State>((set, get) => {
     prices: [],
     searchQuery: '',
     multiverseFor: null,
+    multiverseSetup: false,
     flash: null,
     updates: null,
     error: null,
@@ -306,13 +311,12 @@ export const useStore = create<State>((set, get) => {
 
     regenerate: (nodeId, pane) => withCurrent((id) => api.regenerate(id, nodeId, pane)),
     branchFromWord: (nodeId, prefix) => withCurrent((id) => api.branchFromWord(id, nodeId, prefix)),
-    async openMultiverse(nodeId, count) {
+    openMultiverse(nodeId, setup = false) {
       const node = get().current?.path.find((n) => n.id === nodeId)
       const userId = node?.role === 'assistant' ? node.parentId : nodeId
-      if (!userId) return
-      set({ multiverseFor: userId, overlay: 'multiverse' })
-      if (count) await withCurrent((id) => api.drafts(id, userId, count))
+      if (userId) set({ multiverseFor: userId, multiverseSetup: setup, overlay: 'multiverse' })
     },
+    writeDrafts: (userNodeId, count, prompts) => withCurrent((id) => api.drafts(id, userNodeId, count, prompts)),
     switchBranch: (nodeId, direction, pane) => withCurrent((id) => api.switchBranch(id, nodeId, direction, pane)),
 
     async deleteMessage(nodeId, kind, pane) {

@@ -334,7 +334,8 @@ function registerIpc(): void {
     send: (e, id: string, text: string, target?: SendTarget, attachments?: Attachment[]) =>
       chat.send(e.sender, id, text, target, attachments),
     regenerate: (e, id: string, nodeId: string, pane?: Pane) => chat.regenerate(e.sender, id, nodeId, pane),
-    drafts: (e, id: string, nodeId: string, count: number) => chat.drafts(e.sender, id, nodeId, count),
+    drafts: (e, id: string, nodeId: string, count: number, prompts?: string[]) => chat.drafts(e.sender, id, nodeId, count, prompts),
+    multiverse: (_e, id: string, userNodeId: string) => chat.multiverse(id, userNodeId),
     replyConfidence: (_e, id: string, nodeId: string) => chat.replyConfidence(id, nodeId),
     branchFromWord: (e, id: string, nodeId: string, prefix: string) => chat.branchFromWord(e.sender, id, nodeId, prefix),
     versions: (_e, id: string, userNodeId: string) => chat.versions(id, userNodeId),
