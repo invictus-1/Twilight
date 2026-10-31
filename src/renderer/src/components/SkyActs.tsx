@@ -1,3 +1,4 @@
+import platypusPeek from '../assets/sky/platypus.webp'
 import platypusRun from '../assets/sky/platypus-run.webp'
 import platypusTrot from '../assets/sky/platypus-trot.webp'
 import { useLayoutEffect, useRef } from 'react'
@@ -269,29 +270,50 @@ function CityDinner() {
 
 // ——— Cyberpunk ———
 
+// He walks in, hops a laser, knocks the first robot's head off, ducks the second one's swing and
+// kicks it over, then sees two more coming and runs for it with lasers flying past.
 function CyberBrawl() {
   return (
-    <div className="act act-brawl" style={play(15_000)}>
+    <div className="act act-brawl" style={play(18_000)}>
       <div className="act-brawl-hero">
-        <PlatypusNoir className="is-running" band />
+        <div className="act-hero-pose">
+          <PlatypusNoir className="is-running" band />
+        </div>
       </div>
-      <div className="act-bot act-bot-1">
-        <Robot className="is-marching" />
-        <span className="act-sparks">
-          {Array.from({ length: 8 }, (_, i) => (
-            <i key={i} style={{ '--a': `${i * 45}deg` } as React.CSSProperties} />
-          ))}
-        </span>
-      </div>
-      <div className="act-bot act-bot-2">
-        <Robot className="is-marching" />
-      </div>
-      <div className="act-bot act-bot-3">
-        <Robot className="is-marching" />
-      </div>
+      {[1, 2, 3, 4].map((i) => (
+        <div key={i} className={`act-bot act-bot-${i}`}>
+          <div className="act-bot-pose">
+            <Robot className="is-marching" />
+          </div>
+        </div>
+      ))}
+      {/* Lasers: [where it's fired from across the sky (%), when (a fraction of the act), how high]. */}
+      {LASERS.map(([x, at, up], i) => (
+        <span key={i} className="act-laser" style={{ left: `${x}%`, bottom: `calc(var(--ground) + ${up}px)`, '--at': at } as React.CSSProperties} />
+      ))}
+      <span className="act-pow act-pow-1" />
+      <span className="act-pow act-pow-2" />
+      <span className="act-sparks act-sparks-1">
+        {Array.from({ length: 8 }, (_, i) => (
+          <i key={i} style={{ '--a': `${i * 45}deg` } as React.CSSProperties} />
+        ))}
+      </span>
+      <span className="act-sparks act-sparks-2">
+        {Array.from({ length: 8 }, (_, i) => (
+          <i key={i} style={{ '--a': `${i * 45 + 20}deg` } as React.CSSProperties} />
+        ))}
+      </span>
+      <span className="act-say act-zap">zzt</span>
     </div>
   )
 }
+const LASERS: [number, number, number][] = [
+  [44, 0.15, 44],
+  [74, 0.7, 52],
+  [80, 0.75, 30],
+  [70, 0.8, 50],
+  [66, 0.86, 36]
+]
 
 function CyberChase() {
   return (
@@ -325,9 +347,13 @@ function CyberNoodles() {
   return (
     <div className="act act-noodles" style={play(19_000)}>
       <div className="act-cart-train">
+        {/* Side on, leaning into it, the cart's shafts in his gloves behind him. */}
         <div className="act-puller">
-          <Pumpkin className="is-pulling" />
+          <div className="act-flip">
+            <Pumpkin view="side" arms="back" className="is-pulling" />
+          </div>
         </div>
+        <span className="act-handle act-handle-far" />
         <span className="act-handle" />
         <div className="act-cart">
           <svg viewBox="0 0 120 90" aria-hidden="true">
@@ -415,25 +441,25 @@ function DuneWorm() {
   )
 }
 
-function DuneBeach() {
+// Floating across the dunes in a straw hat, side on, sipping a drink through a straw.
+function DuneFloat() {
   return (
-    <div className="act act-beach" style={play(17_000)}>
-      <div className="act-beach-set">
-        <svg className="act-umbrella" viewBox="0 0 120 120" aria-hidden="true">
-          <path d="M60 18 L60 116" stroke="#eee6d2" strokeWidth="3" />
-          <path d="M8 46 Q60 -6 112 46 Z" fill="#ff5d73" />
-          {[24, 52, 80].map((x) => (
-            <path key={x} d={`M60 16 L${x} 46 L${x + 14} 46 Z`} fill="#fff7e8" />
-          ))}
-        </svg>
-        <span className="act-towel" />
-        <div className="act-sunbather">
-          <Pumpkin className="is-lounging" />
-          <span className="act-shades" />
-        </div>
-        <span className="act-juice">
-          <span className="act-straw" />
-        </span>
+    <div className="act act-float" style={play(17_000)}>
+      <div className="act-float-x">
+        <Pumpkin view="side" className="is-sipping">
+          <g className="act-hat">
+            <ellipse cx="68" cy="24" rx="50" ry="7" fill="#e9c46a" />
+            <path d="M42 24 Q42 2 68 2 Q94 2 94 24 Z" fill="#f2d27e" />
+            <path d="M42 18 Q68 24 94 18 L94 23 Q68 29 42 23 Z" fill="#d1495b" />
+            <path className="pk-stitch is-straw" d="M22 26 Q68 36 114 26" />
+          </g>
+          <g className="act-drink">
+            <path d="M110 96 L126 96 L123 122 L113 122 Z" fill="rgba(240, 250, 255, .55)" stroke="#fff" strokeWidth="1.2" />
+            <path className="act-drink-juice" d="M111.2 104 L124.8 104 L123 122 L113 122 Z" fill="#ff9f43" />
+            <path d="M120 98 L104 86" stroke="#ff5d73" strokeWidth="2.4" strokeLinecap="round" />
+            <circle cx="124" cy="97" r="4" fill="#ffd166" />
+          </g>
+        </Pumpkin>
       </div>
       <span className="act-say act-ahh">ahh</span>
     </div>
@@ -544,18 +570,112 @@ function GridDisco() {
   )
 }
 
+// Down the slopes side on: skis under his feet, poles behind, a scarf streaming, and a flip off a ridge.
 function MountainSki() {
   return (
     <div className="act act-ski" style={play(13_000)}>
       <div className="act-ski-x">
         <div className="act-ski-y">
           <div className="act-skier">
-            <Pumpkin className="is-skiing" />
-            <span className="act-skis" />
-            <span className="act-scarf act-scarf-ski" />
+            <Pumpkin view="side" arms="back" className="is-skiing">
+              <path d="M16 97 L-16 140" stroke="#cfd3e6" strokeWidth="2.4" strokeLinecap="round" />
+              <path d="M17 110 L-8 144" stroke="#e8ebf7" strokeWidth="2.4" strokeLinecap="round" />
+              <path d="M24 132 L130 132 Q140 132 142 124" fill="none" stroke="#c93d58" strokeWidth="4.5" strokeLinecap="round" />
+              <path d="M14 136 L122 136 Q134 136 136 127" fill="none" stroke="#ff5d73" strokeWidth="4.5" strokeLinecap="round" />
+              <g className="act-scarf-wrap">
+                <path d="M30 88 Q70 108 106 90" fill="none" stroke="#4fb3ff" strokeWidth="9" strokeLinecap="round" />
+                <path d="M30 88 Q70 108 106 90" fill="none" stroke="#fff" strokeWidth="9" strokeDasharray="5 9" opacity=".7" />
+                <g className="act-scarf-tail">
+                  <path d="M34 88 Q16 80 -6 86 L-4 96 Q16 92 34 96 Z" fill="#4fb3ff" />
+                  <path d="M-6 86 L-4 96" stroke="#fff" strokeWidth="3" />
+                </g>
+              </g>
+            </Pumpkin>
           </div>
         </div>
         <span className="act-snow" />
+      </div>
+    </div>
+  )
+}
+
+// The platypus swimming across the mountain lake, a wake behind him; he dives, and comes up further on.
+function MountainSwim() {
+  return (
+    <div className="act act-swim" style={play(15_000)}>
+      <div className="act-swim-x">
+        <span className="act-wake" />
+        <div className="act-waterline">
+          <div className="act-swimmer">
+            <Platypus className="is-swimming" />
+          </div>
+        </div>
+        <span className="act-bubbles">
+          {[0, 1, 2, 3].map((i) => (
+            <i key={i} style={{ animationDelay: `${i * 0.3}s` }} />
+          ))}
+        </span>
+      </div>
+      <Burst className="act-splash act-dive-splash" count={7} />
+      <Burst className="act-splash act-up-splash" count={7} />
+    </div>
+  )
+}
+
+const PEEK_SPOTS: Record<Horizon, [number, number][]> = {
+  // Where along the horizon he may come up (fractions across): clear of the lighthouse and islands at sea.
+  grid: [[0.06, 0.92]],
+  ocean: [[0.1, 0.7]],
+  mountains: [[0.06, 0.92]],
+  city: [[0.06, 0.92]],
+  dunes: [[0.06, 0.92]],
+  cyberpunk: [[0.06, 0.92]]
+}
+
+/** Phosphor's peeking platypus, on any scene and somewhere new each time: over a city roof, or the
+ *  horizon elsewhere. He ducks back down when you move. */
+export function PeekingPlatypus({ spotted, horizon }: { spotted: boolean; horizon: Horizon }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    let frame = 0
+    let tries = 0
+    const place = (): void => {
+      const act = ref.current
+      if (!act) return
+      const w = act.clientWidth
+      const horizonAt = parseFloat(getComputedStyle(act).getPropertyValue('--horizon-at')) / 100 || 0.64
+      let x = 0
+      let y = act.clientHeight * (1 - horizonAt)
+      // Roofs wide enough to stand on; on a small window the skyline is drawn small, so failing
+      // those, the widest few.
+      const inView = horizon === 'city' ? measureRoofs(act).filter((r) => r.l > w * 0.05 && r.r < w * 0.95) : []
+      const wide = inView.filter((r) => r.r - r.l >= 36)
+      const roofs = wide.length ? wide : [...inView].sort((a, b) => b.r - b.l - (a.r - a.l)).slice(0, 5)
+      // The city's skyline is drawn in an idle moment: wait a little for it.
+      if (horizon === 'city' && !roofs.length && tries++ < 40) {
+        frame = requestAnimationFrame(place)
+        return
+      }
+      if (roofs.length) {
+        const roof = roofs[Math.floor(Math.random() * roofs.length)]
+        x = (roof.l + roof.r) / 2
+        y = roof.y
+      } else {
+        const spans = PEEK_SPOTS[horizon]
+        const [from, to] = spans[Math.floor(Math.random() * spans.length)]
+        x = w * (from + Math.random() * (to - from))
+      }
+      act.style.setProperty('--peek-x', `${x}px`)
+      act.style.setProperty('--peek-y', `${y}px`)
+      act.classList.add('is-placed')
+    }
+    place()
+    return () => cancelAnimationFrame(frame)
+  }, [horizon])
+  return (
+    <div ref={ref} className={`act act-peek sky-egg-platypus ${spotted ? 'is-ducking' : ''}`} style={play(4_200)}>
+      <div className="act-peek-window">
+        <img className="act-peek-art" src={platypusPeek} alt="" draggable={false} />
       </div>
     </div>
   )
@@ -566,20 +686,21 @@ const ACTS: Partial<Record<string, Act>> = {
   'ufo:city': { ms: 15_000, Scene: CityAbduction },
   'whale:city': { ms: 20_000, Scene: CityBlimp },
   'pumpkin:city': { ms: 17_000, Scene: CityDinner },
-  'platypus-trot:cyberpunk': { ms: 15_000, Scene: CyberBrawl },
+  'platypus-trot:cyberpunk': { ms: 18_000, Scene: CyberBrawl },
   'ufo:cyberpunk': { ms: 13_000, Scene: CyberChase },
   'whale:cyberpunk': { ms: 18_000, Scene: CyberHolo },
   'pumpkin:cyberpunk': { ms: 19_000, Scene: CyberNoodles },
   'platypus-trot:dunes': { ms: 14_000, Scene: DuneBuggy },
   'ufo:dunes': { ms: 14_000, Scene: DuneCactus },
   'whale:dunes': { ms: 12_000, Scene: DuneWorm },
-  'pumpkin:dunes': { ms: 17_000, Scene: DuneBeach },
+  'pumpkin:dunes': { ms: 17_000, Scene: DuneFloat },
   'platypus-trot:ocean': { ms: 14_000, Scene: OceanSurf },
   'ufo:ocean': { ms: 14_000, Scene: OceanFishing },
   'whale:ocean': { ms: 12_000, Scene: OceanBreach },
   'pumpkin:ocean': { ms: 17_000, Scene: OceanRowboat },
   'pumpkin:grid': { ms: 15_000, Scene: GridDisco },
-  'pumpkin:mountains': { ms: 13_000, Scene: MountainSki }
+  'pumpkin:mountains': { ms: 13_000, Scene: MountainSki },
+  'platypus-trot:mountains': { ms: 15_000, Scene: MountainSwim }
 }
 
 /** The act a visitor plays on a scene, if it has one there (otherwise it simply crosses the sky). */

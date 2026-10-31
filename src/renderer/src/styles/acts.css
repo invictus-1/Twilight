@@ -14,10 +14,14 @@
 .pk-foot { fill: #121014; }
 .pk-glove circle, .pk-glove ellipse { fill: #fbfbfd; }
 .pk-cuff { fill: none; stroke: #cfd0da; stroke-width: 1.6; }
-.pk-rib { fill: none; stroke: #b4460a; stroke-width: 2; opacity: .45; }
+.pk-rib { fill: none; stroke: #b4460a; stroke-width: 2.8; stroke-linecap: round; opacity: .38; }
+.pk-stitch { fill: none; stroke: #ffc27a; stroke-width: 1.2; stroke-dasharray: 2.6 2.8; stroke-linecap: round; opacity: .75; }
+.pk-stitch.is-leaf { stroke: #8ee8c8; opacity: .65; }
+.pk-stitch.is-straw { stroke: #b8892e; opacity: .8; }
 .pk-face path, .pk-face ellipse { fill: #1a1012; }
 .pk-tag { fill: #f4f1ea; opacity: .9; }
 .pk-arm-far { transform-box: view-box; transform-origin: 96px 66px; }
+.is-side .pk-arm-far, .is-side .pk-arm-near { animation: none; }
 .pk-arm-near { transform-box: view-box; transform-origin: 70px 84px; }
 .pk-arm, .pk-leg { transform-box: view-box; }
 .pk-arm-l { transform-origin: 27px 64px; }
@@ -161,20 +165,66 @@
 .act-burp { left: calc(var(--roof-x) + 14px); bottom: calc(var(--roof-y) + 66px); animation: say-burp var(--d) both; }
 @keyframes say-burp { 0%, 77% { opacity: 0; transform: translateY(8px) scale(.6); } 79%, 85% { opacity: 1; transform: none; } 88%, 100% { opacity: 0; transform: translateY(-14px); } }
 
-/* ——— Cyberpunk: the platypus against the robots, then off at a sprint ——— */
-.act-brawl > div { position: absolute; bottom: calc(var(--ground) + 1.5%); }
-.act-brawl-hero { width: 56px; animation: hero-x var(--d) both; }
-@keyframes hero-x { 0%, 28% { left: 30%; transform: none; } 33% { left: 40%; transform: none; } 35% { left: 41%; transform: rotate(-14deg); } 38%, 60% { left: 40%; transform: none; } 62% { left: 40%; transform: scaleX(-1); } 66% { left: 38%; transform: scaleX(-1); animation-timing-function: ease-in; } 86%, 100% { left: -16%; transform: scaleX(-1); } }
-.act-bot { width: 48px; }
+/* ——— Cyberpunk: the platypus against the robots, then off at a sprint ———
+   He walks in and hops a laser (15%), knocks robot 1's head off (31%), ducks robot 2's swing (48%)
+   and kicks it over (54%), sees two more (66%) and runs for it with lasers flying past. */
+.act-brawl > div { position: absolute; bottom: calc(var(--ground) - 1px); }
+.act-brawl-hero { width: 58px; animation: hero-x var(--d) both, hero-y var(--d) both; }
+@keyframes hero-x {
+  0% { left: -8%; transform: none; } 12% { left: 26%; } 24% { left: 28%; animation-timing-function: ease-in; } 29% { left: 40%; }
+  31%, 46% { left: 40.5%; } 52% { left: 41%; } 55% { left: 43%; } 60%, 66% { left: 42%; transform: none; }
+  67% { left: 42%; transform: scaleX(-1); animation-timing-function: ease-in; } 88%, 100% { left: -14%; transform: scaleX(-1); }
+}
+@keyframes hero-y { 0%, 14% { margin-bottom: 0; animation-timing-function: ease-out; } 17% { margin-bottom: 48px; animation-timing-function: ease-in; } 20%, 100% { margin-bottom: 0; } }
+.act-hero-pose { transform-origin: 50% 100%; animation: hero-pose var(--d) both; }
+/* The punch (a lunge), the duck under the swing, the kick (leaning back, a foot out). */
+@keyframes hero-pose {
+  0%, 29% { transform: none; } 31% { transform: translateX(6px) rotate(-16deg); } 34%, 46% { transform: none; }
+  48% { transform: scale(1.08, .66); } 51% { transform: none; } 53% { transform: rotate(24deg) translateX(-4px); } 55% { transform: rotate(30deg) translateX(8px); } 58%, 100% { transform: none; }
+}
+.act-brawl-hero .pl-leg-a { animation: pl-step .3s ease-in-out infinite alternate, hero-kick var(--d) both; }
+@keyframes hero-kick { 0%, 52% { scale: 1; } 54%, 56% { scale: 1 1.6; } 58%, 100% { scale: 1; } }
+.act-bot { width: 50px; }
+.act-bot-pose { transform-origin: 50% 100%; }
 .act-bot-1 { animation: bot1 var(--d) both; }
-@keyframes bot1 { 0% { left: 106%; } 26% { left: 44.5%; transform: none; opacity: 1; } 35% { left: 44.5%; transform: none; } 40% { left: 46%; transform: translateY(-8px) rotate(50deg); opacity: 1; } 46%, 100% { left: 48%; transform: translateY(10px) rotate(90deg); opacity: 0; } }
+@keyframes bot1 { 0%, 6% { left: 108%; } 24%, 100% { left: 46%; } }
+.act-bot-1 .act-bot-pose { animation: bot1-fall var(--d) both; }
+@keyframes bot1-fall { 0%, 31% { transform: none; opacity: 1; } 34% { transform: rotate(14deg); } 40% { transform: rotate(88deg) translateY(6px); opacity: 1; } 44%, 100% { transform: rotate(90deg) translateY(10px); opacity: 0; } }
+.act-bot-1 .rb-head { transform-box: fill-box; transform-origin: 50% 100%; animation: head-off var(--d) both; }
+@keyframes head-off { 0%, 31% { transform: none; } 36% { transform: translate(34px, -70px) rotate(220deg); } 42% { transform: translate(60px, -10px) rotate(520deg); } 44%, 100% { transform: translate(64px, 40px) rotate(560deg); } }
+.act-bot-1 .is-marching .rb-leg-a, .act-bot-1 .is-marching .rb-leg-b, .act-bot-2 .is-marching .rb-leg-a, .act-bot-2 .is-marching .rb-leg-b { animation-play-state: var(--marching, running); }
 .act-bot-2 { animation: bot2 var(--d) both; }
+@keyframes bot2 { 0%, 34% { left: 110%; } 46%, 100% { left: 47%; } }
+.act-bot-2 .act-bot-pose { animation: bot2-fall var(--d) both; }
+@keyframes bot2-fall { 0%, 54% { transform: none; opacity: 1; } 57% { transform: translateX(16px) rotate(16deg); } 60% { transform: translateX(10px) rotate(4deg); } 64% { transform: translateX(22px) rotate(92deg) translateY(4px); opacity: 1; } 70%, 100% { transform: translateX(22px) rotate(92deg) translateY(6px); opacity: 0; } }
+/* Robot 2 swings at him, and its visor goes out when it's hit. */
+.act-bot-2 .rb-arm-l { animation: bot2-swing var(--d) both; }
+@keyframes bot2-swing { 0%, 46% { rotate: 0deg; } 48% { rotate: 120deg; } 50% { rotate: 40deg; } 52%, 100% { rotate: 0deg; } }
+.act-bot-2 .rb-visor { animation: visor-out var(--d) steps(1) both; }
+@keyframes visor-out { 0%, 55% { opacity: 1; } 56% { opacity: .2; } 58% { opacity: 1; } 60%, 100% { opacity: .1; } }
 .act-bot-3 { animation: bot3 var(--d) both; }
-@keyframes bot2 { 0%, 50% { left: 108%; opacity: 1; } 60%, 66% { left: 60%; } 90% { left: 18%; opacity: 1; } 96%, 100% { left: 10%; opacity: 0; } }
-@keyframes bot3 { 0%, 53% { left: 112%; opacity: 1; } 63%, 67% { left: 69%; } 92% { left: 27%; opacity: 1; } 98%, 100% { left: 20%; opacity: 0; } }
-.act-sparks { position: absolute; left: 50%; top: 20%; width: 0; height: 0; }
-.act-sparks i { position: absolute; width: 10px; height: 2px; border-radius: 1px; background: #ffe26a; box-shadow: 0 0 6px #ffb347; rotate: var(--a); transform-origin: 0 50%; opacity: 0; animation: spark var(--d) both; }
-@keyframes spark { 0%, 34% { opacity: 0; transform: translateX(0); } 35% { opacity: 1; } 42%, 100% { opacity: 0; transform: translateX(26px); } }
+.act-bot-4 { animation: bot4 var(--d) both; }
+@keyframes bot3 { 0%, 60% { left: 110%; opacity: 1; } 68% { left: 74%; } 96% { left: 22%; opacity: 1; } 100% { left: 14%; opacity: 0; } }
+@keyframes bot4 { 0%, 63% { left: 114%; opacity: 1; } 71% { left: 82%; } 98% { left: 32%; opacity: 1; } 100% { left: 28%; opacity: 0; } }
+/* Lasers: fired at --at (a fraction of the act), across the sky to the left. */
+.act-laser { position: absolute; width: 26px; height: 3px; border-radius: 2px; background: #ff2d55; box-shadow: 0 0 6px 1px #ff2d55; opacity: 0; animation: laser 1s linear calc(var(--d) * var(--at)) both; }
+@keyframes laser { 0% { transform: translateX(0); opacity: 0; } 4% { opacity: 1; } 100% { transform: translateX(-70vw); opacity: 1; } }
+/* A burst where a blow lands. */
+.act-pow { position: absolute; width: 46px; height: 46px; background: #ffe26a; clip-path: polygon(50% 0, 61% 32%, 96% 18%, 70% 46%, 100% 62%, 64% 64%, 70% 100%, 50% 72%, 28% 98%, 34% 64%, 0 70%, 30% 48%, 4% 22%, 40% 32%); box-shadow: 0 0 12px #ffb347; opacity: 0; }
+.act-pow-1 { left: calc(46% - 4px); bottom: calc(var(--ground) + 44px); animation: pow var(--d) both; --pow-at: 31%; }
+.act-pow-2 { left: calc(47% - 2px); bottom: calc(var(--ground) + 22px); animation: pow2 var(--d) both; }
+@keyframes pow { 0%, 30.5% { opacity: 0; transform: scale(.3) rotate(0); } 31.5% { opacity: 1; transform: scale(1.1) rotate(12deg); } 34%, 100% { opacity: 0; transform: scale(1.4) rotate(20deg); } }
+@keyframes pow2 { 0%, 54.5% { opacity: 0; transform: scale(.3) rotate(0); } 55.5% { opacity: 1; transform: scale(1.1) rotate(-12deg); } 58%, 100% { opacity: 0; transform: scale(1.4) rotate(-20deg); } }
+.act-sparks { position: absolute; width: 0; height: 0; }
+.act-sparks-1 { left: calc(46% + 20px); bottom: calc(var(--ground) + 66px); --spark-at: 31%; }
+.act-sparks-2 { left: calc(47% + 25px); bottom: calc(var(--ground) + 50px); }
+.act-sparks i { position: absolute; width: 10px; height: 2px; border-radius: 1px; background: #ffe26a; box-shadow: 0 0 6px #ffb347; rotate: var(--a); transform-origin: 0 50%; opacity: 0; }
+.act-sparks-1 i { animation: spark1 var(--d) both; }
+.act-sparks-2 i { animation: spark2 var(--d) both; }
+@keyframes spark1 { 0%, 31% { opacity: 0; transform: translateX(0); } 32% { opacity: 1; } 38%, 100% { opacity: 0; transform: translateX(30px); } }
+@keyframes spark2 { 0%, 55% { opacity: 0; transform: translateX(0); } 56% { opacity: 1; } 61%, 100% { opacity: 0; transform: translateX(26px); } }
+.act-zap { left: calc(47% + 30px); bottom: calc(var(--ground) + 96px); animation: say-zap var(--d) both; }
+@keyframes say-zap { 0%, 57% { opacity: 0; transform: translateY(6px) scale(.6); } 59%, 64% { opacity: 1; transform: none; } 67%, 100% { opacity: 0; transform: translateY(-10px); } }
 
 /* ——— Cyberpunk: police drones after the saucer ——— */
 .act-chase-ufo { position: absolute; width: 100px; top: 32%; animation: chase-x var(--d) linear both, chase-weave 1.6s ease-in-out infinite; }
@@ -195,12 +245,13 @@
 .act-holo-trail { position: absolute; right: 92%; top: 45%; width: 90px; height: 10px; background: repeating-linear-gradient(90deg, rgba(79, 243, 255, .7) 0 3px, transparent 3px 9px); -webkit-mask-image: linear-gradient(90deg, transparent, #000); mask-image: linear-gradient(90deg, transparent, #000); }
 
 /* ——— Cyberpunk: the pumpkin hauling a noodle cart down the street ——— */
-.act-cart-train { position: absolute; bottom: calc(var(--ground) + 1%); width: 290px; height: 130px; animation: cart-x var(--d) linear both; }
+.act-cart-train { position: absolute; bottom: calc(var(--ground) - 4px); width: 290px; height: 130px; animation: cart-x var(--d) linear both; }
 @keyframes cart-x { from { left: 104%; } to { left: -40%; } }
-.act-puller { position: absolute; left: 0; bottom: 18px; width: 84px; }
-.is-pulling .pk-arm-r { animation: pk-pull 1.2s ease-in-out infinite; }
-@keyframes pk-pull { 0%, 100% { rotate: 40deg; } 50% { rotate: 52deg; } }
-.act-handle { position: absolute; left: 80px; bottom: 64px; width: 64px; height: 3px; background: #c9cde0; rotate: 8deg; transform-origin: 0 50%; }
+.act-puller { position: absolute; left: 0; bottom: 6px; width: 84px; rotate: -10deg; transform-origin: 50% 100%; }
+.act-flip { transform: scaleX(-1); }
+.is-pulling .pk-leg-l, .is-pulling .pk-leg-r { animation-duration: .5s; }
+.act-handle { position: absolute; left: 70px; bottom: 28px; width: 80px; height: 3px; border-radius: 2px; background: #c9cde0; rotate: 4deg; transform-origin: 0 50%; }
+.act-handle-far { bottom: 33px; background: #8e93ab; rotate: 1deg; }
 .act-cart { position: absolute; left: 138px; bottom: 0; width: 150px; }
 .act-cart svg { display: block; width: 100%; overflow: visible; }
 .act-neon-sign { fill: #12142a; stroke: #4ff3ff; stroke-width: 1.4; filter: drop-shadow(0 0 4px #4ff3ff); animation: neon-buzz 2.3s steps(1) infinite; }
@@ -256,19 +307,19 @@
 .act-sand-out i { animation: act-drop 1.4s ease-out calc(var(--d) * .2) both; }
 .act-sand-in i { animation: act-drop 1.4s ease-out calc(var(--d) * .6) both; }
 
-/* ——— Dunes: a holiday on the sand ——— */
-.act-beach-set { position: absolute; left: 58%; bottom: calc(var(--ground) - 11%); width: 160px; height: 120px; }
-.act-umbrella { position: absolute; left: 70px; bottom: 0; width: 96px; overflow: visible; }
-.act-towel { position: absolute; left: 0; bottom: 0; width: 120px; height: 12px; border-radius: 3px; background: repeating-linear-gradient(90deg, #4fb3ff 0 14px, #fff7e8 14px 28px); transform: skewX(-20deg); }
-.act-sunbather { position: absolute; left: 10px; bottom: 6px; width: 88px; transform-origin: 50% 80%; animation: sunbather var(--d) both; }
-@keyframes sunbather { 0% { transform: translateY(-300px) rotate(0); } 14% { transform: translateY(0) rotate(0); animation-timing-function: ease-out; } 20%, 86% { transform: translateY(0) rotate(-62deg); } 92% { transform: translateY(-30px) rotate(0); animation-timing-function: ease-in; } 100% { transform: translateY(-340px) rotate(10deg); } }
-.act-shades { position: absolute; left: 28%; top: 28%; width: 46%; height: 10%; border-radius: 3px; background: #121014; box-shadow: 0 0 0 1px #3a3040; }
-.is-lounging .pk-arm-r { animation: lounge-wave var(--d) both; }
-@keyframes lounge-wave { 0%, 58% { rotate: 0deg; } 60%, 64%, 68% { rotate: -40deg; } 62%, 66%, 70% { rotate: -10deg; } 72%, 100% { rotate: 0deg; } }
-.act-juice { position: absolute; left: 96px; bottom: 4px; width: 14px; height: 20px; border-radius: 2px; background: linear-gradient(180deg, #ffd166 0 30%, #ff8c42 30%); }
-.act-straw { position: absolute; left: 6px; top: -10px; width: 2px; height: 12px; background: #ff5d73; rotate: 14deg; }
-.act-ahh { left: calc(58% + 30px); bottom: calc(var(--ground) - 11% + 96px); animation: say-ahh var(--d) both; }
-@keyframes say-ahh { 0%, 30% { opacity: 0; transform: scale(.6); } 34%, 48% { opacity: 1; transform: none; } 52%, 100% { opacity: 0; transform: translateY(-12px); } }
+/* ——— Dunes: floating across in a straw hat, sipping a drink ——— */
+.act-float-x { position: absolute; width: 92px; bottom: calc(var(--ground) - 8%); animation: float-x var(--d) linear both, float-y 3.4s ease-in-out infinite; }
+@keyframes float-x { from { left: -10%; } to { left: 106%; } }
+@keyframes float-y { 50% { margin-bottom: 14px; } }
+/* Each sip, the drink a little lower; the hat lifts in the breeze now and then. */
+.act-drink-juice { transform-box: fill-box; transform-origin: 50% 100%; animation: drink-down var(--d) both; }
+@keyframes drink-down { 0%, 20% { transform: none; } 30%, 42% { transform: scaleY(.75); } 54%, 66% { transform: scaleY(.45); } 78%, 100% { transform: scaleY(.15); } }
+.is-sipping .act-drink { animation: sip 2.4s ease-in-out infinite; transform-box: view-box; transform-origin: 117px 110px; }
+@keyframes sip { 0%, 60%, 100% { transform: none; } 70%, 90% { transform: translate(-3px, -4px) rotate(-6deg); } }
+.act-hat { transform-box: view-box; transform-origin: 68px 26px; animation: hat-lift 5s ease-in-out infinite; }
+@keyframes hat-lift { 0%, 80%, 100% { transform: none; } 86% { transform: translateY(-6px) rotate(-6deg); } 92% { transform: translateY(-2px) rotate(2deg); } }
+.act-ahh { left: 52%; bottom: calc(var(--ground) - 8% + 90px); animation: say-ahh var(--d) both; }
+@keyframes say-ahh { 0%, 46% { opacity: 0; transform: translateY(6px) scale(.6); } 49%, 56% { opacity: 1; transform: none; } 60%, 100% { opacity: 0; transform: translateY(-10px); } }
 
 /* ——— Ocean: the platypus surfing ——— */
 .act-wave-ride { position: absolute; bottom: calc(var(--ground) - 18%); width: 240px; height: 100px; animation: surf-x var(--d) linear both; }
@@ -355,16 +406,44 @@
 @keyframes skate-arm { 0%, 100% { rotate: -40deg; } 50% { rotate: 30deg; } }
 
 /* ——— The mountains: the pumpkin skis down ——— */
-.act-ski-x { position: absolute; width: 86px; animation: ski-x var(--d) linear both, ski-y var(--d) both; }
+.act-ski-x { position: absolute; width: 90px; animation: ski-x var(--d) linear both, ski-y var(--d) both; }
 @keyframes ski-x { from { left: -8%; } to { left: 108%; } }
 @keyframes ski-y { 0% { top: calc(var(--horizon-at) - 20%); } 44% { top: calc(var(--horizon-at) - 6%); animation-timing-function: ease-out; } 52% { top: calc(var(--horizon-at) - 18%); animation-timing-function: ease-in; } 60% { top: calc(var(--horizon-at) - 2%); } 100% { top: calc(var(--horizon-at) + 10%); } }
 .act-ski-y { animation: ski-flip var(--d) both; }
 @keyframes ski-flip { 0%, 44% { transform: rotate(14deg); } 52% { transform: rotate(-200deg); } 60% { transform: rotate(-345deg); } 61%, 100% { transform: rotate(14deg); } }
-.act-skier { position: relative; width: 86px; }
-.act-skis { position: absolute; left: -12px; right: -18px; bottom: 13px; height: 4px; border-radius: 2px; background: #ff5d73; box-shadow: 0 5px 0 #4fb3ff; }
-.act-scarf-ski { left: -10px; bottom: auto; top: 44%; background: #4fb3ff; }
-.act-snow { position: absolute; left: -30px; top: 60%; width: 46px; height: 24px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .9), transparent 70%); filter: blur(2px); animation: dust .5s ease-out infinite; }
-.is-skiing .pk-arm-l, .is-skiing .pk-arm-r { animation: none; rotate: 30deg; }
+.act-skier { position: relative; width: 90px; }
+.is-skiing { animation: none; }
+.is-skiing .pk-leg-l, .is-skiing .pk-leg-r { animation: none; }
+/* The scarf's tail streams out behind, flapping. */
+.act-scarf-tail { transform-box: view-box; transform-origin: 34px 92px; animation: scarf-flap .3s ease-in-out infinite alternate; }
+@keyframes scarf-flap { from { transform: skewY(-10deg) scaleX(.92); } to { transform: skewY(8deg) scaleX(1.04); } }
+.act-snow { position: absolute; left: -30px; top: 70%; width: 46px; height: 24px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .9), transparent 70%); filter: blur(2px); animation: dust .5s ease-out infinite; }
 
-/* Gentle and Off: the visitors don't come at all (as the other surprises). */
-:root[data-motion='reduced'] .act, :root[data-motion='off'] .act { display: none; }
+/* ——— The mountains: the platypus swims the lake ——— */
+.act-swim-x { position: absolute; width: 84px; height: 40px; bottom: calc(var(--ground) - 9%); animation: swim-x var(--d) linear both; }
+@keyframes swim-x { from { left: -8%; } to { left: 104%; } }
+/* Only what's above the water shows; he dives at 40% and comes up at 58%. */
+.act-waterline { position: absolute; inset: 0; overflow: hidden; }
+.act-swimmer { position: absolute; left: 0; width: 84px; bottom: -22px; animation: swim-bob 1.4s ease-in-out infinite, swim-dive var(--d) both; }
+@keyframes swim-bob { 50% { margin-bottom: 3px; } }
+@keyframes swim-dive { 0%, 38% { transform: none; } 41% { transform: translateY(8px) rotate(24deg); } 43%, 56% { transform: translateY(60px) rotate(30deg); } 58% { transform: translateY(4px) rotate(-14deg); } 61%, 100% { transform: none; } }
+.is-swimming .pl-leg { animation: pl-step .4s ease-in-out infinite alternate; }
+/* The wake: a V of ripples spreading behind him. */
+.act-wake { position: absolute; right: 74%; bottom: 14px; width: 120px; height: 18px; background: linear-gradient(170deg, transparent 46%, rgba(220, 235, 255, .45) 50%, transparent 54%), linear-gradient(10deg, transparent 46%, rgba(220, 235, 255, .35) 50%, transparent 54%); -webkit-mask-image: linear-gradient(90deg, transparent, #000); mask-image: linear-gradient(90deg, transparent, #000); animation: wake var(--d) both; }
+@keyframes wake { 0%, 39% { opacity: 1; } 43%, 58% { opacity: 0; } 64%, 100% { opacity: 1; } }
+.act-bubbles { position: absolute; left: 40px; bottom: 16px; width: 0; height: 0; }
+.act-bubbles i { position: absolute; width: 4px; height: 4px; border-radius: 50%; border: 1px solid rgba(230, 240, 255, .8); opacity: 0; animation: bubble 1.2s ease-out infinite, bubbles-life var(--d) step-end both; }
+@keyframes bubble { from { transform: translate(0, 0); } to { transform: translate(4px, -14px); } }
+@keyframes bubbles-life { 0% { visibility: hidden; } 43% { visibility: visible; opacity: .9; } 57%, 100% { visibility: hidden; } }
+.act-dive-splash { left: 42%; bottom: calc(var(--ground) - 9% + 14px); --foam-at: calc(var(--d) * .4); }
+.act-up-splash { left: 61%; bottom: calc(var(--ground) - 9% + 14px); --foam-at: calc(var(--d) * .58); }
+.act-dive-splash i { animation: act-drop .9s ease-out calc(var(--d) * .4) both; }
+.act-up-splash i { animation: act-drop .9s ease-out calc(var(--d) * .58) both; }
+
+/* ——— Phosphor's peeking platypus, anywhere along the horizon or over a city roof ——— */
+.act-peek { animation: none; }
+.act-peek:not(.is-placed) { visibility: hidden; }
+.act-peek-window { position: absolute; left: calc(var(--peek-x) - 36px); bottom: var(--peek-y); width: 72px; height: 46px; overflow: hidden; }
+.act-peek-art { display: block; width: 72px; animation: peek-up .5s cubic-bezier(.2, .8, .3, 1) both; transition: transform 180ms cubic-bezier(.5, 0, .9, .4); }
+@keyframes peek-up { from { transform: translateY(46px); } }
+.act-peek.is-ducking .act-peek-art { transform: translateY(56px); }

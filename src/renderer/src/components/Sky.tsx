@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { clockTime, seasonFor, weatherFor, type Weather } from '@shared/sky'
 import { useDevSky } from '../devSky'
 import { useExtras, type Horizon, type SkyTime } from '../extras'
-import { actFor } from './SkyActs'
+import { actFor, PeekingPlatypus } from './SkyActs'
 import { HorizonScene, Meteors } from './Horizons'
 import balloon from '../assets/sky/balloon.webp'
 import lighthouse from '../assets/sky/lighthouse.webp'
@@ -163,6 +163,7 @@ function SkyEgg({ name, spotted, horizon }: { name: Egg; spotted: boolean; horiz
   }, [bolting])
   const art = bolting ? platypusRun : ART[name]
   if (act) return <act.Scene />
+  if (name === 'platypus') return <PeekingPlatypus spotted={spotted} horizon={horizon} />
   return (
     <span ref={el} className={`sky-egg sky-egg-${name} ${spotted ? 'is-ducking' : ''}`}>
       {name === 'lighthouse' && <span className="sky-sweep" />}
@@ -186,6 +187,8 @@ export function EmptySky({ watch = false, session = false }: { watch?: boolean; 
   const devEgg = useDevEgg(watch, extras.horizon)
   const egg = devEgg ? { name: devEgg.name, ducking: false } : surprise
   const eggKey = devEgg ? `${devEgg.name}-${devEgg.at}` : surprise?.name
+  // Acts, and the peeking platypus, play in front of the scene; the rest cross the sky behind it.
+  const onStage = !!egg && (!!actFor(egg.name, extras.horizon) || egg.name === 'platypus')
   const weather = useWeather(extras.weather, extras.horizon, extras.snow)
   const season = extras.seasons ? seasonFor() : null
   // Up to most of the way to night over three hours.
@@ -214,11 +217,11 @@ export function EmptySky({ watch = false, session = false }: { watch?: boolean; 
         </div>
       )}
       {/* A visitor crossing the sky goes behind the sun and the scene; an act plays in front of them. */}
-      {egg && !actFor(egg.name, extras.horizon) && <SkyEgg key={eggKey} name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
+      {egg && !onStage && <SkyEgg key={eggKey} name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
       <span className="empty-sun" />
       <span className="empty-horizon" />
       <HorizonScene kind={extras.horizon} time={time} />
-      {egg && actFor(egg.name, extras.horizon) && <SkyEgg key={eggKey} name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
+      {egg && onStage && <SkyEgg key={eggKey} name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
       {weather !== 'clear' && <SkyWeather kind={weather} />}
       {late > 0 && <span className="sky-late" />}
     </div>

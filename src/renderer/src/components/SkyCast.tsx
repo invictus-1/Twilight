@@ -2,10 +2,24 @@
 // each limb its own group so an act can move it (the CSS names them: .pk-arm-l, .pl-leg-a …).
 // Every figure faces right; an act flips it to face left.
 
-/** The pumpkin: an orange jack-o'-lantern with a teal stem and leaves, thin green limbs, white
- *  gloves and round black feet, glowing softly. Seen from the front, the side (facing right, the
- *  face wrapping round the edge) or the back (no face, a plush tag). */
-export function Pumpkin({ className = '', mouth = 'grin', view = 'front' }: { className?: string; mouth?: 'grin' | 'open'; view?: 'front' | 'side' | 'back' }) {
+/** The pumpkin: an orange jack-o'-lantern plush with a teal stem and leaves, thin green limbs,
+ *  white gloves and round black feet, glowing softly. Seen from the front, the side (facing right,
+ *  the face wrapping round the edge; arms reaching forward, or back to pull something) or the back
+ *  (no face, the plush's tag). Props an act gives it (a hat, a drink, skis) are drawn in its own
+ *  frame, after everything else. */
+export function Pumpkin({
+  className = '',
+  mouth = 'grin',
+  view = 'front',
+  arms = 'reach',
+  children
+}: {
+  className?: string
+  mouth?: 'grin' | 'open'
+  view?: 'front' | 'side' | 'back'
+  arms?: 'reach' | 'back'
+  children?: React.ReactNode
+}) {
   const face = (
     <>
       <path d="M44 58 C44 44 62 44 62 58 L56.5 58 C56.5 51 49.5 51 49.5 58 Z" />
@@ -14,6 +28,7 @@ export function Pumpkin({ className = '', mouth = 'grin', view = 'front' }: { cl
       {mouth === 'grin' ? <path d="M40 77 Q70 91 100 77 Q90 96 76 96 L76 90.5 L66 90.5 L66 96 Q50 96 40 77 Z" /> : <ellipse cx="70" cy="86" rx="11" ry="9" />}
     </>
   )
+  const back = view === 'side' && arms === 'back'
   return (
     <svg className={`cast pumpkin is-${view} ${className}`} viewBox="0 0 140 150" aria-hidden="true">
       <defs>
@@ -29,6 +44,17 @@ export function Pumpkin({ className = '', mouth = 'grin', view = 'front' }: { cl
           <stop offset="0" stopColor="#2fae8a" />
           <stop offset="1" stopColor="#14735e" />
         </linearGradient>
+        {/* Plush: the edge a little fuzzy, and a fine grain like the nap of the fabric. */}
+        <filter id="pk-plush" x="-6%" y="-6%" width="112%" height="112%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="2" seed="7" result="nap" />
+          <feDisplacementMap in="SourceGraphic" in2="nap" scale="2.6" xChannelSelector="R" yChannelSelector="G" result="fuzz" />
+          <feColorMatrix in="nap" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0.9 0 0 0 -0.42" result="grain" />
+          <feComposite in="grain" in2="fuzz" operator="in" result="shade" />
+          <feMerge>
+            <feMergeNode in="fuzz" />
+            <feMergeNode in="shade" />
+          </feMerge>
+        </filter>
       </defs>
       {/* Legs and feet first, so the body sits over the hips. */}
       <g className="pk-leg pk-leg-l">
@@ -40,12 +66,12 @@ export function Pumpkin({ className = '', mouth = 'grin', view = 'front' }: { cl
         <ellipse className="pk-foot" cx="88" cy="127" rx="9" ry="6.5" />
       </g>
       {view === 'side' ? (
-        // From the side both arms reach forward: the far one behind the body.
+        // From the side the far arm is behind the body: reaching forward, or back to a handle.
         <g className="pk-arm pk-arm-far">
-          <path d="M96 66 Q114 72 122 62" />
+          <path d={back ? 'M46 70 Q30 82 20 94' : 'M96 66 Q114 72 122 62'} />
           <g className="pk-glove">
-            <circle cx="126" cy="58" r="7.5" />
-            <path className="pk-cuff" d="M118 62 Q122 67 127 64" />
+            <circle cx={back ? 16 : 126} cy={back ? 97 : 58} r="7.5" />
+            <path className="pk-cuff" d={back ? 'M17 89 Q23 91 23 97' : 'M118 62 Q122 67 127 64'} />
           </g>
         </g>
       ) : (
@@ -68,41 +94,50 @@ export function Pumpkin({ className = '', mouth = 'grin', view = 'front' }: { cl
           </g>
         </>
       )}
-      <ellipse cx="70" cy="62" rx="46" ry="38" fill="url(#pk-skin)" />
-      {view === 'side' ? (
-        <>
-          <path className="pk-rib" d="M62 25 Q50 62 62 99" />
-          <path className="pk-rib" d="M86 26 Q96 62 86 98" />
-          <path className="pk-rib" d="M104 34 Q116 62 104 90" />
-          {/* The face squeezed toward the right edge and clipped to the body, so it wraps round. */}
-          <g className="pk-face" clipPath="url(#pk-round)">
-            <g transform="translate(110 0) scale(.55 1) translate(-70 0)">{face}</g>
-          </g>
-        </>
-      ) : (
-        <>
-          <path className="pk-rib" d="M50 26 Q36 62 50 98" />
-          <path className="pk-rib" d="M90 26 Q104 62 90 98" />
-          <path className="pk-rib" d="M70 24 Q66 62 70 100" />
-          {/* The face from the plush: arched eyes, a triangle nose, a wide grin with one square tooth;
-              from behind, only the plush's tag. */}
-          {view === 'front' ? <g className="pk-face">{face}</g> : <path className="pk-tag" d="M64 94 L76 94 L75 106 L65 106 Z" />}
-        </>
-      )}
-      <g className="pk-stem">
-        <path d="M64 26 Q63 14 68 9 L75 10 Q72 17 74 26 Z" fill="#1a6f5a" />
-        <path d="M66 24 Q46 8 34 20 Q48 28 66 26 Z" fill="url(#pk-leaf)" />
-        <path d="M74 24 Q94 6 106 20 Q90 30 74 26 Z" fill="url(#pk-leaf)" />
+      <g className="pk-plush" filter="url(#pk-plush)">
+        <ellipse cx="70" cy="62" rx="46" ry="38" fill="url(#pk-skin)" />
+        {view === 'side' ? (
+          <>
+            <path className="pk-rib" d="M62 25 Q50 62 62 99" />
+            <path className="pk-rib" d="M86 26 Q96 62 86 98" />
+            <path className="pk-rib" d="M104 34 Q116 62 104 90" />
+            <path className="pk-stitch" d="M66 27 Q55 62 66 97" />
+            {/* The face squeezed toward the right edge and clipped to the body, so it wraps round. */}
+            <g className="pk-face" clipPath="url(#pk-round)">
+              <g transform="translate(110 0) scale(.55 1) translate(-70 0)">{face}</g>
+            </g>
+          </>
+        ) : (
+          <>
+            <path className="pk-rib" d="M50 26 Q36 62 50 98" />
+            <path className="pk-rib" d="M90 26 Q104 62 90 98" />
+            <path className="pk-rib" d="M70 24 Q66 62 70 100" />
+            {/* Stitched seams beside the ribs, as on the plush. */}
+            <path className="pk-stitch" d="M55 27 Q42 62 55 97" />
+            <path className="pk-stitch" d="M85 27 Q98 62 85 97" />
+            {/* The face from the plush: arched eyes, a triangle nose, a wide grin with one square tooth;
+                from behind, only the plush's tag. */}
+            {view === 'front' ? <g className="pk-face">{face}</g> : <path className="pk-tag" d="M64 94 L76 94 L75 106 L65 106 Z" />}
+          </>
+        )}
+        <g className="pk-stem">
+          <path d="M64 26 Q63 14 68 9 L75 10 Q72 17 74 26 Z" fill="#1a6f5a" />
+          <path d="M66 24 Q46 8 34 20 Q48 28 66 26 Z" fill="url(#pk-leaf)" />
+          <path d="M74 24 Q94 6 106 20 Q90 30 74 26 Z" fill="url(#pk-leaf)" />
+          <path className="pk-stitch is-leaf" d="M64 24 Q50 16 38 20" />
+          <path className="pk-stitch is-leaf" d="M76 24 Q90 14 102 20" />
+        </g>
       </g>
       {view === 'side' && (
         <g className="pk-arm pk-arm-near">
-          <path d="M70 84 Q90 104 112 98" />
+          <path d={back ? 'M60 86 Q40 102 22 108' : 'M70 84 Q90 104 112 98'} />
           <g className="pk-glove">
-            <circle cx="117" cy="96" r="7.5" />
-            <path className="pk-cuff" d="M109 98 Q112 104 117 103" />
+            <circle cx={back ? 17 : 117} cy={back ? 110 : 96} r="7.5" />
+            <path className="pk-cuff" d={back ? 'M18 102 Q24 104 24 110' : 'M109 98 Q112 104 117 103'} />
           </g>
         </g>
       )}
+      {children}
     </svg>
   )
 }
@@ -233,10 +268,12 @@ export function Whale({ className = '', holo = false }: { className?: string; ho
 export function Robot({ className = '' }: { className?: string }) {
   return (
     <svg className={`cast robot ${className}`} viewBox="0 0 54 86" aria-hidden="true">
-      <path d="M27 4 L27 12" stroke="#9aa0b8" strokeWidth="2" />
-      <circle cx="27" cy="3.5" r="2.6" className="rb-tip" />
-      <rect x="12" y="12" width="30" height="20" rx="4" fill="#8d93ad" />
-      <rect x="15" y="18" width="24" height="7" rx="3.5" className="rb-visor" />
+      <g className="rb-head">
+        <path d="M27 4 L27 12" stroke="#9aa0b8" strokeWidth="2" />
+        <circle cx="27" cy="3.5" r="2.6" className="rb-tip" />
+        <rect x="12" y="12" width="30" height="20" rx="4" fill="#8d93ad" />
+        <rect x="15" y="18" width="24" height="7" rx="3.5" className="rb-visor" />
+      </g>
       <rect x="10" y="34" width="34" height="30" rx="5" fill="#6f7591" />
       <circle cx="27" cy="46" r="4" className="rb-core" />
       <g className="rb-arm rb-arm-l"><rect x="3" y="36" width="7" height="22" rx="3.5" fill="#8d93ad" /></g>

@@ -53,7 +53,8 @@
 
 /* —— Easter eggs —— one crosses after a quiet while, once. */
 .sky-egg { position: absolute; pointer-events: none; z-index: 0; }
-.sky-egg-comet { top: 6%; left: 70%; width: 180px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 85%, var(--horizon))); rotate: 160deg; transform-origin: right center; animation: egg-comet 6s ease-in both; }
+.sky-egg-comet::after { content: ''; position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, #fff 80%, var(--horizon)); box-shadow: 0 0 10px 4px color-mix(in srgb, var(--horizon) 50%, transparent); }
+.sky-egg-comet { top: 6%; left: 78%; width: 180px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--ink) 85%, var(--horizon))); rotate: 160deg; transform-origin: right center; animation: egg-comet 6s ease-in both; }
 .sky-egg-satellite { top: 10%; left: -2%; width: 3px; height: 3px; border-radius: 50%; background: var(--ink); animation: egg-sat 14s linear both, egg-blink 1.2s steps(2) infinite; }
 .sky-egg-lantern { top: 58%; left: 62%; width: 7px; height: 9px; border-radius: 3px; background: #ffb35c; box-shadow: 0 0 14px 4px color-mix(in srgb, #ffb35c 55%, transparent); animation: egg-lantern 14s ease-out both; }
 /* The models: low-poly renders from Blender, tinted to the theme where they're in its colours. */
@@ -64,10 +65,6 @@
 .sky-egg-balloon { top: calc(var(--horizon-at) - 26%); left: 16%; width: 60px; animation: egg-balloon 16s ease-in-out both; }
 .sky-egg-lighthouse { top: calc(var(--horizon-at) - 92px); right: 9%; width: 64px; animation: egg-stay 15s ease both; }
 .sky-sweep { position: absolute; right: 30px; top: 16px; width: 70vw; height: 46px; margin-top: -23px; transform-origin: 100% 50%; background: linear-gradient(270deg, color-mix(in srgb, var(--horizon) 75%, #fff), color-mix(in srgb, var(--horizon) 25%, transparent) 35%, transparent 70%); clip-path: polygon(100% 45%, 0 0, 0 100%, 100% 55%); opacity: 0; animation: egg-sweep 7s ease-in-out 1s 2 both; }
-/* Phosphor's visitor: peeks over the horizon (the floor hides what's below it) and ducks when seen. */
-.sky-egg-platypus { top: calc(var(--horizon-at) - 46px); left: 22%; width: 72px; }
-.sky-egg-platypus img { filter: none; transition: transform 180ms cubic-bezier(.5, 0, .9, .4); }
-.sky-egg-platypus.is-ducking img { transform: translateY(56px); }
 /* The stroll: along the horizon, left to right; spotted, the same path at nine times the pace. */
 .sky-egg-platypus-trot { top: calc(var(--horizon-at) - 41px); left: -14%; width: 90px; animation: egg-trot 18s linear both; }
 .sky-egg-platypus-trot img { filter: none; }
@@ -91,7 +88,8 @@
 
 @keyframes egg-ufo { 0% { transform: translate(0, 0); } 30% { transform: translate(42vw, 6px); } 45% { transform: translate(44vw, 0); } 60% { transform: translate(46vw, 6px); } 100% { transform: translate(110vw, -40px); } }
 @keyframes egg-beam { 0%, 32% { opacity: 0; } 38%, 56% { opacity: 1; } 62%, 100% { opacity: 0; } }
-@keyframes egg-comet { from { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateX(-60vw); opacity: 0; } }
+/* Moved along its own length (it is turned to point down and to the left), head first. */
+@keyframes egg-comet { from { transform: translateX(0); opacity: 0; } 15% { opacity: 1; } 85% { opacity: 1; } to { transform: translateX(60vw); opacity: 0; } }
 @keyframes egg-sat { from { transform: translateX(0); } to { transform: translateX(105vw); } }
 @keyframes egg-blink { 50% { opacity: .2; } }
 @keyframes egg-lantern { from { transform: translate(0, 0); opacity: 0; } 10% { opacity: 1; } to { transform: translate(-30px, -48vh); opacity: 0; } }

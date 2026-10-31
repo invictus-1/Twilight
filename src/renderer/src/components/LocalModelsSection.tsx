@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { bestStarter, CONTEXT_CHOICES, FIT_LABEL, fitFor, paramsLabel, serverId, sizeLabel, STARTERS, type HubModel, type HubVariant, type LocalModel, type LocalState, type ModelFit, type LocalModelOptions, type StarterModel } from '@shared/localModels'
+import { bestStarter, CONTEXT_CHOICES, FIT_LABEL, fitFor, moeOf, paramsLabel, serverId, sizeLabel, STARTERS, type HubModel, type HubVariant, type LocalModel, type LocalState, type ModelFit, type LocalModelOptions, type StarterModel } from '@shared/localModels'
 import { useStore } from '../store'
 import { ChevronDown, ChevronRight, ChipIcon, FolderIcon, SearchIcon, SlidersIcon, TrashIcon } from './Icons'
 
@@ -24,7 +24,7 @@ function Progress({ done, total }: { done: number; total: number }) {
   )
 }
 
-/** A downloaded model's own settings: how much context, and how much of it on the graphics card. */
+/** A downloaded model's own settings: how much context, how much of it on the graphics card, and how the chat's memory is kept. */
 function ModelSettings({ model, gpu }: { model: LocalModel; gpu: boolean }) {
   const o: LocalModelOptions = model.options ?? { ctx: null, gpu: 'auto' }
   const set = (patch: Partial<LocalModelOptions>): void => void api.setLocalModelOptions(model.name, { ...o, ...patch })
@@ -47,11 +47,23 @@ function ModelSettings({ model, gpu }: { model: LocalModel; gpu: boolean }) {
           <select value={o.gpu} onChange={(e) => set({ gpu: e.target.value as LocalModelOptions['gpu'] })}>
             <option value="auto">As much as fits</option>
             <option value="all">All of it</option>
+            {model.moe && <option value="experts">All but its experts: they go in memory</option>}
             <option value="none">None: the processor only</option>
           </select>
         </label>
       )}
-      <p className="field-note">A longer context remembers more of the chat and needs more memory. Changing these restarts llama.cpp.</p>
+      <label className="field-inline">
+        <span className="field-note">Chat memory</span>
+        <select className="local-kv" value={o.kv ?? 'f16'} onChange={(e) => set({ kv: e.target.value as LocalModelOptions['kv'] })}>
+          <option value="f16">Full: the most exact</option>
+          <option value="q8_0">Compressed: half the memory</option>
+          <option value="q4_0">Compressed more: a quarter, a little less exact</option>
+        </select>
+      </label>
+      <p className="field-note">
+        A longer context remembers more of the chat and needs more memory; compressing the chat's memory fits a longer one in the same space, with almost no difference at half.
+        {model.moe && ' This model is a mixture of experts: only a few of its experts work on each word, so with them in system memory it stays quick and leaves the card free for a longer chat.'} Changing these restarts llama.cpp.
+      </p>
     </div>
   )
 }
@@ -119,7 +131,7 @@ export function LocalModelsSection() {
     }
   }
   const best = bestStarter(hw)
-  const starters = STARTERS.filter((s) => fitFor(s.size, hw) !== 'no')
+  const starters = STARTERS.filter((s) => fitFor(s.size, hw, moeOf(s.repo)) !== 'no')
   const have = (repo: string, quant: string): boolean => state.models.some((m) => m.repo === repo && m.name.toUpperCase().includes(quant))
   const busy = (repo: string, quant: string): boolean => state.downloads.some((d) => d.repo === repo && d.variant === quant && !d.error)
 
@@ -131,7 +143,7 @@ export function LocalModelsSection() {
           <ChipIcon size={14} />
           {sizeLabel(hw.memory)} memory · {hw.gpu ? `${hw.gpu.name}, ${sizeLabel(hw.gpu.memory)}` : 'no graphics card with memory of its own'} · {hw.cpus} processor threads
         </p>
-        <p className="field-note">Every model size below is checked against this: whether it fits on the graphics card (fast), needs some of the system memory too (slower), or is too large.</p>
+        <p className="field-note">Every model size below is checked against this: whether it fits on the graphics card (fast), is a mixture of experts that can keep its experts in system memory (still quick), needs some of the system memory too (slower), or is too large.</p>
       </div>
 
       <div className="settings-card local-engine">
@@ -269,7 +281,7 @@ export function LocalModelsSection() {
               <span className="field-note">{s.note}</span>
             </div>
             <span className="field-note">{sizeLabel(s.size)}</span>
-            <Fit fit={fitFor(s.size, hw)} />
+            <Fit fit={fitFor(s.size, hw, moeOf(s.repo))} />
             <button className="tw-btn tw-btn-sm local-starter-get" disabled={have(s.repo, s.quant) || busy(s.repo, s.quant)} onClick={() => void getStarter(s)}>
               {have(s.repo, s.quant) ? 'Downloaded' : busy(s.repo, s.quant) ? 'Downloading…' : 'Download'}
             </button>

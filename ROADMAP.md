@@ -144,6 +144,7 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 - [x] **Visitors with acts of their own** · Core — the UFO, whale, platypus and a pumpkin plush take turns, each playing a scene on the city, cyberpunk, dunes and ocean, the city's on its own rooftops
 - [x] **A busier ocean and desert** · Core — islands, sailboats, gulls and foam at sea; buttes, saguaros, a caravan and blowing sand in the dunes
 - [x] **Weather** · Core — rain with distant lightning, or snow, now and then over the scene; snow in winter only or any time
+- [x] **Big models on a modest card** · Core — mixtures of experts shown as fitting with their experts in memory, a setting to keep them there, and a compressed chat memory for longer chats
 
 ## Later
 - [ ] **The road to 2.0** · Core — 1.0 is the foundation; everything after it is extras and experiments, kept if they earn it. The proposed theme: Twilight knows your story

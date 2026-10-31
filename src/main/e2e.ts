@@ -20,7 +20,7 @@ import { askContinuity, checkContinuity } from './writing'
 import { sentLabel } from '@shared/time'
 import * as voice from './voice'
 import { cleanTranscript, encodeWav, speakable } from '@shared/voice'
-import { bestStarter, fitFor, quantOf, type Hardware } from '@shared/localModels'
+import { bestStarter, fitFor, moeOf, quantOf, type Hardware } from '@shared/localModels'
 
 // A PC for the fit checks: 32 GB of memory and an 8 GB graphics card.
 const HW49: Hardware = { memory: 32 * 1024 ** 3, gpu: { name: 'Test card', memory: 8 * 1024 ** 3 }, cpus: 8 }
@@ -3609,7 +3609,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await key('N', ['control'])
       const eggUi = { ducked: false, next: '', loaded: 0, platypus: await js<number>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        const egg = () => document.querySelector('.empty .sky-egg')
+        const egg = () => document.querySelector('.empty :is(.sky-egg, .act-peek)')
         for (let end = Date.now() + 5000; Date.now() < end && !egg()?.querySelector('img')?.complete; ) await wait(50)
         await wait(200)
         return egg()?.classList.contains('sky-egg-platypus') ? egg().querySelector('img').naturalWidth : 0
@@ -3618,7 +3618,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await shot('e2e-platypus.png')
       Object.assign(eggUi, await js<{ ducked: boolean; next: string; loaded: number }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        const egg = () => document.querySelector('.empty .sky-egg')
+        const egg = () => document.querySelector('.empty :is(.sky-egg, .act-peek)')
         window.dispatchEvent(new PointerEvent('pointermove'))
         await wait(60)
         const ducked = !!document.querySelector('.empty .sky-egg-platypus.is-ducking')
@@ -5105,6 +5105,15 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // they fit, a download (in parts, too) into the models folder, and llama.cpp started over
       // that folder as the This PC provider (here a stand-in that answers like it).
       check('a model that fits the graphics card says so', fitFor(4e9, HW49) === 'gpu' && fitFor(9e9, HW49) === 'split' && fitFor(9e9, { ...HW49, gpu: null }) === 'cpu' && fitFor(40e9, HW49) === 'no')
+      // A mixture of experts too big for the card runs with its experts in system memory, which stays quick.
+      const gib49 = 1024 ** 3
+      const moe49 = moeOf('unsloth/Qwen3.6-35B-A3B-GGUF')
+      check(
+        'a mixture of experts too big for the graphics card fits with its experts in memory, and is told by its name',
+        moe49?.total === 35e9 && moe49.active === 3e9 && moeOf('gemma-4-26B-A4B-it-UD-Q4_K_M.gguf')?.active === 4e9 && !!moeOf('gpt-oss-120b-MXFP4.gguf') && moeOf('Qwen3.5-9B-Q4_K_M.gguf') === null &&
+          fitFor(20.6 * gib49, HW49, moe49) === 'experts' && fitFor(20.6 * gib49, HW49) === 'split' && fitFor(16 * gib49, { ...HW49, gpu: null }, moe49) === 'cpu' && fitFor(40 * gib49, HW49, moe49) === 'no' && fitFor(4e9, HW49, moe49) === 'gpu',
+        moe49
+      )
       check('quantizations are read from file names', quantOf('Qwen3-8B-Q4_K_M.gguf') === 'Q4_K_M' && quantOf('UD-IQ2_XXS/model-UD-IQ2_XXS-00001-of-00003.gguf') === 'UD-IQ2_XXS' && quantOf('gemma-4-12b-it-BF16.gguf') === 'BF16')
       const pick49 = pickEngine(
         [
@@ -5164,11 +5173,20 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('the model loads again with its own context', reloaded49[0]?.ctx === 16384, reloaded49)
       await local.unloadModel('tiny-Q4_K_M')
       check('Unload frees the model', (await local.localState()).engine.loaded.length === 0)
+      // Experts in system memory, and the chat's memory compressed: llama.cpp's own settings, as presets.
+      await local.setModelOptions('tiny-Q4_K_M.gguf', { ctx: null, gpu: 'experts', kv: 'q8_0' })
+      const moePresets49 = await readFile(join(app.getPath('userData'), 'llama.cpp', 'presets.ini'), 'utf8').catch(() => '')
+      check(
+        'experts in memory and a compressed chat memory go to llama.cpp as presets',
+        moePresets49.includes('[tiny-Q4_K_M]\nn-gpu-layers = all\ncpu-moe = true\ncache-type-k = q8_0\ncache-type-v = q8_0'),
+        moePresets49
+      )
+      await local.setModelOptions('tiny-Q4_K_M.gguf', { ctx: 16384, gpu: 'all' })
       chat.send(contents, c49, 'Once more?')
       await idle(c49)
       check('starters: the largest that fits the graphics card is suggested, or a small one without a card', bestStarter(HW49)?.label === 'Qwen3.5 9B' && bestStarter({ ...HW49, gpu: null })?.label === 'Qwen3.5 9B' && bestStarter({ ...HW49, gpu: { name: 'Big card', memory: 24 * 1024 ** 3 } })?.label === 'Gemma 4 26B A4B', [bestStarter(HW49)?.label, bestStarter({ ...HW49, gpu: null })?.label])
       await key(',', ['control'])
-      const page49 = await js<{ hardware: string; models: string[]; fits: string[]; running: string; loaded: string; starters: number; best: string; options: number }>(`(async () => {
+      const page49 = await js<{ hardware: string; models: string[]; fits: string[]; running: string; loaded: string; starters: number; best: string; options: number; kv: string; experts: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
         ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Models on this PC')?.click()
         for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.local-hardware'); ) await wait(50)
@@ -5191,7 +5209,9 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           loaded: document.querySelector('.local-loaded-model')?.textContent ?? '',
           starters: document.querySelectorAll('.local-starter').length,
           best: document.querySelector('.local-best')?.parentElement?.textContent ?? '',
-          options: document.querySelectorAll('.local-options select').length
+          options: document.querySelectorAll('.local-options select').length,
+          kv: [...document.querySelectorAll('.local-options .local-kv option')].map((o) => o.value).join(),
+          experts: !!document.querySelector('.local-options option[value="experts"]')
         }
       })()`)
       check(
@@ -5201,7 +5221,7 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       )
       check(
         'the page shows the loaded model, good first models with the best for this PC, and a model’s settings',
-        page49.loaded.includes('tiny-Q4_K_M') && page49.loaded.includes('16,384 tokens of context') && page49.starters === 6 && page49.best.startsWith('Qwen3.5 9B') && page49.options === 2,
+        page49.loaded.includes('tiny-Q4_K_M') && page49.loaded.includes('16,384 tokens of context') && page49.starters === 6 && page49.best.startsWith('Qwen3.5 9B') && page49.options === 3 && page49.kv === 'f16,q8_0,q4_0' && !page49.experts,
         page49
       )
       await shot('e2e-local-models.png')
@@ -5902,6 +5922,71 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return { open, act, kept, closed: !document.querySelector('.dev-sky') }
       })()`)
       check('the sky dev tools play any visitor at once (temporary)', dev57.open && dev57.act && dev57.kept && dev57.closed, dev57)
+
+      // Each act as it should look, played from the dev tools: the pumpkin (a plush) side on with the
+      // noodle cart on the street, floating over the dunes in a straw hat with a drink, skiing in a
+      // scarf; the platypus swimming the mountain lake and fighting four robots; the peeking platypus
+      // somewhere new each time, over a roof in the city; and the comet flying head first.
+      const looks57 = await js<Record<string, unknown>>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const press = () => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'd', ctrlKey: true, altKey: true }))
+        const pick = async (scene, visitor) => {
+          document.querySelector('.dev-sky [data-scene="' + scene + '"]')?.click()
+          await wait(150)
+          // The city's skyline is drawn in an idle moment; a visitor 45 seconds later always finds it there.
+          for (let end = Date.now() + 3000; scene === 'city' && Date.now() < end && !document.querySelector('.empty .hz-row-front .hz-building'); ) await wait(30)
+          document.querySelector('.dev-sky [data-visitor="' + visitor + '"]')?.click()
+          await wait(500)
+        }
+        const box = (sel) => document.querySelector('.empty ' + sel)?.getBoundingClientRect()
+        press()
+        await wait(100)
+        const out = {}
+        await pick('cyberpunk', 'pumpkin')
+        out.cart = { side: !!document.querySelector('.empty .act-puller .pumpkin.is-side'), plush: !!document.querySelector('.empty .act-puller .pk-plush[filter]'), onStreet: Math.abs(box('.act-cart').bottom - box('.empty-horizon').top) < 6 }
+        await pick('dunes', 'pumpkin')
+        out.dunes = { side: !!document.querySelector('.empty .act-float .pumpkin.is-side'), hat: !!document.querySelector('.empty .act-float .act-hat'), drink: !!document.querySelector('.empty .act-float .act-drink'), shades: !!document.querySelector('.empty .act-shades') }
+        await pick('mountains', 'pumpkin')
+        out.ski = { side: !!document.querySelector('.empty .act-skier .pumpkin.is-side'), scarf: !!document.querySelector('.empty .act-skier .act-scarf-tail') }
+        await pick('mountains', 'platypus-trot')
+        out.swim = !!document.querySelector('.empty .act-swim .platypus')
+        await pick('cyberpunk', 'platypus-trot')
+        out.brawl = { bots: document.querySelectorAll('.empty .act-brawl .robot').length, heads: document.querySelectorAll('.empty .act-brawl .rb-head').length, lasers: document.querySelectorAll('.empty .act-brawl .act-laser').length, pows: document.querySelectorAll('.empty .act-brawl .act-pow').length }
+        const peeks = []
+        for (let i = 0; i < 4; i++) {
+          await pick(i < 2 ? 'city' : 'ocean', 'platypus')
+          const peek = document.querySelector('.empty .act-peek')
+          const tops = [...document.querySelectorAll('.empty .hz-row-front .hz-building')].map((b) => b.getBoundingClientRect().top)
+          const win = box('.act-peek-window')
+          const near = i < 2 ? tops.reduce((best, t) => (Math.abs(t - win.bottom) < Math.abs(best - win.bottom) ? t : best), -1e6) : box('.empty-horizon').top
+          peeks.push({ placed: !!peek?.classList.contains('is-placed'), x: Math.round(win?.left ?? -1), bottom: Math.round(win.bottom), near: Math.round(near), roofs: tops.length, onRoof: Math.abs(near - win.bottom) < 3 })
+        }
+        out.peeks = peeks
+        await pick('grid', 'comet')
+        const comet = document.querySelector('.empty .sky-egg-comet')
+        out.comet = comet?.getAnimations().find((a) => a.animationName === 'egg-comet')?.effect.getKeyframes().at(-1)?.transform ?? null
+        ;[...document.querySelectorAll('.dev-sky button')].find((b) => b.textContent === 'Stop')?.click()
+        document.querySelector('.dev-sky button')?.click()
+        await wait(50)
+        return out
+      })()`)
+      const l57 = looks57 as { cart: Record<string, boolean>; dunes: Record<string, boolean>; ski: Record<string, boolean>; swim: boolean; brawl: Record<string, number>; peeks: { placed: boolean; x: number; onRoof: boolean }[]; comet: string | null }
+      check(
+        'the pumpkin is a plush, pulls the noodle cart side on along the street, floats over the dunes in a straw hat with a drink, and skis in a scarf',
+        l57.cart.side && l57.cart.plush && l57.cart.onStreet && l57.dunes.side && l57.dunes.hat && l57.dunes.drink && !l57.dunes.shades && l57.ski.side && l57.ski.scarf,
+        l57
+      )
+      check(
+        'the platypus swims the mountain lake, and fights four robots in the cyberpunk city (heads off, lasers, blows landing)',
+        l57.swim && l57.brawl.bots === 4 && l57.brawl.heads === 4 && l57.brawl.lasers === 5 && l57.brawl.pows === 2,
+        l57.brawl
+      )
+      check(
+        'the peeking platypus comes up somewhere new each time, over a city roof or on the horizon, and the comet flies head first',
+        l57.peeks.every((p) => p.placed && p.onRoof) && new Set(l57.peeks.map((p) => p.x)).size >= 3 && /^translateX?\(\d/.test(l57.comet ?? ''),
+        { peeks: l57.peeks, comet: l57.comet }
+      )
+      await pickHorizon57('city')
       await surprises57()
 
       // Weather: rolled once per spell, mostly clear, never over the desert, snow only in winter unless asked for.

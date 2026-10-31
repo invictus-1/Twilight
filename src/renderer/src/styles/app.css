@@ -1757,6 +1757,7 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .local-reading { padding: var(--space-4) 0; }
 .fit-badge { flex: none; font-size: 12px; padding: 1px var(--space-2); border-radius: var(--radius-full); border: 1px solid currentColor; white-space: nowrap; }
 .fit-gpu { color: var(--success); }
+.fit-experts { color: color-mix(in srgb, var(--success) 70%, var(--iris)); }
 .fit-split { color: var(--warning); }
 .fit-cpu { color: var(--horizon); }
 .fit-no { color: var(--danger); }

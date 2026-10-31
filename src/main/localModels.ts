@@ -4,7 +4,7 @@ import { createWriteStream, promises as fs } from 'node:fs'
 import { createServer } from 'node:net'
 import { cpus, totalmem } from 'node:os'
 import { basename, dirname, join, relative } from 'node:path'
-import { fitFor, isSidecar, quantOf, serverId, shardBase, THIS_PC, type Hardware, type HubModel, type HubVariant, type LoadedModel, type LocalDownload, type LocalModel, type LocalState, type LocalModelOptions } from '@shared/localModels'
+import { fitFor, hasOptions, isSidecar, moeOf, quantOf, serverId, shardBase, THIS_PC, type Hardware, type HubModel, type HubVariant, type LoadedModel, type LocalDownload, type LocalModel, type LocalState, type LocalModelOptions } from '@shared/localModels'
 import { kvGet, kvSet } from './db'
 import { getProviders, saveProvider } from './providers'
 
@@ -119,7 +119,7 @@ export async function hubVariants(repo: string): Promise<HubVariant[]> {
   }
   const hw = await hardware()
   return [...groups.entries()]
-    .map(([key, g]) => ({ name: quantOf(key), files: g.files.sort(), size: g.size, fit: fitFor(g.size, hw) }))
+    .map(([key, g]) => ({ name: quantOf(key), files: g.files.sort(), size: g.size, fit: fitFor(g.size, hw, moeOf(repo)) }))
     .sort((a, b) => a.size - b.size)
 }
 
@@ -129,6 +129,11 @@ export async function hubVariants(repo: string): Promise<HubVariant[]> {
 export async function localModels(): Promise<LocalModel[]> {
   const folder = modelsFolder()
   const hw = await hardware()
+  // A mixture of experts is told by its name, or the repository it came from.
+  const listed = (name: string, size: number, repo: string | null, opts: LocalModelOptions | null): LocalModel => {
+    const moe = moeOf(`${repo ?? ''} ${name}`)
+    return { name, size, repo, fit: fitFor(size, hw, moe), options: opts, moe: !!moe }
+  }
   const { sources, options } = settings()
   const entries = await fs.readdir(folder, { withFileTypes: true }).catch(() => [])
   const out: LocalModel[] = []
@@ -136,13 +141,13 @@ export async function localModels(): Promise<LocalModel[]> {
     const full = join(folder, e.name)
     if (e.isFile() && /\.gguf$/i.test(e.name) && !isSidecar(e.name)) {
       const size = (await fs.stat(full)).size
-      out.push({ name: e.name, size, repo: sources[e.name] ?? null, fit: fitFor(size, hw), options: options[e.name] ?? null })
+      out.push(listed(e.name, size, sources[e.name] ?? null, options[e.name] ?? null))
     } else if (e.isDirectory()) {
       const parts = (await fs.readdir(full).catch(() => [])).filter((f) => /\.gguf$/i.test(f) && !isSidecar(f))
       if (!parts.length) continue
       let size = 0
       for (const p of parts) size += (await fs.stat(join(full, p))).size
-      out.push({ name: e.name, size, repo: sources[e.name] ?? null, fit: fitFor(size, hw), options: options[e.name] ?? null })
+      out.push(listed(e.name, size, sources[e.name] ?? null, options[e.name] ?? null))
     }
   }
   return out.sort((a, b) => a.name.localeCompare(b.name))
@@ -232,7 +237,7 @@ export async function removeModel(name: string): Promise<void> {
 /** One model's own settings; llama.cpp restarts to take them (unloading what it had loaded). */
 export async function setModelOptions(name: string, options: LocalModelOptions | null): Promise<void> {
   const all = { ...settings().options }
-  if (options && (options.ctx || options.gpu !== 'auto')) all[name] = options
+  if (options && hasOptions(options)) all[name] = options
   else delete all[name]
   save({ options: all })
   if (engine) await restartEngine()
@@ -252,7 +257,10 @@ export async function writePresets(): Promise<string | null> {
   for (const [name, o] of entries) {
     lines.push(`[${serverId(name)}]`)
     if (o.ctx) lines.push(`c = ${o.ctx}`)
-    if (o.gpu !== 'auto') lines.push(`n-gpu-layers = ${o.gpu === 'all' ? 'all' : 0}`)
+    if (o.gpu === 'all' || o.gpu === 'none') lines.push(`n-gpu-layers = ${o.gpu === 'all' ? 'all' : 0}`)
+    // Everything on the card but the experts, which go in system memory: llama.cpp's own recipe.
+    if (o.gpu === 'experts') lines.push('n-gpu-layers = all', 'cpu-moe = true')
+    if (o.kv && o.kv !== 'f16') lines.push(`cache-type-k = ${o.kv}`, `cache-type-v = ${o.kv}`)
     lines.push('')
   }
   await fs.mkdir(dirname(presetsFile()), { recursive: true })
