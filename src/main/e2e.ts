@@ -5947,19 +5947,32 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await pick('dunes', 'pumpkin')
         out.dunes = { side: !!document.querySelector('.empty .act-float .pumpkin.is-side'), hat: !!document.querySelector('.empty .act-float .act-hat'), drink: !!document.querySelector('.empty .act-float .act-drink'), shades: !!document.querySelector('.empty .act-shades') }
         await pick('mountains', 'pumpkin')
-        out.ski = { side: !!document.querySelector('.empty .act-skier .pumpkin.is-side'), scarf: !!document.querySelector('.empty .act-skier .act-scarf-tail') }
+        {
+          // The snowboard run: worked out from the ridges, starting off to the left and leaving off to the right.
+          const act = document.querySelector('.empty .act-snowboard')
+          const frames = act?.querySelector('.act-rider')?.getAnimations()[0]?.effect.getKeyframes() ?? []
+          const xy = (k) => (/translate\\(([-\\d.]+)px, ([-\\d.]+)px\\)/.exec(k?.transform ?? '') ?? []).slice(1).map(Number)
+          const [x0, y0] = xy(frames[0])
+          const [x1] = xy(frames.at(-1))
+          out.board = { side: !!act?.querySelector('.pumpkin.is-side'), scarf: !!act?.querySelector('.act-scarf-tail'), frames: frames.length, starts: x0 < 0, leaves: x1 > act.clientWidth, aboveGround: y0 < 0 }
+        }
         await pick('mountains', 'platypus-trot')
         out.swim = !!document.querySelector('.empty .act-swim .platypus')
         await pick('cyberpunk', 'platypus-trot')
         out.brawl = { bots: document.querySelectorAll('.empty .act-brawl .robot').length, heads: document.querySelectorAll('.empty .act-brawl .rb-head').length, lasers: document.querySelectorAll('.empty .act-brawl .act-laser').length, pows: document.querySelectorAll('.empty .act-brawl .act-pow').length }
         const peeks = []
-        for (let i = 0; i < 4; i++) {
-          await pick(i < 2 ? 'city' : 'ocean', 'platypus')
+        for (const scene of ['city', 'city', 'ocean', 'ocean', 'mountains', 'mountains']) {
+          await pick(scene, 'platypus')
           const peek = document.querySelector('.empty .act-peek')
-          const tops = [...document.querySelectorAll('.empty .hz-row-front .hz-building')].map((b) => b.getBoundingClientRect().top)
           const win = box('.act-peek-window')
-          const near = i < 2 ? tops.reduce((best, t) => (Math.abs(t - win.bottom) < Math.abs(best - win.bottom) ? t : best), -1e6) : box('.empty-horizon').top
-          peeks.push({ placed: !!peek?.classList.contains('is-placed'), x: Math.round(win?.left ?? -1), bottom: Math.round(win.bottom), near: Math.round(near), roofs: tops.length, onRoof: Math.abs(near - win.bottom) < 3 })
+          let near = win.bottom
+          if (scene === 'city') {
+            const tops = [...document.querySelectorAll('.empty .hz-row-front .hz-building')].map((b) => b.getBoundingClientRect().top)
+            near = tops.reduce((best, t) => (Math.abs(t - win.bottom) < Math.abs(best - win.bottom) ? t : best), -1e6)
+          } else if (scene === 'ocean') near = box('.empty-horizon').top
+          // On the mountains he's behind them: drawn before the ridges, and above the horizon.
+          const behind = scene === 'mountains' ? !!(peek.compareDocumentPosition(document.querySelector('.empty svg.hz-mountains')) & Node.DOCUMENT_POSITION_FOLLOWING) && win.bottom < box('.empty-horizon').top : true
+          peeks.push({ scene, placed: !!peek?.classList.contains('is-placed'), x: Math.round(win?.left ?? -1), pose: peek?.dataset.pose ?? '', onRoof: Math.abs(near - win.bottom) < 3 && behind })
         }
         out.peeks = peeks
         await pick('grid', 'comet')
@@ -5970,10 +5983,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(50)
         return out
       })()`)
-      const l57 = looks57 as { cart: Record<string, boolean>; dunes: Record<string, boolean>; ski: Record<string, boolean>; swim: boolean; brawl: Record<string, number>; peeks: { placed: boolean; x: number; onRoof: boolean }[]; comet: string | null }
+      const l57 = looks57 as { cart: Record<string, boolean>; dunes: Record<string, boolean>; swim: boolean; brawl: Record<string, number>; peeks: { placed: boolean; x: number; pose: string; onRoof: boolean }[]; comet: string | null; board: Record<string, boolean | number> }
       check(
-        'the pumpkin is a plush, pulls the noodle cart side on along the street, floats over the dunes in a straw hat with a drink, and skis in a scarf',
-        l57.cart.side && l57.cart.plush && l57.cart.onStreet && l57.dunes.side && l57.dunes.hat && l57.dunes.drink && !l57.dunes.shades && l57.ski.side && l57.ski.scarf,
+        'the pumpkin is a plush, pulls the noodle cart side on along the street, floats over the dunes in a straw hat with a drink, and snowboards along the mountain tops in a scarf',
+        l57.cart.side && l57.cart.plush && l57.cart.onStreet && l57.dunes.side && l57.dunes.hat && l57.dunes.drink && !l57.dunes.shades && !!l57.board.side && !!l57.board.scarf && (l57.board.frames as number) > 50 && !!l57.board.starts && !!l57.board.leaves && !!l57.board.aboveGround,
         l57
       )
       check(
@@ -5982,8 +5995,8 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         l57.brawl
       )
       check(
-        'the peeking platypus comes up somewhere new each time, over a city roof or on the horizon, and the comet flies head first',
-        l57.peeks.every((p) => p.placed && p.onRoof) && new Set(l57.peeks.map((p) => p.x)).size >= 3 && /^translateX?\(\d/.test(l57.comet ?? ''),
+        'the peeking platypus comes up somewhere new each time and in a pose of his own, over a city roof, on the horizon or from behind a peak, and the comet flies head first',
+        l57.peeks.every((p) => p.placed && p.onRoof) && new Set(l57.peeks.map((p) => p.x)).size >= 4 && new Set(l57.peeks.map((p) => p.pose)).size >= 4 && /^translateX?\(\d/.test(l57.comet ?? ''),
         { peeks: l57.peeks, comet: l57.comet }
       )
       await pickHorizon57('city')

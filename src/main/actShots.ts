@@ -29,6 +29,10 @@ const ACTS: [string, string, number][] = [
   ['platypus-trot', 'mountains', 15_000],
   ['platypus', 'city', 4_200],
   ['platypus', 'ocean', 4_200],
+  ['platypus', 'mountains', 4_200],
+  ['platypus', 'dunes', 4_200],
+  ['platypus', 'grid', 4_200],
+  ['platypus', 'cyberpunk', 4_200],
   ['comet', 'grid', 6_000]
 ]
 // When each act is caught: early, the middle, late (or the fractions in TWILIGHT_ACTS_AT).

@@ -3,7 +3,7 @@ import platypusRun from '../assets/sky/platypus-run.webp'
 import platypusTrot from '../assets/sky/platypus-trot.webp'
 import { useLayoutEffect, useRef } from 'react'
 import type { Horizon } from '../extras'
-import { cityRoofs } from './Horizons'
+import { cityRoofs, mountainRidges } from './Horizons'
 import { Pumpkin, Platypus, PlatypusNoir, Robot, Saucer, Whale } from './SkyCast'
 
 // The visitors' acts: on the city, cyberpunk, dunes and ocean the UFO, the whale and the platypus
@@ -570,30 +570,159 @@ function GridDisco() {
   )
 }
 
-// Down the slopes side on: skis under his feet, poles behind, a scarf streaming, and a flip off a ridge.
-function MountainSki() {
+/**
+ * The top of a scene's drawing across the act, as a height above the act's bottom (px) at each x:
+ * the highest of the mountains' three ridges, or of the dunes' crests (read off the drawn paths).
+ * Null where the scene has no such line, or isn't drawn yet.
+ */
+function sceneTops(act: HTMLElement, horizon: Horizon): ((x: number) => number) | null {
+  const sky = act.closest('.empty-sky')
+  const stage = act.getBoundingClientRect()
+  if (horizon === 'mountains') {
+    const svg = sky?.querySelector<SVGSVGElement>('svg.hz-mountains')
+    if (!svg) return null
+    const box = svg.getBoundingClientRect()
+    const ridges = mountainRidges()
+    return (x) => {
+      const u = Math.min(1000, Math.max(0, ((x + stage.left - box.left) / box.width) * 1000))
+      let top = 200
+      for (const points of ridges) {
+        const i = Math.max(1, points.findIndex(([px]) => px >= u))
+        const [x1, y1] = points[i - 1]
+        const [x2, y2] = points[i]
+        top = Math.min(top, y1 + ((y2 - y1) * (u - x1)) / Math.max(1, x2 - x1))
+      }
+      return stage.bottom - (box.top + (top / 200) * box.height)
+    }
+  }
+  if (horizon === 'dunes') {
+    const paths = [...(sky?.querySelectorAll<SVGPathElement>('svg.hz-dunes .hz-dune') ?? [])]
+    if (!paths.length) return null
+    // Sampled once along each outline, keeping the highest point every 4px across.
+    const highest = new Map<number, number>()
+    for (const path of paths) {
+      const m = path.getScreenCTM()
+      if (!m) continue
+      const length = path.getTotalLength()
+      for (let s = 0; s <= length; s += 3) {
+        const p = path.getPointAtLength(s)
+        const key = Math.round((m.a * p.x + m.c * p.y + m.e - stage.left) / 4)
+        highest.set(key, Math.min(highest.get(key) ?? Infinity, m.b * p.x + m.d * p.y + m.f))
+      }
+    }
+    return (x) => {
+      const key = Math.round(x / 4)
+      const y = highest.get(key) ?? highest.get(key - 1) ?? highest.get(key + 1) ?? stage.bottom - stage.height * 0.36
+      return stage.bottom - y
+    }
+  }
+  return null
+}
+
+/** Where a line has its peaks between two points across: each higher than everything within `reach` px either side. */
+function peaksOf(top: (x: number) => number, from: number, to: number, reach = 28): number[] {
+  const peaks: number[] = []
+  for (let x = from; x <= to; x += 4) {
+    const h = top(x)
+    let highest = true
+    for (let d = 4; d <= reach && highest; d += 4) highest = h >= top(x - d) && h >= top(x + d)
+    if (highest && (!peaks.length || x - peaks[peaks.length - 1] > reach)) peaks.push(x)
+  }
+  return peaks
+}
+
+const RIDER = 84
+
+/**
+ * The pumpkin's run along the mountain tops, worked out like a sled with gravity: on the snow he
+ * follows its line; where it drops away faster than he'd fall (over a peak) he's in the air until
+ * he lands further on. The longest jump gets a flip, and he rides off to the right.
+ */
+function boardRide(top: (x: number) => number, width: number, ms: number): { frames: Keyframe[]; duration: number } {
+  const duration = (ms / 1000) * 0.9
+  const vx = (width + 2 * RIDER) / duration
+  const g = 1500
+  const dt = 1 / 60
+  let x = -RIDER
+  let h = top(x)
+  let vy = 0
+  let grounded = true
+  const points: { t: number; x: number; h: number; rot: number; air: boolean }[] = []
+  for (let t = 0; x < width + RIDER; t += dt) {
+    const nx = x + vx * dt
+    const ground = top(nx)
+    if (grounded) {
+      const follow = (ground - h) / dt
+      // The snow falls away faster than gravity would take him down: off he goes.
+      if (follow < vy - g * dt) grounded = false
+      else {
+        vy = follow
+        h = ground
+      }
+    }
+    if (!grounded) {
+      vy -= g * dt
+      h += vy * dt
+      if (h <= ground) {
+        h = ground
+        grounded = true
+      }
+    }
+    x = nx
+    points.push({ t, x, h, rot: (-Math.atan2(vy, vx) * 180) / Math.PI, air: !grounded })
+  }
+  // The longest time in the air, for the flip.
+  let best = { from: 0, to: 0 }
+  for (let i = 0; i < points.length; ) {
+    if (!points[i].air) {
+      i++
+      continue
+    }
+    let j = i
+    while (j < points.length && points[j].air) j++
+    if (j - i > best.to - best.from) best = { from: i, to: j }
+    i = j
+  }
+  if ((best.to - best.from) * dt > 0.4) {
+    for (let i = best.from; i < best.to; i++) points[i].rot += (360 * (i - best.from)) / (best.to - best.from)
+  }
+  const total = points[points.length - 1].t
+  const frames = points
+    .filter((_, i) => i % 3 === 0 || i === points.length - 1)
+    .map((p) => ({ offset: Math.min(1, p.t / total), transform: `translate(${(p.x - RIDER / 2).toFixed(1)}px, ${(-p.h).toFixed(1)}px) rotate(${p.rot.toFixed(1)}deg)` }))
+  return { frames, duration: total * 1000 }
+}
+
+// Snowboarding along the mountain tops side on, a scarf streaming, off the peaks and away to the right.
+function MountainBoard() {
+  const ref = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const act = ref.current
+    const rider = act?.querySelector<HTMLElement>('.act-rider')
+    if (!act || !rider) return
+    const top = sceneTops(act, 'mountains') ?? (() => act.clientHeight * 0.36)
+    const { frames, duration } = boardRide(top, act.clientWidth, 13_000)
+    rider.animate(frames, { duration, delay: 300, fill: 'both' })
+    act.classList.add('is-placed')
+  }, [])
   return (
-    <div className="act act-ski" style={play(13_000)}>
-      <div className="act-ski-x">
-        <div className="act-ski-y">
-          <div className="act-skier">
-            <Pumpkin view="side" arms="back" className="is-skiing">
-              <path d="M16 97 L-16 140" stroke="#cfd3e6" strokeWidth="2.4" strokeLinecap="round" />
-              <path d="M17 110 L-8 144" stroke="#e8ebf7" strokeWidth="2.4" strokeLinecap="round" />
-              <path d="M24 132 L130 132 Q140 132 142 124" fill="none" stroke="#c93d58" strokeWidth="4.5" strokeLinecap="round" />
-              <path d="M14 136 L122 136 Q134 136 136 127" fill="none" stroke="#ff5d73" strokeWidth="4.5" strokeLinecap="round" />
-              <g className="act-scarf-wrap">
-                <path d="M30 88 Q70 108 106 90" fill="none" stroke="#4fb3ff" strokeWidth="9" strokeLinecap="round" />
-                <path d="M30 88 Q70 108 106 90" fill="none" stroke="#fff" strokeWidth="9" strokeDasharray="5 9" opacity=".7" />
-                <g className="act-scarf-tail">
-                  <path d="M34 88 Q16 80 -6 86 L-4 96 Q16 92 34 96 Z" fill="#4fb3ff" />
-                  <path d="M-6 86 L-4 96" stroke="#fff" strokeWidth="3" />
-                </g>
-              </g>
-            </Pumpkin>
-          </div>
-        </div>
+    <div ref={ref} className="act act-snowboard" style={play(13_000)}>
+      <div className="act-rider">
         <span className="act-snow" />
+        <Pumpkin view="side" className="is-boarding">
+          <rect x="44" y="129" width="16" height="6" rx="2" fill="#2b2f45" />
+          <rect x="80" y="129" width="16" height="6" rx="2" fill="#2b2f45" />
+          <rect x="8" y="134" width="124" height="8" rx="4" fill="#ff5d73" />
+          <rect x="24" y="137" width="92" height="2" rx="1" fill="#fff" opacity=".75" />
+          <g className="act-scarf-wrap">
+            <path d="M30 88 Q70 108 106 90" fill="none" stroke="#4fb3ff" strokeWidth="9" strokeLinecap="round" />
+            <path d="M30 88 Q70 108 106 90" fill="none" stroke="#fff" strokeWidth="9" strokeDasharray="5 9" opacity=".7" />
+            <g className="act-scarf-tail">
+              <path d="M34 88 Q16 80 -6 86 L-4 96 Q16 92 34 96 Z" fill="#4fb3ff" />
+              <path d="M-6 86 L-4 96" stroke="#fff" strokeWidth="3" />
+            </g>
+          </g>
+        </Pumpkin>
       </div>
     </div>
   )
@@ -632,8 +761,14 @@ const PEEK_SPOTS: Record<Horizon, [number, number][]> = {
   cyberpunk: [[0.06, 0.92]]
 }
 
-/** Phosphor's peeking platypus, on any scene and somewhere new each time: over a city roof, or the
- *  horizon elsewhere. He ducks back down when you move. */
+/** On the mountains and the dunes he comes up from behind a peak or a crest, so the scene itself hides the rest of him. */
+export const peeksBehind = (horizon: Horizon): boolean => horizon === 'mountains' || horizon === 'dunes'
+
+const PEEK_IDLES = ['look', 'bob', 'sway', 'still'] as const
+
+/** Phosphor's peeking platypus, on any scene: somewhere new each time and never quite the same,
+ *  facing either way, tilted, nearer or further, coming up quick or slow, then looking about. Over a
+ *  city roof, from behind a peak or a dune, or on the horizon. He ducks back down when you move. */
 export function PeekingPlatypus({ spotted, horizon }: { spotted: boolean; horizon: Horizon }) {
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
@@ -644,7 +779,7 @@ export function PeekingPlatypus({ spotted, horizon }: { spotted: boolean; horizo
       if (!act) return
       const w = act.clientWidth
       const horizonAt = parseFloat(getComputedStyle(act).getPropertyValue('--horizon-at')) / 100 || 0.64
-      let x = 0
+      let x = w * 0.5
       let y = act.clientHeight * (1 - horizonAt)
       // Roofs wide enough to stand on; on a small window the skyline is drawn small, so failing
       // those, the widest few.
@@ -656,17 +791,39 @@ export function PeekingPlatypus({ spotted, horizon }: { spotted: boolean; horizo
         frame = requestAnimationFrame(place)
         return
       }
+      const top = peeksBehind(horizon) ? sceneTops(act, horizon) : null
+      const peaks = top ? peaksOf(top, w * 0.06, w * 0.92) : []
       if (roofs.length) {
         const roof = roofs[Math.floor(Math.random() * roofs.length)]
         x = (roof.l + roof.r) / 2
         y = roof.y
+      } else if (top && peaks.length) {
+        // Behind a peak: just below its top, the slopes either side hiding the rest of him.
+        x = peaks[Math.floor(Math.random() * peaks.length)]
+        y = top(x) - 4
       } else {
         const spans = PEEK_SPOTS[horizon]
         const [from, to] = spans[Math.floor(Math.random() * spans.length)]
         x = w * (from + Math.random() * (to - from))
       }
+      // His pose this time. (The picture is a loop of him coming up and sinking back, only a couple
+      // of dozen pixels tall at the top: so he never sinks much lower, and behind a peak he's a
+      // little bigger and comes all the way up.)
+      const behind = !!(top && peaks.length && !roofs.length)
+      const flip = Math.random() < 0.5 ? -1 : 1
+      const tilt = Math.round((Math.random() * 2 - 1) * 14)
+      const scale = Math.round(((behind ? 1.05 : 0.85) + Math.random() * 0.3) * 100) / 100
+      const rise = behind ? 1 : 0.88 + Math.random() * 0.12
+      const idle = PEEK_IDLES[Math.floor(Math.random() * PEEK_IDLES.length)]
       act.style.setProperty('--peek-x', `${x}px`)
       act.style.setProperty('--peek-y', `${y}px`)
+      act.style.setProperty('--peek-flip', String(flip))
+      act.style.setProperty('--peek-tilt', `${tilt}deg`)
+      act.style.setProperty('--peek-scale', String(scale))
+      act.style.setProperty('--peek-low', `${Math.round((1 - rise) * 46)}px`)
+      act.style.setProperty('--peek-dur', `${(0.35 + Math.random() * 0.5).toFixed(2)}s`)
+      act.dataset.idle = idle
+      act.dataset.pose = `${flip} ${tilt} ${scale} ${idle}`
       act.classList.add('is-placed')
     }
     place()
@@ -675,7 +832,11 @@ export function PeekingPlatypus({ spotted, horizon }: { spotted: boolean; horizo
   return (
     <div ref={ref} className={`act act-peek sky-egg-platypus ${spotted ? 'is-ducking' : ''}`} style={play(4_200)}>
       <div className="act-peek-window">
-        <img className="act-peek-art" src={platypusPeek} alt="" draggable={false} />
+        <div className="act-peek-pose">
+          <div className="act-peek-idle">
+            <img className="act-peek-art" src={platypusPeek} alt="" draggable={false} />
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -699,7 +860,7 @@ const ACTS: Partial<Record<string, Act>> = {
   'whale:ocean': { ms: 12_000, Scene: OceanBreach },
   'pumpkin:ocean': { ms: 17_000, Scene: OceanRowboat },
   'pumpkin:grid': { ms: 15_000, Scene: GridDisco },
-  'pumpkin:mountains': { ms: 13_000, Scene: MountainSki },
+  'pumpkin:mountains': { ms: 13_000, Scene: MountainBoard },
   'platypus-trot:mountains': { ms: 15_000, Scene: MountainSwim }
 }
 

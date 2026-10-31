@@ -40,6 +40,9 @@ const RIDGES = [
   { cls: 'near', points: ridge(37, 22, 198, 140) }
 ]
 
+/** The ridges' points (0–1000 across, 200 the horizon), for the acts that ride or peek over them. */
+export const mountainRidges = (): [number, number][][] => RIDGES.map((r) => r.points)
+
 function Ridges({ className }: { className: string }) {
   return (
     <svg className={className} viewBox="0 0 1000 200" preserveAspectRatio="none">

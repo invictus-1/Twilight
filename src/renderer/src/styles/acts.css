@@ -405,19 +405,19 @@
 .is-skating .pk-arm-r { animation: skate-arm 1.2s ease-in-out -.6s infinite; }
 @keyframes skate-arm { 0%, 100% { rotate: -40deg; } 50% { rotate: 30deg; } }
 
-/* ——— The mountains: the pumpkin skis down ——— */
-.act-ski-x { position: absolute; width: 90px; animation: ski-x var(--d) linear both, ski-y var(--d) both; }
-@keyframes ski-x { from { left: -8%; } to { left: 108%; } }
-@keyframes ski-y { 0% { top: calc(var(--horizon-at) - 20%); } 44% { top: calc(var(--horizon-at) - 6%); animation-timing-function: ease-out; } 52% { top: calc(var(--horizon-at) - 18%); animation-timing-function: ease-in; } 60% { top: calc(var(--horizon-at) - 2%); } 100% { top: calc(var(--horizon-at) + 10%); } }
-.act-ski-y { animation: ski-flip var(--d) both; }
-@keyframes ski-flip { 0%, 44% { transform: rotate(14deg); } 52% { transform: rotate(-200deg); } 60% { transform: rotate(-345deg); } 61%, 100% { transform: rotate(14deg); } }
-.act-skier { position: relative; width: 90px; }
-.is-skiing { animation: none; }
-.is-skiing .pk-leg-l, .is-skiing .pk-leg-r { animation: none; }
+/* ——— The mountains: the pumpkin snowboards along the tops ———
+   His run is worked out from the ridges and played with Web Animations (SkyActs: boardRide). */
+.act-snowboard:not(.is-placed) { visibility: hidden; }
+.act-rider { position: absolute; left: 0; bottom: 0; width: 84px; transform: translateX(-200px); transform-origin: 50% 100%; }
+.act-rider .pumpkin { margin-bottom: -6px; }
+.is-boarding { animation: none; }
+.is-boarding .pk-leg-l, .is-boarding .pk-leg-r { animation: none; }
+.is-boarding .pk-arm-far { rotate: -24deg; }
+.is-boarding .pk-arm-near { rotate: 30deg; }
 /* The scarf's tail streams out behind, flapping. */
 .act-scarf-tail { transform-box: view-box; transform-origin: 34px 92px; animation: scarf-flap .3s ease-in-out infinite alternate; }
 @keyframes scarf-flap { from { transform: skewY(-10deg) scaleX(.92); } to { transform: skewY(8deg) scaleX(1.04); } }
-.act-snow { position: absolute; left: -30px; top: 70%; width: 46px; height: 24px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .9), transparent 70%); filter: blur(2px); animation: dust .5s ease-out infinite; }
+.act-snow { position: absolute; left: -22px; bottom: -4px; width: 46px; height: 24px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .9), transparent 70%); filter: blur(2px); animation: dust .5s ease-out infinite; }
 
 /* ——— The mountains: the platypus swims the lake ——— */
 .act-swim-x { position: absolute; width: 84px; height: 40px; bottom: calc(var(--ground) - 9%); animation: swim-x var(--d) linear both; }
@@ -440,10 +440,20 @@
 .act-dive-splash i { animation: act-drop .9s ease-out calc(var(--d) * .4) both; }
 .act-up-splash i { animation: act-drop .9s ease-out calc(var(--d) * .58) both; }
 
-/* ——— Phosphor's peeking platypus, anywhere along the horizon or over a city roof ——— */
+/* ——— Phosphor's peeking platypus: anywhere, in a pose of his own each time ——— */
 .act-peek { animation: none; }
 .act-peek:not(.is-placed) { visibility: hidden; }
-.act-peek-window { position: absolute; left: calc(var(--peek-x) - 36px); bottom: var(--peek-y); width: 72px; height: 46px; overflow: hidden; }
-.act-peek-art { display: block; width: 72px; animation: peek-up .5s cubic-bezier(.2, .8, .3, 1) both; transition: transform 180ms cubic-bezier(.5, 0, .9, .4); }
-@keyframes peek-up { from { transform: translateY(46px); } }
-.act-peek.is-ducking .act-peek-art { transform: translateY(56px); }
+/* Only below the line is cut off; the window is roomy above, for tilts and a bigger him. */
+.act-peek-window { position: absolute; left: calc(var(--peek-x) - 70px); bottom: var(--peek-y); width: 140px; height: 140px; overflow: hidden; }
+.act-peek-pose { position: absolute; left: 34px; bottom: 0; width: 72px; transform-origin: 50% 100%; transform: scaleX(var(--peek-flip, 1)) scale(var(--peek-scale, 1)) rotate(var(--peek-tilt, 0deg)); }
+.act-peek-idle { transform-origin: 50% 100%; }
+.act-peek-art { display: block; width: 72px; margin-bottom: -8px; animation: peek-up var(--peek-dur, .5s) cubic-bezier(.2, .8, .3, 1) both; transition: translate 180ms cubic-bezier(.5, 0, .9, .4); }
+@keyframes peek-up { from { transform: translateY(54px); } to { transform: translateY(var(--peek-low, 0px)); } }
+.act-peek.is-ducking .act-peek-art { translate: 0 64px; }
+/* Once up: a look about, a bob, a sway, or quite still. */
+.act-peek[data-idle='look'] .act-peek-idle { animation: peek-look 2.2s ease-in-out var(--peek-dur, .5s) infinite; }
+.act-peek[data-idle='bob'] .act-peek-idle { animation: peek-bob 1.3s ease-in-out var(--peek-dur, .5s) infinite; }
+.act-peek[data-idle='sway'] .act-peek-idle { animation: peek-sway 1.8s ease-in-out var(--peek-dur, .5s) infinite; }
+@keyframes peek-look { 0%, 100% { rotate: 0deg; } 25% { rotate: -9deg; } 60% { rotate: 7deg; } }
+@keyframes peek-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 5px; } }
+@keyframes peek-sway { 0%, 100% { rotate: -4deg; translate: -2px 0; } 50% { rotate: 4deg; translate: 2px 0; } }
