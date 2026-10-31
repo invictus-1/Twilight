@@ -69,53 +69,144 @@ function Mountains() {
   )
 }
 
-// ——— City skyline: two rows of buildings, a few windows flickering ———
+// ——— City skyline: three rows of towers, lit floor by floor, mirrored in a river ———
+
+interface Tower {
+  x: number
+  w: number
+  h: number
+  /** Set-back tiers on top: each narrower than the one below. */
+  tiers: { x: number; w: number; h: number }[]
+  roof: 'flat' | 'slant' | 'spire'
+  windows: { x: number; y: number; tone: 'warm' | 'cool'; blink: boolean }[]
+  water: boolean
+  aerial: boolean
+  sign: { x: number; y: number; w: number; tone: 'iris' | 'horizon' } | null
+}
 
 const CITY = (() => {
   const rand = seeded(1959)
   const rows = [
-    { cls: 'back', lo: 40, hi: 150, min: 26, max: 60 },
-    { cls: 'front', lo: 20, hi: 95, min: 30, max: 70 }
+    { cls: 'far', lo: 70, hi: 150, min: 14, max: 34, lit: 0.05, signs: 0, tiers: 0.5 },
+    { cls: 'back', lo: 45, hi: 128, min: 24, max: 56, lit: 0.16, signs: 0.06, tiers: 0.45 },
+    { cls: 'front', lo: 22, hi: 92, min: 30, max: 72, lit: 0.26, signs: 0.12, tiers: 0.3 }
   ]
   return rows.map((row) => {
-    const buildings: { x: number; w: number; h: number; windows: { x: number; y: number; on: boolean; blink: boolean }[]; aerial: boolean }[] = []
-    for (let x = -10; x < 1010; ) {
+    const towers: Tower[] = []
+    for (let x = -12; x < 1012; ) {
       const w = Math.round(row.min + rand() * (row.max - row.min))
       const h = Math.round(row.lo + rand() * (row.hi - row.lo))
-      const windows: { x: number; y: number; on: boolean; blink: boolean }[] = []
-      for (let wy = 160 - h + 8; wy < 154; wy += 9) for (let wx = x + 5; wx < x + w - 6; wx += 8) windows.push({ x: wx, y: wy, on: rand() < 0.22, blink: rand() < 0.03 })
-      buildings.push({ x, w, h, windows, aerial: h > row.hi - 20 && rand() < 0.5 })
-      x += w + Math.round(rand() * 6)
+      const top = 160 - h
+      const tiers: Tower['tiers'] = []
+      if (rand() < row.tiers && w > 18) {
+        let tw = w
+        let ty = top
+        for (let t = 0; t < 1 + Math.floor(rand() * 2); t++) {
+          tw = Math.round(tw * (0.55 + rand() * 0.2))
+          const th = Math.round(6 + rand() * 14)
+          ty -= th
+          tiers.push({ x: x + Math.round((w - tw) / 2), w: tw, h: th })
+        }
+      }
+      const peak = tiers.length ? tiers[tiers.length - 1] : { x, w, h }
+      const peakTop = top - tiers.reduce((n, t) => n + t.h, 0)
+      const roll = rand()
+      const roof: Tower['roof'] = roll < 0.18 ? 'slant' : roll < 0.3 && peak.w < 30 ? 'spire' : 'flat'
+      // Lit floor by floor: whole floors on or off, then a few windows either way.
+      const windows: Tower['windows'] = []
+      for (let wy = top + 7; wy < 154; wy += 7) {
+        const floor = rand() < row.lit * 1.6
+        for (let wx = x + 4; wx < x + w - 5; wx += 6) {
+          if (floor ? rand() < 0.75 : rand() < row.lit * 0.4) windows.push({ x: wx, y: wy, tone: rand() < 0.2 ? 'cool' : 'warm', blink: rand() < 0.025 })
+        }
+      }
+      const flatTop = roof === 'flat'
+      towers.push({
+        x,
+        w,
+        h,
+        tiers,
+        roof,
+        windows,
+        water: flatTop && row.cls === 'front' && rand() < 0.3,
+        aerial: flatTop && rand() < 0.35,
+        sign: flatTop && rand() < row.signs ? { x: peak.x + 3, y: peakTop - 9, w: Math.max(10, peak.w - 6), tone: rand() < 0.5 ? 'iris' : 'horizon' } : null
+      })
+      x += w + Math.round(rand() * 5)
     }
-    return { cls: row.cls, buildings }
+    return { cls: row.cls, towers }
   })
 })()
+// Street lamps along the waterfront, and the cars whose lights pass along it.
+const LAMPS = Array.from({ length: 28 }, (_, i) => ({ x: (i * 36.4 + 9) % 1000 }))
+const TRAFFIC = (() => {
+  const rand = seeded(404)
+  return Array.from({ length: 6 }, (_, i) => ({ left: i % 2 === 1, duration: 9 + rand() * 9, delay: -rand() * 18 }))
+})()
+
+function Skyline({ className }: { className: string }) {
+  return (
+    <svg className={className} viewBox="0 0 1000 160" preserveAspectRatio="xMidYMax slice">
+      {CITY.map((row) => (
+        <g key={row.cls} className={`hz-row hz-row-${row.cls}`}>
+          {row.towers.map((t, i) => {
+            const peak = t.tiers.length ? t.tiers[t.tiers.length - 1] : { x: t.x, w: t.w }
+            const peakTop = 160 - t.h - t.tiers.reduce((n, x) => n + x.h, 0)
+            return (
+              <g key={i}>
+                <rect className="hz-building" x={t.x} y={160 - t.h} width={t.w} height={t.h} />
+                {t.tiers.map((tier, j) => (
+                  <rect key={j} className="hz-building" x={tier.x} y={160 - t.h - t.tiers.slice(0, j + 1).reduce((n, x) => n + x.h, 0)} width={tier.w} height={tier.h + 1} />
+                ))}
+                {t.roof === 'slant' && <polygon className="hz-building" points={`${peak.x},${peakTop} ${peak.x + peak.w},${peakTop} ${peak.x + peak.w},${peakTop - Math.round(peak.w * 0.45)}`} />}
+                {t.roof === 'spire' && <polygon className="hz-building" points={`${peak.x + peak.w * 0.3},${peakTop} ${peak.x + peak.w * 0.7},${peakTop} ${peak.x + peak.w / 2},${peakTop - 26}`} />}
+                {/* Rim light down the side facing the sunset. */}
+                <rect className="hz-rim" x={t.x} y={160 - t.h} width={1.2} height={t.h} />
+                {t.water && (
+                  <g className="hz-building">
+                    <rect x={peak.x + 6} y={peakTop - 9} width={8} height={7} />
+                    <polygon points={`${peak.x + 5},${peakTop - 9} ${peak.x + 15},${peakTop - 9} ${peak.x + 10},${peakTop - 13}`} />
+                    <rect x={peak.x + 7} y={peakTop - 2} width={1} height={2} />
+                    <rect x={peak.x + 12} y={peakTop - 2} width={1} height={2} />
+                  </g>
+                )}
+                {t.aerial && (
+                  <>
+                    <rect className="hz-building" x={peak.x + peak.w * 0.7} y={peakTop - 16} width={1.5} height={16} />
+                    <circle className="hz-aerial-light" cx={peak.x + peak.w * 0.7 + 0.75} cy={peakTop - 17} r={1.8} style={{ animationDelay: `${(i % 5) * 0.7}s` }} />
+                  </>
+                )}
+                {t.sign && <rect className={`hz-roof-sign is-${t.sign.tone}`} x={t.sign.x} y={t.sign.y} width={t.sign.w} height={5} rx={1} />}
+                {t.windows.map((w, j) => (
+                  <rect key={j} className={`hz-window is-${w.tone} ${w.blink ? 'is-blink' : ''}`} x={w.x} y={w.y} width={2.6} height={3.4} style={w.blink ? { animationDelay: `${(j % 7) * 1.3}s` } : undefined} />
+                ))}
+              </g>
+            )
+          })}
+        </g>
+      ))}
+    </svg>
+  )
+}
 
 function City() {
   return (
     <>
       <span className="hz-city-glow" />
-      <svg className="hz-up hz-city" viewBox="0 0 1000 160" preserveAspectRatio="xMidYMax slice">
-        {CITY.map((row) => (
-          <g key={row.cls} className={`hz-row hz-row-${row.cls}`}>
-            {row.buildings.map((b, i) => (
-              <g key={i}>
-                <rect className="hz-building" x={b.x} y={160 - b.h} width={b.w} height={b.h} />
-                {b.aerial && (
-                  <>
-                    <rect className="hz-building" x={b.x + b.w / 2 - 1} y={160 - b.h - 14} width={2} height={14} />
-                    <circle className="hz-aerial-light" cx={b.x + b.w / 2} cy={160 - b.h - 15} r={2} style={{ animationDelay: `${(i % 5) * 0.7}s` }} />
-                  </>
-                )}
-                {b.windows.map((w, j) =>
-                  w.on || w.blink ? <rect key={j} className={`hz-window ${w.blink ? 'is-blink' : ''}`} x={w.x} y={w.y} width={3} height={4} style={w.blink ? { animationDelay: `${(j % 7) * 1.3}s` } : undefined} /> : null
-                )}
-              </g>
-            ))}
-          </g>
-        ))}
-      </svg>
-      <div className="hz-floor hz-floor-city" />
+      <Skyline className="hz-up hz-city" />
+      {/* The river: the skyline mirrored and broken by ripples, lamps along the bank, cars passing. */}
+      <div className="hz-floor hz-floor-city">
+        <Skyline className="hz-river" />
+        <span className="hz-river-ripples" />
+        <div className="hz-bank">
+          {LAMPS.map((l, i) => (
+            <span key={i} className="hz-lamp-post" style={{ left: `${l.x / 10}%` }} />
+          ))}
+          {TRAFFIC.map((t, i) => (
+            <span key={i} className={`hz-traffic ${t.left ? 'is-left' : ''}`} style={{ animationDuration: `${t.duration.toFixed(1)}s`, animationDelay: `${t.delay.toFixed(1)}s` }} />
+          ))}
+        </div>
+      </div>
     </>
   )
 }

@@ -23,7 +23,7 @@ import {
   type Suggestion
 } from '../editor/suggestion'
 import { twilightEditorTheme } from '../editor/theme'
-import { FIX_EVENT } from './ContinuityPanel'
+import { FIX_EVENT, OPEN_EVENT } from './ContinuityPanel'
 import { ChevronDown, CloseIcon, RedoIcon, UndoIcon } from './Icons'
 
 /** Accepted-edit history per document, kept across switching documents for this session. */
@@ -370,6 +370,18 @@ export function Editor({ docPath }: { docPath: string }) {
                   </div>
                 )}
               </span>
+              <button
+                className="tw-btn tw-btn-ghost tw-btn-sm seltool-continuity"
+                title="Check this passage against documents you pick, or ask about it"
+                onClick={() => {
+                  const view = viewRef.current
+                  if (!view) return
+                  const sel = view.state.selection.main
+                  if (sel.from !== sel.to) window.dispatchEvent(new CustomEvent(OPEN_EVENT, { detail: { text: view.state.doc.sliceString(sel.from, sel.to) } }))
+                }}
+              >
+                Continuity
+              </button>
               <span className="tw-sep" />
               {FORMAT.map((f) => (
                 <button

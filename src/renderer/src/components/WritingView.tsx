@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { DocContext } from '@shared/types'
 import { formatTokens } from '@shared/pricing'
 import { gameFormat } from '@shared/gameFormat'
@@ -8,7 +8,7 @@ import { useStore } from '../store'
 import { useWriting } from '../writingStore'
 import { Editor } from './Editor'
 import { BookIcon, CloseIcon, PlusIcon, SidebarIcon, SlidersIcon, UndoIcon } from './Icons'
-import { ContinuityPanel } from './ContinuityPanel'
+import { ContinuityPanel, OPEN_EVENT } from './ContinuityPanel'
 import { ModelPicker } from './ModelPicker'
 
 const STATUS = { saved: 'Saved', unsaved: 'Edited', saving: 'Saving…', error: "Couldn't save" } as const
@@ -104,6 +104,16 @@ export function WritingView() {
   const toggleSidebar = useStore((s) => s.toggleSidebar)
   const [contextOpen, setContextOpen] = useState(false)
   const [continuityOpen, setContinuityOpen] = useState(false)
+  // The passage chosen from the selection menu, or null for the whole document.
+  const [continuityPassage, setContinuityPassage] = useState<string | null>(null)
+  useEffect(() => {
+    const onOpen = (e: Event): void => {
+      setContinuityPassage((e as CustomEvent<{ text: string }>).detail.text)
+      setContinuityOpen(true)
+    }
+    window.addEventListener(OPEN_EVENT, onOpen)
+    return () => window.removeEventListener(OPEN_EVENT, onOpen)
+  }, [])
   const [copied, setCopied] = useState(false)
 
   return (
@@ -151,7 +161,10 @@ export function WritingView() {
               className="tw-btn tw-btn-ghost tw-btn-sm no-drag continuity-open"
               aria-expanded={continuityOpen}
               title="Check the selection, or the document, against documents you pick"
-              onClick={() => setContinuityOpen((o) => !o)}
+              onClick={() => {
+                setContinuityPassage(null)
+                setContinuityOpen((o) => !o)
+              }}
             >
               <BookIcon />
               Continuity
@@ -163,7 +176,7 @@ export function WritingView() {
         </div>
       </header>
       {contextOpen && open && <ContextPanel key={open.path} onClose={() => setContextOpen(false)} />}
-      {continuityOpen && open && <ContinuityPanel key={`continuity:${open.path}`} onClose={() => setContinuityOpen(false)} />}
+      {continuityOpen && open && <ContinuityPanel key={`continuity:${open.path}`} passage={continuityPassage} onWhole={() => setContinuityPassage(null)} onClose={() => setContinuityOpen(false)} />}
       {open ? (
         <Editor key={open.path} docPath={open.path} />
       ) : (

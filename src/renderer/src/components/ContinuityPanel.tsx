@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ContinuityIssue, ContinuityPreset } from '@shared/types'
 import { formatTokens } from '@shared/pricing'
-import { editorText } from '../gameCopy'
 import { useWriting } from '../writingStore'
 import { renderMarkdownLive } from '../markdown'
 import { CloseIcon } from './Icons'
@@ -16,6 +15,8 @@ const title = (path: string): string => path.replace(/\.md$/i, '')
 
 /** Asks the open editor to rewrite a passage (Editor listens). */
 export const FIX_EVENT = 'twilight-continuity-fix'
+/** Continuity in the editor's selection menu: opens the panel on exactly the text selected (WritingView listens). */
+export const OPEN_EVENT = 'twilight-continuity-open'
 
 function lastChosen(): string[] {
   try {
@@ -25,7 +26,11 @@ function lastChosen(): string[] {
   }
 }
 
-export function ContinuityPanel({ onClose }: { onClose: () => void }) {
+/**
+ * `passage` is the text chosen from the editor's selection menu, kept as it was, so clicking into
+ * the panel (which takes the editor's focus) can't lose it; null checks the whole document.
+ */
+export function ContinuityPanel({ passage, onWhole, onClose }: { passage: string | null; onWhole: () => void; onClose: () => void }) {
   const open = useWriting((s) => s.open)!
   const docs = useWriting((s) => s.docs)
   const others = useMemo(() => docs.filter((d) => d.path !== open.path).sort((a, b) => a.path.localeCompare(b.path)), [docs, open.path])
@@ -62,8 +67,8 @@ export function ContinuityPanel({ onClose }: { onClose: () => void }) {
   const shown = others.filter((d) => d.path.toLowerCase().includes(filter.trim().toLowerCase()))
 
   const check = async (): Promise<void> => {
-    const text = editorText.get?.() ?? open.text
-    setScope(text.length === open.text.length ? 'the whole document' : 'the selection')
+    const text = passage ?? open.text
+    setScope(passage ? 'the selection' : 'the whole document')
     setBusy(true)
     setError(null)
     setIssues(null)
@@ -84,7 +89,7 @@ export function ContinuityPanel({ onClose }: { onClose: () => void }) {
     setAsking(true)
     setError(null)
     try {
-      setAnswer({ question: q, text: await window.twilight.askContinuity(open.path, editorText.get?.() ?? open.text, picked, q) })
+      setAnswer({ question: q, text: await window.twilight.askContinuity(open.path, passage ?? open.text, picked, q) })
       setQuestion('')
     } catch (err) {
       setError(clean(err))
@@ -110,10 +115,22 @@ export function ContinuityPanel({ onClose }: { onClose: () => void }) {
           <CloseIcon />
         </button>
       </div>
-      <p className="field-note">
-        Checks the selection, or the whole document when nothing is selected, against the documents you pick, with the writing tools' model. Pick only what bears on it:
-        less to read is quicker, cheaper and sharper.
-      </p>
+      {passage ? (
+        <div className="continuity-target" data-target="selection">
+          <span className="field-label">The selection · {passage.trim().split(/\s+/).length.toLocaleString()} words</span>
+          <p className="continuity-target-text" title={passage}>
+            {passage}
+          </p>
+          <button className="link-btn continuity-whole" onClick={onWhole}>
+            Check the whole document instead
+          </button>
+        </div>
+      ) : (
+        <p className="field-note continuity-target" data-target="document">
+          Checking the whole document. To check part of it, select it and choose Continuity in the menu that appears.
+        </p>
+      )}
+      <p className="field-note">Checked against the documents you pick, with the writing tools' model. Pick only what bears on it: less to read is quicker, cheaper and sharper.</p>
 
       <div className="continuity-presets" role="group" aria-label="Presets">
         <button className="tw-btn tw-btn-sm continuity-preset" aria-pressed={picked.length === others.length && others.length > 0} onClick={() => choose(others.map((d) => d.path))}>

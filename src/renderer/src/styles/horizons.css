@@ -25,19 +25,39 @@
 .hz-lake { position: absolute; left: 0; top: 0; width: 100%; height: 30%; transform: scaleY(-1); transform-origin: 50% 0; translate: 0 100%; opacity: .32; -webkit-mask-image: linear-gradient(0deg, #000 0%, transparent 85%); mask-image: linear-gradient(0deg, #000 0%, transparent 85%); }
 .hz-lake-sheen { position: absolute; left: 0; right: 0; top: 0; height: 30%; background: repeating-linear-gradient(180deg, transparent 0 5px, color-mix(in srgb, var(--horizon) 10%, transparent) 5px 6px); -webkit-mask-image: linear-gradient(180deg, #000, transparent); mask-image: linear-gradient(180deg, #000, transparent); }
 
-/* City: a misty back row and a dark front row; a few windows lit, a few flickering. */
-.hz-city { height: 21%; }
-.hz-city-glow { position: absolute; left: 0; right: 0; top: calc(var(--horizon-at) - 22%); height: 22%; background: radial-gradient(ellipse 60% 100% at 50% 100%, color-mix(in srgb, var(--horizon) 18%, transparent), transparent 70%); }
-.hz-row-back .hz-building { fill: color-mix(in srgb, var(--dusk) 30%, var(--night)); }
+/* City: a misty far row of spires, a back row and a dark front row, each tower rim-lit on the
+   sunset side and lit floor by floor; rooftop signs glow; the river below mirrors it all. */
+.hz-city { height: 23%; }
+.hz-city-glow { position: absolute; left: 0; right: 0; top: calc(var(--horizon-at) - 24%); height: 24%; background: radial-gradient(ellipse 60% 100% at 50% 100%, color-mix(in srgb, var(--horizon) 20%, transparent), transparent 70%); }
+.hz-row-far .hz-building { fill: color-mix(in srgb, var(--dusk) 42%, var(--night)); opacity: .75; }
+.hz-row-back .hz-building { fill: color-mix(in srgb, var(--dusk) 24%, var(--night)); }
 .hz-row-front .hz-building { fill: color-mix(in srgb, var(--night) 88%, #000); }
-.hz-window { fill: color-mix(in srgb, var(--horizon) 55%, var(--ink)); opacity: .7; }
-.hz-row-back .hz-window { opacity: .35; }
+.hz-rim { fill: color-mix(in srgb, var(--horizon) 45%, transparent); }
+.hz-row-far .hz-rim { opacity: .4; }
+.hz-row-front .hz-rim { opacity: .55; }
+.hz-window { opacity: .75; }
+.hz-window.is-warm { fill: color-mix(in srgb, var(--horizon) 55%, var(--ink)); }
+.hz-window.is-cool { fill: color-mix(in srgb, var(--iris) 45%, var(--ink)); }
+.hz-row-far .hz-window { opacity: .3; }
+.hz-row-back .hz-window { opacity: .45; }
 .hz-window.is-blink { animation: hz-window 9s steps(1) infinite; }
 @keyframes hz-window { 0%, 100% { opacity: 0; } 30%, 75% { opacity: .75; } }
+.hz-roof-sign { filter: drop-shadow(0 0 3px currentColor); }
+.hz-roof-sign.is-iris { fill: color-mix(in srgb, var(--iris) 80%, #fff); color: var(--iris); }
+.hz-roof-sign.is-horizon { fill: color-mix(in srgb, var(--horizon) 80%, #fff); color: var(--horizon); }
 .hz-aerial-light { fill: #ff4a5e; animation: hz-blink 2.4s ease-in-out infinite; }
 @keyframes hz-blink { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
-.hz-floor-city { background: linear-gradient(180deg, color-mix(in srgb, var(--night) 70%, var(--horizon)) 0%, color-mix(in srgb, var(--night) 92%, #000) 18%, var(--surface) 85%); }
-.hz-floor-city::before { content: ''; position: absolute; inset: 0 0 40% 0; background: repeating-linear-gradient(90deg, transparent 0 22px, color-mix(in srgb, var(--horizon) 14%, transparent) 22px 24px, transparent 24px 61px, color-mix(in srgb, var(--iris) 12%, transparent) 61px 63px); -webkit-mask-image: linear-gradient(180deg, #000, transparent); mask-image: linear-gradient(180deg, #000, transparent); }
+.hz-floor-city { background: linear-gradient(180deg, color-mix(in srgb, var(--night) 75%, var(--horizon)) 0%, color-mix(in srgb, var(--night) 92%, #000) 22%, var(--surface) 88%); }
+.hz-river { position: absolute; left: 0; top: 4px; width: 100%; height: 38%; transform: scaleY(-1); opacity: .3; -webkit-mask-image: linear-gradient(0deg, #000, transparent 90%); mask-image: linear-gradient(0deg, #000, transparent 90%); }
+.hz-river-ripples { position: absolute; left: 0; right: 0; top: 4px; height: 38%; background: repeating-linear-gradient(180deg, transparent 0 3px, color-mix(in srgb, var(--night) 70%, transparent) 3px 5px); animation: hz-ripple 4s linear infinite; }
+@keyframes hz-ripple { to { background-position: 0 10px; } }
+/* The bank: a line of lamps right on the waterline, and car lights passing along it. */
+.hz-bank { position: absolute; left: 0; right: 0; top: 0; height: 4px; background: color-mix(in srgb, var(--night) 70%, #000); }
+.hz-lamp-post { position: absolute; top: 0; width: 2px; height: 2px; border-radius: 50%; background: color-mix(in srgb, var(--horizon) 60%, #fff); box-shadow: 0 0 5px 1px color-mix(in srgb, var(--horizon) 60%, transparent); }
+.hz-traffic { position: absolute; left: 0; top: 1px; width: 26px; height: 2px; border-radius: 1px; background: linear-gradient(90deg, transparent, rgba(255, 245, 225, .9)); animation: hz-drive 12s linear infinite; }
+.hz-traffic.is-left { top: 2px; background: linear-gradient(270deg, transparent, rgba(255, 70, 90, .85)); animation-name: hz-drive-left; }
+@keyframes hz-drive { from { transform: translateX(-40px); } to { transform: translateX(calc(100vw + 40px)); } }
+@keyframes hz-drive-left { from { transform: translateX(calc(100vw + 40px)); } to { transform: translateX(-40px); } }
 
 /* Dunes: from the far line at the horizon to the near crests, lit edges toward the sun. */
 .hz-dunes { position: absolute; left: 0; width: 100%; top: calc(var(--horizon-at) - 6%); height: calc(100% - var(--horizon-at) + 6%); }
@@ -103,6 +123,6 @@
 .empty-star.is-flare::after { width: 1px; height: 22px; background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--ink) 70%, transparent), transparent); }
 
 /* Gentle and Off keep every scene still: no swells, no flicker, the cars parked mid-flight. */
-:root[data-motion='reduced'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .is-retro .empty-star),
-:root[data-motion='off'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .is-retro .empty-star) { animation: none; }
-:root[data-motion='reduced'] .hz-car, :root[data-motion='off'] .hz-car { animation-play-state: paused; }
+:root[data-motion='reduced'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .hz-river-ripples, .is-retro .empty-star),
+:root[data-motion='off'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .hz-river-ripples, .is-retro .empty-star) { animation: none; }
+:root[data-motion='reduced'] :is(.hz-car, .hz-traffic), :root[data-motion='off'] :is(.hz-car, .hz-traffic) { animation-play-state: paused; }

@@ -5685,6 +5685,37 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         ui56.docs > 1 && /^1 document, about/.test(ui56.tokens) && ui56.presets.join() === 'Everything,Characters' && ui56.afterPreset === 1 && /^1 possible clash in the whole document/.test(ui56.result) && ui56.issues === 1 && ui56.summary.startsWith('Checked') && ui56.answer.includes('Partly.'),
         ui56
       )
+      const sel56 = await js<{ menu: boolean; target: string; text: string; kept: string; result: string }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const content = document.querySelector('.cm-content')
+        content?.focus()
+        const line = [...document.querySelectorAll('.cm-line')].find((l) => l.textContent.includes('green eyes'))
+        const range = document.createRange()
+        range.selectNodeContents(line)
+        getSelection().removeAllRanges()
+        getSelection().addRange(range)
+        document.dispatchEvent(new Event('selectionchange'))
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.seltool-continuity'); ) await wait(25)
+        const menu = !!document.querySelector('.seltool-continuity')
+        document.querySelector('.seltool-continuity')?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.continuity-target[data-target="selection"]'); ) await wait(25)
+        const target = document.querySelector('.continuity-target')?.dataset.target ?? ''
+        const text = document.querySelector('.continuity-target-text')?.textContent ?? ''
+        // Clicking into the panel takes the editor's focus; the passage stays.
+        document.querySelector('.continuity-ask input')?.focus()
+        await wait(100)
+        const kept = document.querySelector('.continuity-target-text')?.textContent ?? ''
+        document.querySelector('.continuity-check')?.click()
+        for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.continuity-result'); ) await wait(50)
+        const result = document.querySelector('.continuity-result')?.textContent ?? ''
+        document.querySelector('.continuity-panel .panel-head [aria-label="Close"]')?.click()
+        return { menu, target, text, kept, result }
+      })()`)
+      check(
+        "Continuity in the editor's selection menu checks exactly that passage, even after clicking into the panel",
+        sel56.menu && sel56.target === 'selection' && sel56.text.includes('green eyes') && sel56.kept === sel56.text && /in the selection/.test(sel56.result),
+        sel56
+      )
       check('presets are kept', JSON.stringify((db.kvGet('continuityPresets') as { name: string; paths: string[] }[] | undefined) ?? []) === JSON.stringify([{ name: 'Characters', paths: [profile56.path] }]))
       await js(`document.querySelector('.rail-item[data-mode="chat"]')?.click()`)
 

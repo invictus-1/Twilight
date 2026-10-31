@@ -1167,6 +1167,10 @@ body.resizing .resize-handle { pointer-events: auto; }
 .search-panel { width: min(760px, calc(100vw - 32px)); }
 
 /* Writing → Continuity */
+.continuity-target { display: flex; flex-direction: column; gap: var(--space-1); }
+div.continuity-target { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); border-left: 2px solid var(--iris); background: var(--surface-raised); }
+.continuity-target-text { margin: 0; font-size: 13px; color: var(--ink); white-space: pre-wrap; max-height: 96px; overflow-y: auto; }
+.continuity-whole { align-self: flex-start; font-size: 12px; }
 .continuity-ask { display: flex; gap: var(--space-2); }
 .continuity-ask input { flex: 1; min-width: 0; }
 .continuity-answer { padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); background: var(--surface-raised); font-size: 13px; }
