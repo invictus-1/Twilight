@@ -152,8 +152,11 @@ const TRAFFIC = (() => {
 })()
 
 // Thousands of shapes that never change: written out once as markup, so the sky at the top of
-// every chat costs a single parse rather than a React tree of every window.
+// every chat costs a single parse rather than a React tree of every window. The few lights that
+// blink are a drawing of their own on top: a blink inside the big one would repaint every shape
+// in it (and the river's reflection of them) each time, which shows as stutter while scrolling.
 let skylineMarkup: string | null = null
+let skylineLights = ''
 // The highest point drawn (spires and aerials included), where the drawing's frame starts.
 let skylineTop = 0
 function skyline(): string {
@@ -163,8 +166,10 @@ function skyline(): string {
   const r = (n: number): number => Math.round(n * 10) / 10
   const rect = (cls: string, x: number, y: number, w: number, h: number, extra = ''): string => `<rect class="${cls}" x="${r(x)}" y="${r(y)}" width="${r(w)}" height="${r(h)}"${extra}/>`
   const out: string[] = []
+  const lights: string[] = []
   for (const row of CITY) {
     out.push(`<g class="hz-row hz-row-${row.cls}">`)
+    lights.push(`<g class="hz-row hz-row-${row.cls}">`)
     row.towers.forEach((t, i) => {
       const peak = t.tiers.length ? t.tiers[t.tiers.length - 1] : { x: t.x, w: t.w }
       const peakTop = 160 - t.h - t.tiers.reduce((n, x) => n + x.h, 0)
@@ -180,14 +185,16 @@ function skyline(): string {
       }
       if (t.aerial) {
         out.push(rect('hz-building', peak.x + peak.w * 0.7, peakTop - 16, 1.5, 16))
-        out.push(`<circle class="hz-aerial-light" cx="${r(peak.x + peak.w * 0.7 + 0.75)}" cy="${peakTop - 17}" r="1.8" style="animation-delay:${(i % 5) * 0.7}s"/>`)
+        lights.push(`<circle class="hz-aerial-light" cx="${r(peak.x + peak.w * 0.7 + 0.75)}" cy="${peakTop - 17}" r="1.8" style="animation-delay:${(i % 5) * 0.7}s"/>`)
       }
       if (t.sign) out.push(rect(`hz-roof-sign is-${t.sign.tone}`, t.sign.x, t.sign.y, t.sign.w, 5, ' rx="1"'))
-      t.windows.forEach((w, j) => out.push(rect(`hz-window is-${w.tone}${w.blink ? ' is-blink' : ''}`, w.x, w.y, 2.6, 3.4, w.blink ? ` style="animation-delay:${(j % 7) * 1.3}s"` : '')))
+      t.windows.forEach((w, j) => (w.blink ? lights : out).push(rect(`hz-window is-${w.tone}${w.blink ? ' is-blink' : ''}`, w.x, w.y, 2.6, 3.4, w.blink ? ` style="animation-delay:${(j % 7) * 1.3}s"` : '')))
     })
     out.push('</g>')
+    lights.push('</g>')
   }
   skylineMarkup = out.join('')
+  skylineLights = lights.join('')
   skylineTop = Math.floor(top) - 2
   return skylineMarkup
 }
@@ -205,7 +212,12 @@ export function cityRoofs(): { width: number; top: number; roofs: { x: number; w
 
 function Skyline({ className }: { className: string }) {
   const markup = skyline()
-  return <svg className={className} viewBox={`0 ${skylineTop} ${CITY_WIDTH} ${160 - skylineTop}`} preserveAspectRatio="xMidYMax slice" dangerouslySetInnerHTML={{ __html: markup }} />
+  return (
+    <>
+      <svg className={className} viewBox={`0 ${skylineTop} ${CITY_WIDTH} ${160 - skylineTop}`} preserveAspectRatio="xMidYMax slice" dangerouslySetInnerHTML={{ __html: markup }} />
+      <svg className={`${className} hz-city-lights`} viewBox={`0 ${skylineTop} ${CITY_WIDTH} ${160 - skylineTop}`} preserveAspectRatio="xMidYMax slice" dangerouslySetInnerHTML={{ __html: skylineLights }} />
+    </>
+  )
 }
 
 /** True after the first idle moment: heavy, still scenery waits for it, so opening a chat doesn't. */

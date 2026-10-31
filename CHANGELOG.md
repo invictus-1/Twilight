@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Smoother over the city:** scrolling past the city at the top of a chat no longer stutters on a fast display. Its few blinking windows and beacons are drawn apart from the still skyline, so a blink no longer repaints the whole city and its reflection; above a chat they hold still, and the river's ripples are moved rather than redrawn. The beacons now flash on and off, as real ones do.
+
 ## 1.5.1
 
 - **Charts answer at once:** pointing at a bar on the Insights dashboard, a day on the heatmap or a bar in Usage shows its date and figure straight away, in the theme's colours, instead of the browser's plain label after a pause.

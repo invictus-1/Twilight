@@ -5892,6 +5892,21 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await shot('e2e-horizon-city-wide.png')
       win.setSize(size57[0], size57[1])
       await new Promise((r) => setTimeout(r, 300))
+      // The city's blinking lights are a drawing of their own over the still skyline; above a chat,
+      // which you scroll past, they hold still (a blink repaints enough to miss frames), and the
+      // empty chat keeps them blinking.
+      const lights57 = await js<{ empty: number; top: number; topLights: number; skylines: number }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const empty = document.querySelector('.empty .hz-city-lights .hz-aerial-light')?.getAnimations().length ?? -1
+        ;[...document.querySelectorAll('.tw-conv')].find((c) => c.textContent.includes('Hello'))?.click()
+        for (let end = Date.now() + 4000; Date.now() < end && !document.querySelector('.thread-top .hz-city-lights *'); ) await wait(50)
+        const lights = [...document.querySelectorAll('.thread-top .hz-city-lights *')]
+        return { empty, top: lights.reduce((n, e) => n + e.getAnimations().length, 0), topLights: lights.length, skylines: document.querySelectorAll('.thread-top svg.hz-city').length }
+      })()`)
+      check('above a chat the city lights hold still, on a layer of their own; the empty chat keeps them blinking', lights57.empty > 0 && lights57.topLights > 0 && lights57.top === 0 && lights57.skylines === 2, lights57)
+      // Back to a new chat, where the checks below look at the empty sky.
+      await key('N', ['control'])
+      await new Promise((r) => setTimeout(r, 300))
       await pickHorizon57('grid')
       check('the city keeps every tower top on wide windows, showing more of the city instead', wide57.every((s) => s.clipped === 0 && s.towers > 50), wide57)
 

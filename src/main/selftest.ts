@@ -9,6 +9,9 @@ import { getDefaults } from './chat'
 // 350k tokens into a throwaway profile, opens it, scrolls top to bottom one step per frame,
 // and writes frame timings plus a screenshot to the output folder. Never active otherwise.
 // TWILIGHT_SELFTEST_FX=<style> runs it with scroll particles on, each step counted as a wheel turn.
+// TWILIGHT_SELFTEST_TOP=<horizon> instead seeds a short chat with that scene under the sky and
+// scrolls back and forth over the sky at its top (the first screen of a new chat), writing
+// selftest-top.json; TWILIGHT_SELFTEST_CSS adds CSS for the run, to switch pieces off and compare.
 
 const PARAGRAPH =
   'The lamps came on one street at a time, as if the town were remembering itself. Nobody in Harrow Lane had ever seen who lit them, only the smell of oil afterward, drifting down from the bridge where Wren stood counting. '
@@ -32,7 +35,7 @@ export function prepareSelfTest(dir: string): void {
 export function seedSelfTest(): string {
   const conv = db.createConversation(getDefaults())
   let parent = conv.root_id
-  const turns = 450
+  const turns = process.env.TWILIGHT_SELFTEST_TOP ? 3 : 450
   for (let i = 0; i < turns; i++) {
     const user = db.insertNode({
       id: randomUUID(), conversation_id: conv.id, parent_id: parent, role: 'user',
@@ -53,6 +56,8 @@ export function seedSelfTest(): string {
 }
 
 export function runSelfTest(win: BrowserWindow, outDir: string): void {
+  const top = process.env.TWILIGHT_SELFTEST_TOP
+  if (top) return measureTop(win, outDir, top)
   const fx = process.env.TWILIGHT_SELFTEST_FX
   if (!fx) return measure(win, outDir, false)
   // Particles are a setting kept in the page's storage: set it, then measure after a reload.
@@ -147,5 +152,51 @@ function measure(win: BrowserWindow, outDir: string, fx: boolean): void {
       writeFileSync(join(outDir, 'selftest.json'), JSON.stringify({ error: String(err) }))
     }
     app.quit()
+  })
+}
+
+/** Scrolls back and forth over the sky at the top of a short chat, at a wheel's pace, timing every frame. */
+function measureTop(win: BrowserWindow, outDir: string, horizon: string): void {
+  win.webContents.once('did-finish-load', async () => {
+    await win.webContents.executeJavaScript(
+      `localStorage.setItem('twilight.extras', JSON.stringify({ ...JSON.parse(localStorage.getItem('twilight.extras') || '{}'), horizon: ${JSON.stringify(horizon)}, sky: 'dusk' }))`
+    )
+    win.webContents.once('did-finish-load', async () => {
+      try {
+        const css = process.env.TWILIGHT_SELFTEST_CSS
+        if (css) await win.webContents.insertCSS(css)
+        const result = await win.webContents.executeJavaScript(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+          const frame = () => new Promise((r) => requestAnimationFrame(r))
+          while (!document.querySelector('.thread-scroll .msg')) await wait(5)
+          const el = document.querySelector('.thread-scroll')
+          while (document.querySelector('.msg:not(.warm)')) await wait(20)
+          el.scrollTop = 0
+          await wait(1500)
+          const idle = []
+          let last = performance.now()
+          for (let i = 0; i < 120; i++) { await frame(); const now = performance.now(); idle.push(now - last); last = now }
+          idle.sort((a, b) => a - b)
+          const refresh = idle[Math.floor(idle.length / 2)]
+          // Back and forth over the first 1,400px (the sky, then the first messages), 14px a frame.
+          const t = []
+          let prev = performance.now()
+          let dir = 1
+          for (let i = 0; i < 900; i++) {
+            el.scrollTop += 14 * dir
+            if (el.scrollTop >= Math.min(1400, el.scrollHeight - el.clientHeight) || el.scrollTop <= 0) dir = -dir
+            await frame(); const now = performance.now(); t.push(now - prev); prev = now
+          }
+          const s = [...t].sort((a, b) => a - b)
+          const q = (p) => +s[Math.min(s.length - 1, Math.floor(p * s.length))].toFixed(2)
+          return { horizon: ${JSON.stringify(horizon)}, css: ${JSON.stringify(process.env.TWILIGHT_SELFTEST_CSS ?? '')}, displayFrameMs: +refresh.toFixed(2), frames: t.length, p50: q(0.5), p95: q(0.95), p99: q(0.99), max: +s[s.length - 1].toFixed(2), overBudget: t.filter((x) => x > refresh * 1.5).length, topPx: document.querySelector('.thread-top')?.offsetHeight ?? null }
+        })()`)
+        writeFileSync(join(outDir, 'selftest-top.json'), JSON.stringify(result, null, 2))
+      } catch (err) {
+        writeFileSync(join(outDir, 'selftest-top.json'), JSON.stringify({ error: String(err) }))
+      }
+      app.quit()
+    })
+    win.webContents.reload()
   })
 }

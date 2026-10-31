@@ -46,13 +46,22 @@
 .hz-roof-sign { filter: drop-shadow(0 0 3px currentColor); }
 .hz-roof-sign.is-iris { fill: color-mix(in srgb, var(--iris) 80%, #fff); color: var(--iris); }
 .hz-roof-sign.is-horizon { fill: color-mix(in srgb, var(--horizon) 80%, #fff); color: var(--horizon); }
-.hz-aerial-light { fill: #ff4a5e; animation: hz-blink 2.4s ease-in-out infinite; }
+/* Beacons flash on and off as real ones do: a fade would repaint the lights every frame, which stutters a scroll. */
+.hz-aerial-light { fill: #ff4a5e; animation: hz-beacon 2.4s steps(1) infinite; }
+@keyframes hz-beacon { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
 @keyframes hz-blink { 0%, 100% { opacity: .15; } 50% { opacity: 1; } }
 .hz-floor-city { background: linear-gradient(180deg, color-mix(in srgb, var(--night) 75%, var(--horizon)) 0%, color-mix(in srgb, var(--night) 92%, #000) 22%, var(--surface) 88%); }
 .hz-city { -webkit-box-reflect: below 4px linear-gradient(transparent 35%, rgba(0, 0, 0, .3)); }
+/* The blinking lights, laid exactly over the skyline on a layer of their own (see Horizons: skyline). */
+.hz-city-lights { pointer-events: none; will-change: opacity; }
+/* Above a chat, which you scroll past, the lights hold still: even a few blinks a second repaint
+   enough of the skyline to miss frames on a fast display. The empty chat, where nothing scrolls, keeps them. */
+.thread-top .hz-city-lights, .thread-top .hz-city-lights * { animation: none; }
 .hz-river-top { background: none; }
-.hz-river-ripples { position: absolute; left: 0; right: 0; top: 4px; height: 38%; background: repeating-linear-gradient(180deg, transparent 0 3px, color-mix(in srgb, var(--night) 70%, transparent) 3px 5px); animation: hz-ripple 4s linear infinite; }
-@keyframes hz-ripple { to { background-position: 0 10px; } }
+/* The ripples slide down one stripe and start again: moved, not repainted, every frame. */
+.hz-river-ripples { position: absolute; left: 0; right: 0; top: 4px; height: 38%; overflow: hidden; }
+.hz-river-ripples::before { content: ''; position: absolute; left: 0; right: 0; top: -10px; bottom: 0; background: repeating-linear-gradient(180deg, transparent 0 3px, color-mix(in srgb, var(--night) 70%, transparent) 3px 5px); animation: hz-ripple 4s linear infinite; will-change: transform; }
+@keyframes hz-ripple { to { transform: translateY(10px); } }
 /* The bank: a line of lamps right on the waterline, and car lights passing along it. */
 .hz-bank { position: absolute; left: 0; right: 0; top: 0; height: 4px; background: color-mix(in srgb, var(--night) 70%, #000); }
 .hz-lamp-post { position: absolute; top: 0; width: 2px; height: 2px; border-radius: 50%; background: color-mix(in srgb, var(--horizon) 60%, #fff); box-shadow: 0 0 5px 1px color-mix(in srgb, var(--horizon) 60%, transparent); }
@@ -172,6 +181,7 @@
 /* Gentle and Off keep every scene still: no swells, no flicker, the cars parked mid-flight. */
 :root[data-motion='reduced'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .hz-river-ripples, .hz-sparkle, .hz-foam, .hz-buoy, .hz-gull path, .hz-camel, .is-retro .empty-star),
 :root[data-motion='off'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .hz-river-ripples, .hz-sparkle, .hz-foam, .hz-buoy, .hz-gull path, .hz-camel, .is-retro .empty-star) { animation: none; }
+:root[data-motion='reduced'] .hz-river-ripples::before, :root[data-motion='off'] .hz-river-ripples::before { animation: none; }
 /* Things that cross the scene (sails, gulls, the caravan) stay where they are; the tumbleweed and blowing sand don't come. */
 :root[data-motion='reduced'] :is(.hz-sail, .hz-gull, .hz-caravan), :root[data-motion='off'] :is(.hz-sail, .hz-gull, .hz-caravan) { animation-play-state: paused; }
 :root[data-motion='reduced'] :is(.hz-tumbleweed, .hz-sandblow), :root[data-motion='off'] :is(.hz-tumbleweed, .hz-sandblow) { display: none; }
