@@ -5807,6 +5807,77 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await shot('e2e-meteor.png')
       check('shooting stars cross the sky now and then, with a head and a tail', meteor57.seen && meteor57.head && meteor57.tail, meteor57)
 
+      // The desert's saguaros and the sea's sailboats stand on the horizon (they place themselves from it).
+      const company57: Record<string, unknown> = {}
+      for (const h of ['dunes', 'ocean']) {
+        await pickHorizon57(h)
+        company57[h] = await js(`(async () => {
+          await new Promise((r) => setTimeout(r, 400))
+          const sky = document.querySelector('.empty .empty-sky').getBoundingClientRect()
+          const horizon = sky.top + sky.height * 0.64
+          const rects = [...document.querySelectorAll('.empty ${h === 'dunes' ? '.hz-saguaro' : '.hz-sail'}')].map((e) => e.getBoundingClientRect())
+          return { count: rects.length, placed: rects.every((r) => r.height > 4 && r.bottom <= sky.bottom + 1 && (${h === 'dunes'} ? r.bottom > horizon : Math.abs(r.bottom - horizon) < sky.height * 0.04)) }
+        })()`)
+      }
+      const c57 = company57 as Record<string, { count: number; placed: boolean }>
+      check('saguaros stand in the dunes below the horizon, and sailboats sit on the sea line', c57.dunes.count === 5 && c57.dunes.placed && c57.ocean.count === 2 && c57.ocean.placed, c57)
+
+      // The visitors take turns (the UFO, the whale, the platypus, then the pumpkin), and on the city
+      // each plays its act on the skyline's own roofs.
+      // Surprises are off by now; on for this, off again after.
+      const surprises57 = async (): Promise<void> => {
+        await key(',', ['control'])
+        await js(`(async () => {
+          const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.settings-nav'); ) await wait(25)
+          ;[...document.querySelectorAll('.settings-nav button')].find((b) => b.textContent === 'Extras')?.click()
+          for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.extras-switch'); ) await wait(25)
+          ;[...document.querySelectorAll('.extras-switch label')].find((l) => l.textContent.includes('Surprises'))?.querySelector('input').click()
+          await wait(50)
+        })()`)
+        await key('Escape')
+      }
+      await surprises57()
+      await pickHorizon57('city')
+      const turns57 = await js<{ seen: string[]; ufo?: { placed: boolean; onRoof: boolean }; platypus?: { placed: boolean; frames: number; art: boolean; onRoof: boolean }; pumpkin?: { placed: boolean; views: number; onRoof: boolean } }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const names = { 'act-abduct': 'ufo', 'act-blimp': 'whale', 'act-parkour': 'platypus', 'act-dinner': 'pumpkin' }
+        const out = { seen: [] }
+        for (let i = 0; i < 4; i++) {
+          let act = null
+          for (let end = Date.now() + 6000; Date.now() < end && !(act = document.querySelector('.empty .act')); ) await wait(30)
+          const name = act ? Object.entries(names).find(([c]) => act.classList.contains(c))?.[1] ?? act.className : 'none'
+          out.seen.push(name)
+          await wait(800)
+          const tops = [...document.querySelectorAll('.empty .hz-row-front .hz-building')].map((b) => b.getBoundingClientRect().top)
+          const onRoof = (y) => tops.some((t) => Math.abs(t - y) < 3)
+          const placed = !!act?.classList.contains('is-placed')
+          if (name === 'ufo') out.ufo = { placed, onRoof: onRoof(act.querySelector('.act-abduct-victim').getBoundingClientRect().bottom) }
+          if (name === 'platypus') {
+            const run = act.querySelector('.act-run-x')
+            const frames = run.getAnimations()[0]?.effect.getKeyframes() ?? []
+            const start = /translate\\(([-\\d.]+)px, ([-\\d.]+)px\\)/.exec(frames[0]?.transform ?? '')
+            const stage = act.getBoundingClientRect()
+            out.platypus = { placed, frames: frames.length, art: !!run.querySelector('img[src*="platypus-run"]'), onRoof: !!start && onRoof(stage.bottom + Number(start[2])) }
+          }
+          if (name === 'pumpkin') out.pumpkin = { placed, views: act.querySelectorAll('.pumpkin.is-side, .pumpkin.is-back, .pumpkin.is-front').length, onRoof: onRoof(act.querySelector('.act-shop').getBoundingClientRect().bottom - 1) }
+          window.dispatchEvent(new PointerEvent('pointermove'))
+          await wait(60)
+        }
+        return out
+      })()`)
+      check(
+        'the visitors take turns, and on the city they act on its own roofs: the saucer takes the platypus, he runs the rooftops, the pumpkin sups at a noodle bar',
+        turns57.seen.join() === 'ufo,whale,platypus,pumpkin' &&
+          !!turns57.ufo?.placed && turns57.ufo.onRoof &&
+          !!turns57.platypus?.placed && turns57.platypus.frames > 10 && turns57.platypus.art && turns57.platypus.onRoof &&
+          !!turns57.pumpkin?.placed && turns57.pumpkin.views === 3 && turns57.pumpkin.onRoof,
+        turns57
+      )
+      await shot('e2e-city-act.png')
+      await surprises57()
+      await pickHorizon57('grid')
+
       // 54. Local power tools: token probabilities, branching from a word, samplers.
       const c54 = chat.create().id
       chat.updateSettings(c54, { confidence: true, samplers: { ...NO_SAMPLERS, minP: 0.05, topK: 40, dry: 0.8, seed: 7 } })

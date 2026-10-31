@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { clockTime, seasonFor } from '@shared/sky'
-import { useExtras, type SkyTime } from '../extras'
+import { useExtras, type Horizon, type SkyTime } from '../extras'
+import { actFor } from './SkyActs'
 import { HorizonScene, Meteors } from './Horizons'
 import balloon from '../assets/sky/balloon.webp'
 import lighthouse from '../assets/sky/lighthouse.webp'
@@ -25,12 +26,22 @@ function useSkyTime(): Exclude<SkyTime, 'clock'> {
   return sky === 'clock' ? now : sky
 }
 
-// The rare things that cross the sky if you sit and watch, and how long each stays. The models are
-// low-poly renders from Blender, loops of a few dozen frames that load only when one appears.
-const EGGS = ['ufo', 'whale', 'comet', 'balloon', 'lighthouse', 'satellite', 'lantern'] as const
-type Egg = (typeof EGGS)[number] | 'platypus' | 'platypus-trot'
+// The rare things that cross the sky if you sit and watch, in turn: the UFO, the whale, the
+// platypus and the pumpkin first, then the rest. On the grid and the mountains the UFO, whale and
+// platypus are low-poly renders from Blender, loops that load only when one appears; on the other
+// scenes, and for the pumpkin everywhere, they act out a scene of their own (SkyActs).
+const EGGS = ['ufo', 'whale', 'platypus-trot', 'pumpkin', 'comet', 'balloon', 'lighthouse', 'satellite', 'lantern'] as const
+type Egg = (typeof EGGS)[number] | 'platypus'
 const ART: Partial<Record<Egg, string>> = { ufo, whale, balloon, lighthouse, platypus, 'platypus-trot': platypusTrot }
-const STAYS: Record<Egg, number> = { ufo: 14_000, whale: 20_000, comet: 6_000, balloon: 16_000, lighthouse: 15_000, satellite: 14_000, lantern: 14_000, platypus: 4_200, 'platypus-trot': 18_000 }
+const STAYS: Record<Egg, number> = { ufo: 14_000, whale: 20_000, comet: 6_000, balloon: 16_000, lighthouse: 15_000, satellite: 14_000, lantern: 14_000, platypus: 4_200, 'platypus-trot': 18_000, pumpkin: 16_000 }
+// Test runs can call up one visitor straight away (to look at an act).
+const forced = (): Egg | null => {
+  try {
+    return location.hash === '#e2e' ? (localStorage.getItem('twilight.e2eEgg') as Egg | null) : null
+  } catch {
+    return null
+  }
+}
 // Phosphor's visitor takes turns: a peek over the horizon, then a stroll along it.
 const PLATYPUS: Egg[] = ['platypus', 'platypus-trot']
 // Test runs (opened at #e2e) don't sit for 45 seconds.
@@ -41,7 +52,7 @@ const QUIET = location.hash === '#e2e' ? 1_200 : 45_000
  * spell. Moving clears the sky, except for Phosphor's own visitor: a small platypus that peeks over
  * the horizon now and then, and ducks out of sight the moment you move.
  */
-function useEasterEgg(watching: boolean): { name: Egg; ducking: boolean } | null {
+function useEasterEgg(watching: boolean, horizon: Horizon): { name: Egg; ducking: boolean } | null {
   const [egg, setEgg] = useState<{ name: Egg; ducking: boolean } | null>(null)
   // `ducking` is the platypus spotted: the peeking one drops out of sight, the strolling one bolts.
   useEffect(() => {
@@ -58,14 +69,15 @@ function useEasterEgg(watching: boolean): { name: Egg; ducking: boolean } | null
       quiet = setTimeout(() => {
         // In Phosphor, every other visitor is the platypus.
         const phosphor = document.documentElement.dataset.theme === 'phosphor'
-        const name: Egg = phosphor && shown % 2 === 0 ? PLATYPUS[(shown / 2) % 2] : EGGS[Math.floor(shown / (phosphor ? 2 : 1)) % EGGS.length]
+        const name: Egg = forced() ?? (phosphor && shown % 2 === 0 ? PLATYPUS[(shown / 2) % 2] : EGGS[Math.floor(shown / (phosphor ? 2 : 1)) % EGGS.length])
         shown++
         show(name)
-        quiet = setTimeout(() => (show(null), wait()), STAYS[name])
+        quiet = setTimeout(() => (show(null), wait()), actFor(name, horizon)?.ms ?? STAYS[name])
       }, QUIET)
     }
     const stir = (): void => {
-      if (current === 'platypus' || current === 'platypus-trot') {
+      // Phosphor's own platypus ducks or bolts when spotted; an act just ends, like the others.
+      if (current === 'platypus' || (current === 'platypus-trot' && !actFor(current, horizon))) {
         // Spotted: down it goes, quick, or off at a sprint; then it's gone.
         clearTimeout(quiet)
         show(current, true)
@@ -83,18 +95,20 @@ function useEasterEgg(watching: boolean): { name: Egg; ducking: boolean } | null
       window.removeEventListener('pointermove', stir)
       window.removeEventListener('keydown', stir)
     }
-  }, [watching])
+  }, [watching, horizon])
   return egg
 }
 
 /** One visitor in the sky. The strolling platypus, when spotted, bolts: its walk sped up ninefold from wherever it is. */
-function SkyEgg({ name, spotted }: { name: Egg; spotted: boolean }) {
+function SkyEgg({ name, spotted, horizon }: { name: Egg; spotted: boolean; horizon: Horizon }) {
   const el = useRef<HTMLSpanElement>(null)
+  const act = actFor(name, horizon)
   const bolting = spotted && name === 'platypus-trot'
   useEffect(() => {
     if (bolting) el.current?.getAnimations().forEach((a) => (a.playbackRate = 9))
   }, [bolting])
   const art = bolting ? platypusRun : ART[name]
+  if (act) return <act.Scene />
   return (
     <span ref={el} className={`sky-egg sky-egg-${name} ${spotted ? 'is-ducking' : ''}`}>
       {name === 'lighthouse' && <span className="sky-sweep" />}
@@ -114,7 +128,7 @@ function SkyEgg({ name, spotted }: { name: Egg; spotted: boolean }) {
 export function EmptySky({ watch = false, session = false }: { watch?: boolean; session?: boolean }) {
   const extras = useExtras()
   const time = useSkyTime()
-  const egg = useEasterEgg(watch && extras.easterEggs)
+  const egg = useEasterEgg(watch && extras.easterEggs, extras.horizon)
   const season = extras.seasons ? seasonFor() : null
   // Up to most of the way to night over three hours.
   const late = session && extras.sessionSky ? Math.min(0.75, (Date.now() - sessionStart) / (3 * 60 * 60 * 1000)) : 0
@@ -141,10 +155,12 @@ export function EmptySky({ watch = false, session = false }: { watch?: boolean; 
           ))}
         </div>
       )}
-      {egg && <SkyEgg name={egg.name} spotted={egg.ducking} />}
+      {/* A visitor crossing the sky goes behind the sun and the scene; an act plays in front of them. */}
+      {egg && !actFor(egg.name, extras.horizon) && <SkyEgg name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
       <span className="empty-sun" />
       <span className="empty-horizon" />
       <HorizonScene kind={extras.horizon} time={time} />
+      {egg && actFor(egg.name, extras.horizon) && <SkyEgg name={egg.name} spotted={egg.ducking} horizon={extras.horizon} />}
       {late > 0 && <span className="sky-late" />}
     </div>
   )

@@ -1,7 +1,8 @@
 /* ——— Under the sky (Extras): the scenes on the horizon ———
    Each stands on the horizon line in front of the sun, in the theme's own colours. Silhouettes
    rise into the sky up to --city-up; floors fill below the horizon. */
-.empty-sky { --city-up: 24%; }
+/* --ground: how far the horizon sits above the bottom, for anything standing on or below it. */
+.empty-sky { --city-up: 24%; --ground: calc(100% - var(--horizon-at)); }
 .hz-up { position: absolute; left: 0; width: 100%; bottom: calc(100% - var(--horizon-at)); height: 20%; }
 .hz-floor { position: absolute; left: 0; right: 0; top: var(--horizon-at); bottom: 0; overflow: hidden; }
 .empty-sky:not([data-horizon='grid']) .empty-horizon::before { opacity: .6; }
@@ -76,6 +77,25 @@
 .hz-dune-front { stroke: color-mix(in srgb, var(--horizon) 32%, transparent); }
 @keyframes hz-shimmer { 50% { transform: translateY(.6px) scaleY(1.01); } }
 
+/* The desert's company: buttes, saguaros, a caravan, a tumbleweed, sand blowing off the crests. */
+.hz-buttes { height: 9%; }
+.hz-buttes path { fill: color-mix(in srgb, var(--dusk) 30%, var(--night)); }
+.hz-buttes path:nth-child(odd) { fill: color-mix(in srgb, var(--dusk) 38%, var(--night)); }
+.hz-saguaro { position: absolute; aspect-ratio: 1 / 2; }
+.hz-saguaro svg { display: block; width: 100%; height: 100%; }
+.hz-saguaro path { fill: color-mix(in srgb, var(--night) 48%, #3f7d52); }
+.hz-caravan { position: absolute; bottom: calc(var(--ground) - 1.6%); left: 0; display: flex; gap: 4px; animation: caravan 90s linear infinite; }
+.hz-camel { width: 22px; height: 14px; animation: camel-step 1.4s ease-in-out infinite; }
+.hz-camel path { fill: color-mix(in srgb, var(--night) 82%, var(--dusk)); }
+@keyframes caravan { from { transform: translateX(-120px); } to { transform: translateX(calc(100vw + 40px)); } }
+@keyframes camel-step { 50% { transform: translateY(-1px); } }
+.hz-ripple { fill: none; stroke: color-mix(in srgb, var(--horizon) 22%, transparent); stroke-width: 1; vector-effect: non-scaling-stroke; }
+.hz-tumbleweed { position: absolute; left: 0; bottom: calc(var(--ground) - 20%); width: 18px; height: 18px; border-radius: 50%; border: 2px dotted color-mix(in srgb, #c9a46a 70%, var(--night)); box-shadow: inset 0 0 0 3px color-mix(in srgb, #9a7a4a 40%, transparent); opacity: 0; animation: tumble 26s linear 6s infinite; }
+@keyframes tumble { 0% { transform: translate(-40px, 0) rotate(0); opacity: 0; } 2% { opacity: .9; } 10% { transform: translate(20vw, -14px) rotate(360deg); } 18% { transform: translate(40vw, 0) rotate(720deg); } 26% { transform: translate(60vw, -10px) rotate(1080deg); } 34% { transform: translate(80vw, 0) rotate(1440deg); opacity: .9; } 40%, 100% { transform: translate(100vw, 0) rotate(1800deg); opacity: 0; } }
+.hz-sandblow { position: absolute; left: 10%; bottom: calc(var(--ground) - 3%); width: 180px; height: 14px; background: radial-gradient(ellipse at 20% 50%, color-mix(in srgb, var(--horizon) 30%, #e8c79a) 0%, transparent 70%); filter: blur(4px); opacity: 0; animation: sandblow 9s ease-out infinite; }
+.hz-sandblow.is-second { left: 55%; bottom: calc(var(--ground) - 12%); animation-delay: 4.5s; }
+@keyframes sandblow { 0% { transform: translateX(0) scaleX(.4); opacity: 0; } 20% { opacity: .55; } 100% { transform: translateX(220px) scaleX(1.4); opacity: 0; } }
+
 /* Ocean: deep water, swells drifting in, the sun's reflection breaking into bands, a lighthouse. */
 .hz-floor-ocean { perspective: 260px; perspective-origin: 50% 0; background: linear-gradient(180deg, color-mix(in srgb, var(--dusk-soft) 70%, var(--horizon)) 0%, color-mix(in srgb, var(--night) 85%, var(--iris)) 22%, var(--surface) 90%); }
 .hz-sea-plane { position: absolute; left: -60%; right: -60%; top: 0; height: 200%; transform-origin: 50% 0; transform: rotateX(70deg); -webkit-mask-image: linear-gradient(180deg, transparent 0%, #000 30%); mask-image: linear-gradient(180deg, transparent 0%, #000 30%); }
@@ -83,6 +103,32 @@
 @keyframes hz-swell { to { transform: translateY(28px); } }
 .hz-glint { position: absolute; left: 50%; top: 0; width: calc(var(--sun) * 0.95); height: 78%; translate: -50% 0; background: repeating-linear-gradient(180deg, color-mix(in srgb, #fff 35%, var(--horizon)) 0 2px, transparent 2px 7px, color-mix(in srgb, var(--horizon) 80%, transparent) 7px 8px, transparent 8px 15px); -webkit-mask-image: radial-gradient(ellipse 50% 100% at 50% 0%, #000 20%, transparent 70%); mask-image: radial-gradient(ellipse 50% 100% at 50% 0%, #000 20%, transparent 70%); opacity: .55; animation: hz-glint 3.2s ease-in-out infinite; }
 @keyframes hz-glint { 0%, 100% { background-position: 0 0; opacity: .5; } 50% { background-position: 0 6px; opacity: .65; } }
+/* The ocean's company: islands, sailboats, gulls, a buoy, sparkles and foam. */
+.hz-islands { height: 5%; }
+.hz-islands path { fill: color-mix(in srgb, var(--dusk) 26%, var(--night)); }
+.hz-island-light { fill: color-mix(in srgb, var(--horizon) 60%, #fff); }
+.hz-sparkle { position: absolute; width: 3px; height: 1px; background: color-mix(in srgb, #fff 70%, var(--horizon)); opacity: 0; animation: sparkle 3s ease-in-out infinite; }
+@keyframes sparkle { 0%, 100% { opacity: 0; } 50% { opacity: .9; transform: scaleX(2.5); } }
+/* Soft streaks of uneven length rather than dashes: three to a 330px stretch, each fading in and out. */
+.hz-foam { position: absolute; left: -330px; right: -330px; top: 46%; height: 3px; border-radius: 2px; background: repeating-linear-gradient(90deg, transparent 0, rgba(238, 244, 255, .34) 34px, rgba(238, 244, 255, .2) 62px, transparent 84px, transparent 118px, rgba(238, 244, 255, .16) 134px, transparent 150px, transparent 196px, rgba(238, 244, 255, .26) 236px, rgba(238, 244, 255, .3) 262px, transparent 296px, transparent 330px); filter: blur(1px); animation: foam-drift 14s linear infinite; }
+.hz-foam.is-near { top: 74%; height: 4px; opacity: .8; animation-duration: 9s; animation-direction: reverse; }
+@keyframes foam-drift { to { transform: translateX(330px); } }
+.hz-buoy { position: absolute; left: 18%; top: 30%; width: 8px; height: 12px; border-radius: 3px 3px 1px 1px; background: #c43b3b; box-shadow: 0 -5px 0 -2px #ffd166; animation: buoy 3.2s ease-in-out infinite; }
+.hz-buoy::after { content: ''; position: absolute; left: 1px; top: -9px; width: 6px; height: 6px; border-radius: 50%; background: #ffd166; box-shadow: 0 0 10px 3px rgba(255, 209, 102, .7); animation: egg-blink 1.6s steps(2) infinite; }
+@keyframes buoy { 50% { transform: translateY(3px) rotate(6deg); } }
+.hz-sail { position: absolute; width: 22px; height: 24px; bottom: calc(var(--ground) - 1.4%); animation: sail 120s linear infinite; }
+.hz-sail-1 { width: 16px; height: 18px; bottom: calc(var(--ground) - .6%); animation-duration: 160s; animation-delay: -70s; }
+.hz-sail-cloth { fill: color-mix(in srgb, var(--ink) 55%, var(--night)); }
+.hz-sail-hull { fill: color-mix(in srgb, var(--night) 80%, #000); }
+.hz-sail-light { fill: #ffd166; }
+@keyframes sail { from { left: -4%; } to { left: 104%; } }
+.hz-gull { position: absolute; width: 20px; height: 8px; top: calc(var(--horizon-at) - 18%); animation: gull 34s linear infinite; }
+.hz-gull path { fill: none; stroke: color-mix(in srgb, var(--ink) 70%, var(--night)); stroke-width: 1.6; stroke-linecap: round; animation: gull-flap .8s ease-in-out infinite; transform-origin: 50% 70%; }
+.hz-gull-1 { top: calc(var(--horizon-at) - 22%); width: 15px; animation-delay: -12s; animation-duration: 40s; }
+.hz-gull-2 { top: calc(var(--horizon-at) - 15%); width: 12px; animation-delay: -24s; animation-duration: 46s; }
+@keyframes gull { 0% { left: -4%; transform: translateY(0); } 50% { transform: translateY(-14px); } 100% { left: 104%; transform: translateY(0); } }
+@keyframes gull-flap { 50% { transform: scaleY(.5); } }
+
 .hz-lighthouse { position: absolute; right: 9%; bottom: calc(100% - var(--horizon-at) - 6px); width: 120px; height: 90px; }
 .hz-lighthouse svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .hz-rock { fill: color-mix(in srgb, var(--night) 88%, #000); }
@@ -124,6 +170,9 @@
 .empty-star.is-flare::after { width: 1px; height: 22px; background: linear-gradient(180deg, transparent, color-mix(in srgb, var(--ink) 70%, transparent), transparent); }
 
 /* Gentle and Off keep every scene still: no swells, no flicker, the cars parked mid-flight. */
-:root[data-motion='reduced'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .hz-river-ripples, .is-retro .empty-star),
-:root[data-motion='off'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .hz-river-ripples, .is-retro .empty-star) { animation: none; }
+:root[data-motion='reduced'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .hz-river-ripples, .hz-sparkle, .hz-foam, .hz-buoy, .hz-gull path, .hz-camel, .is-retro .empty-star),
+:root[data-motion='off'] :is(.hz-swells, .hz-glint, .hz-beam, .hz-neon, .hz-blink, .hz-window, .hz-aerial-light, .hz-dune-far, .hz-river-ripples, .hz-sparkle, .hz-foam, .hz-buoy, .hz-gull path, .hz-camel, .is-retro .empty-star) { animation: none; }
+/* Things that cross the scene (sails, gulls, the caravan) stay where they are; the tumbleweed and blowing sand don't come. */
+:root[data-motion='reduced'] :is(.hz-sail, .hz-gull, .hz-caravan), :root[data-motion='off'] :is(.hz-sail, .hz-gull, .hz-caravan) { animation-play-state: paused; }
+:root[data-motion='reduced'] :is(.hz-tumbleweed, .hz-sandblow), :root[data-motion='off'] :is(.hz-tumbleweed, .hz-sandblow) { display: none; }
 :root[data-motion='reduced'] :is(.hz-car, .hz-traffic), :root[data-motion='off'] :is(.hz-car, .hz-traffic) { animation-play-state: paused; }

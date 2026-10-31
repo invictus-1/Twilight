@@ -189,6 +189,17 @@ function skyline(): string {
   return skylineMarkup
 }
 
+/** The front row's roofs, for the acts that play on the city: each tower's highest top (x, width
+ *  and height in the drawing's units), with the drawing's frame to place them on screen. */
+export function cityRoofs(): { width: number; top: number; roofs: { x: number; w: number; y: number }[] } {
+  skyline()
+  const roofs = CITY[CITY.length - 1].towers.map((t) => {
+    const peak = t.tiers.length ? t.tiers[t.tiers.length - 1] : { x: t.x, w: t.w }
+    return { x: peak.x, w: peak.w, y: 160 - t.h - t.tiers.reduce((n, x) => n + x.h, 0) }
+  })
+  return { width: CITY_WIDTH, top: skylineTop, roofs }
+}
+
 function Skyline({ className }: { className: string }) {
   const markup = skyline()
   return <svg className={className} viewBox={`0 ${skylineTop} ${CITY_WIDTH} ${160 - skylineTop}`} preserveAspectRatio="xMidYMax slice" dangerouslySetInnerHTML={{ __html: markup }} />
@@ -251,7 +262,57 @@ const DUNES = [
   { cls: 'front', d: dune(17, 252, 66, 2) }
 ]
 
+// The desert's company: buttes on the horizon, saguaros on the dunes, a caravan on a far crest.
+const SAGUAROS = [
+  { x: 9, b: 30, h: 7 },
+  { x: 23, b: 18, h: 4.5 },
+  { x: 71, b: 26, h: 6 },
+  { x: 88, b: 13, h: 4 },
+  { x: 41, b: 9, h: 3 }
+]
+const SPARKLES = Array.from({ length: 22 }, (_, i) => ({ x: (i * 41.3 + 7) % 96 + 2, y: (i * 17.9 + 3) % 30 + 2, d: (i % 7) * 0.6 }))
+
+function Saguaro() {
+  return (
+    <svg viewBox="0 0 40 80" aria-hidden="true">
+      <path d="M16 80 L16 12 Q20 2 24 12 L24 80 Z" />
+      <path d="M16 46 L8 46 Q3 46 3 39 L3 26 Q6 21 9 26 L9 39 L16 39 Z" />
+      <path d="M24 34 L32 34 Q37 34 37 27 L37 18 Q34 13 31 18 L31 27 L24 27 Z" />
+    </svg>
+  )
+}
+
 function Dunes() {
+  return (
+    <>
+      {/* Buttes and mesas on the horizon, behind the far dunes. */}
+      <svg className="hz-up hz-buttes" viewBox="0 0 1000 100" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M30 100 L30 70 L46 64 L52 40 L118 40 L124 62 L150 70 L150 100 Z" />
+        <path d="M190 100 L198 78 L214 74 L218 58 L242 58 L246 76 L262 100 Z" />
+        <path d="M720 100 L728 66 L742 60 L746 30 L800 30 L806 58 L826 66 L836 100 Z" />
+        <path d="M880 100 L888 74 L900 72 L904 52 L928 52 L932 74 L946 100 Z" />
+      </svg>
+      <div className="hz-caravan" aria-hidden="true">
+        {[0, 1, 2].map((i) => (
+          <svg key={i} viewBox="0 0 40 26" className="hz-camel" style={{ animationDelay: `${-i * 0.35}s` }}>
+            <path d="M4 14 Q6 6 14 8 Q18 2 22 8 Q30 6 32 14 L36 8 L38 9 L34 18 L30 18 L30 26 L28 26 L28 18 L12 18 L12 26 L10 26 L10 18 Z" />
+          </svg>
+        ))}
+      </div>
+      <Dunes2 />
+      {SAGUAROS.map((s, i) => (
+        <span key={i} className="hz-saguaro" style={{ left: `${s.x}%`, bottom: `calc(var(--ground) - ${s.b}%)`, height: `${s.h}%` }}>
+          <Saguaro />
+        </span>
+      ))}
+      <span className="hz-tumbleweed" />
+      <span className="hz-sandblow" />
+      <span className="hz-sandblow is-second" />
+    </>
+  )
+}
+
+function Dunes2() {
   return (
     <svg className="hz-dunes" viewBox="0 0 1000 300" preserveAspectRatio="none">
       <defs>
@@ -267,6 +328,10 @@ function Dunes() {
       {DUNES.map((l) => (
         <path key={l.cls} className={`hz-dune hz-dune-${l.cls}`} d={l.d} fill={`url(#hz-dune-${l.cls})`} />
       ))}
+      {/* Wind ripples across the near dunes. */}
+      {[208, 222, 236, 258, 274].map((y, i) => (
+        <path key={y} className="hz-ripple" d={`M${80 + i * 140} ${y} q30 -5 60 0 t60 0 t60 0`} />
+      ))}
     </svg>
   )
 }
@@ -276,12 +341,40 @@ function Dunes() {
 function Ocean() {
   return (
     <>
+      {/* Islands far off, a few lights in their windows. */}
+      <svg className="hz-up hz-islands" viewBox="0 0 1000 60" preserveAspectRatio="none" aria-hidden="true">
+        <path d="M40 60 Q70 30 110 36 Q140 18 180 34 Q210 30 236 60 Z" />
+        <path d="M520 60 Q540 46 562 48 Q580 40 600 50 L612 60 Z" />
+        <rect className="hz-island-light" x="118" y="44" width="3" height="3" />
+        <rect className="hz-island-light" x="150" y="40" width="3" height="3" />
+        <rect className="hz-island-light" x="168" y="48" width="3" height="3" />
+        <rect className="hz-island-light" x="566" y="52" width="3" height="3" />
+      </svg>
       <div className="hz-floor hz-floor-ocean">
         <div className="hz-sea-plane">
           <span className="hz-swells" />
         </div>
         <span className="hz-glint" />
+        {SPARKLES.map((s, i) => (
+          <span key={i} className="hz-sparkle" style={{ left: `${s.x}%`, top: `${s.y}%`, animationDelay: `${s.d}s` }} />
+        ))}
+        <span className="hz-foam" />
+        <span className="hz-foam is-near" />
+        <span className="hz-buoy" />
       </div>
+      {[0, 1].map((i) => (
+        <svg key={i} className={`hz-sail hz-sail-${i}`} viewBox="0 0 40 44" aria-hidden="true">
+          <path d="M20 2 L20 34 L4 34 Z" className="hz-sail-cloth" />
+          <path d="M22 8 L22 34 L34 34 Z" className="hz-sail-cloth" />
+          <path d="M2 36 L38 36 L32 43 L8 43 Z" className="hz-sail-hull" />
+          <circle cx="20" cy="2" r="1.6" className="hz-sail-light" />
+        </svg>
+      ))}
+      {[0, 1, 2].map((i) => (
+        <svg key={i} className={`hz-gull hz-gull-${i}`} viewBox="0 0 24 10" aria-hidden="true">
+          <path d="M1 7 Q6 1 12 6 Q18 1 23 7" />
+        </svg>
+      ))}
       <div className="hz-lighthouse">
         <span className="hz-beam" />
         <svg viewBox="0 0 120 90" aria-hidden="true">

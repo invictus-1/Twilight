@@ -1,0 +1,370 @@
+/* ——— The visitors' acts (SkyActs.tsx, the cast in SkyCast.tsx) ———
+   Each act is a stage play over --d: positions in % of the sky (the horizon at --horizon-at),
+   the cast's limbs swinging on loops of their own. --ground is how far the horizon sits above the
+   bottom, so "on the horizon" is bottom: var(--ground). */
+.act { --ground: calc(100% - var(--horizon-at)); position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; animation: act-life var(--d) linear both; }
+@keyframes act-life { 0% { opacity: 0; } 3% { opacity: 1; } 97% { opacity: 1; } 100% { opacity: 0; } }
+.act > *, .act * { box-sizing: border-box; }
+.cast { display: block; width: 100%; height: auto; overflow: visible; }
+
+/* — The pumpkin: orange, glowing, thin green limbs, white gloves, black orb feet — */
+.pumpkin { filter: drop-shadow(0 0 8px rgba(255, 140, 40, .65)) drop-shadow(0 0 22px rgba(255, 120, 30, .35)); animation: pk-bob 2.6s ease-in-out infinite; }
+@keyframes pk-bob { 50% { transform: translateY(-4px); } }
+.pk-leg path, .pk-arm > path { fill: none; stroke: #3cc24a; stroke-width: 3.4; stroke-linecap: round; }
+.pk-foot { fill: #121014; }
+.pk-glove circle, .pk-glove ellipse { fill: #fbfbfd; }
+.pk-cuff { fill: none; stroke: #cfd0da; stroke-width: 1.6; }
+.pk-rib { fill: none; stroke: #b4460a; stroke-width: 2; opacity: .45; }
+.pk-face path, .pk-face ellipse { fill: #1a1012; }
+.pk-tag { fill: #f4f1ea; opacity: .9; }
+.pk-arm-far { transform-box: view-box; transform-origin: 96px 66px; }
+.pk-arm-near { transform-box: view-box; transform-origin: 70px 84px; }
+.pk-arm, .pk-leg { transform-box: view-box; }
+.pk-arm-l { transform-origin: 27px 64px; }
+.pk-arm-r { transform-origin: 113px 64px; }
+.pk-leg-l { transform-origin: 58px 94px; }
+.pk-leg-r { transform-origin: 82px 94px; }
+/* Legs paddle the air while it floats. */
+.pumpkin .pk-leg-l { animation: pk-paddle 1.3s ease-in-out infinite; }
+.pumpkin .pk-leg-r { animation: pk-paddle 1.3s ease-in-out -.65s infinite; }
+@keyframes pk-paddle { 0%, 100% { rotate: -10deg; } 50% { rotate: 12deg; } }
+.pumpkin .pk-arm-l { animation: pk-sway 2.2s ease-in-out infinite; }
+.pumpkin .pk-arm-r { animation: pk-sway 2.2s ease-in-out -1.1s infinite; }
+@keyframes pk-sway { 0%, 100% { rotate: -6deg; } 50% { rotate: 8deg; } }
+
+/* — The platypus — */
+.pl-bill { fill: #a8eeb0; }
+.platypus .pl-leg rect { fill: #2f9a5e; }
+.platypus .pl-leg path { fill: #1e5e3a; }
+.pl-leg, .pl-coat, .pl-tail, .pl-arm, .pl-hat { transform-box: fill-box; }
+.pl-leg { transform-origin: 50% 0; }
+.is-running .pl-leg-a { animation: pl-step .3s ease-in-out infinite alternate; }
+.is-running .pl-leg-b { animation: pl-step .3s ease-in-out infinite alternate-reverse; }
+@keyframes pl-step { from { rotate: -28deg; } to { rotate: 28deg; } }
+.is-running .pl-coat { transform-origin: 50% 0; animation: pl-flap .3s ease-in-out infinite alternate; }
+@keyframes pl-flap { from { transform: skewX(-5deg); } to { transform: skewX(4deg); } }
+.pl-tail { transform-origin: 100% 50%; animation: pl-wag 1.4s ease-in-out infinite; }
+@keyframes pl-wag { 0%, 100% { rotate: -5deg; } 50% { rotate: 7deg; } }
+.pl-band { fill: #ff3fa4; filter: drop-shadow(0 0 3px #ff3fa4); }
+
+/* — The saucer and its beam — */
+.saucer { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--iris) 40%, transparent)); }
+.uf-light { fill: #ffe9a8; animation: uf-blink .9s steps(2) infinite; }
+.uf-light-1 { animation-delay: -.3s; }
+.uf-light-2 { animation-delay: -.6s; }
+@keyframes uf-blink { 50% { fill: #7cf0ff; } }
+.uf-glow { fill: color-mix(in srgb, var(--horizon) 70%, #fff); opacity: .55; }
+.act-beam { position: absolute; left: 50%; top: 40px; width: 74px; height: 170px; translate: -50% 0; background: linear-gradient(180deg, rgba(255, 244, 180, .8), rgba(255, 244, 180, .12)); clip-path: polygon(38% 0, 62% 0, 100% 100%, 0 100%); opacity: 0; filter: blur(.4px); }
+
+/* — The whale — */
+.wh-body, .wh-fluke path { fill: url(#wh-back); }
+.wh-belly { fill: #c9cff0; }
+.wh-grooves path { fill: none; stroke: #8f99c8; stroke-width: 1.2; }
+.wh-fin { fill: #3e4d8c; }
+.wh-eye { fill: #10121c; }
+.wh-fluke { transform-box: fill-box; transform-origin: 100% 50%; animation: wh-flap 2.4s ease-in-out infinite; }
+@keyframes wh-flap { 0%, 100% { rotate: -9deg; } 50% { rotate: 10deg; } }
+.whale { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--iris) 28%, transparent)); }
+.whale.is-holo { color: #4ff3ff; filter: drop-shadow(0 0 6px #4ff3ff) drop-shadow(0 0 16px rgba(79, 243, 255, .45)); }
+.is-holo .wh-body, .is-holo .wh-fluke path { fill: url(#wh-scan); stroke: #4ff3ff; stroke-width: 1.6; }
+.is-holo .wh-belly { fill: none; stroke: #4ff3ff; stroke-width: 1; opacity: .6; }
+.is-holo .wh-fin { fill: none; stroke: #4ff3ff; stroke-width: 1.4; }
+.is-holo .wh-grooves path { stroke: #4ff3ff; opacity: .5; }
+.is-holo .wh-eye { fill: #ff3fa4; }
+
+/* — The robots — */
+.rb-visor { fill: #ff2d55; filter: drop-shadow(0 0 3px #ff2d55); }
+.rb-core { fill: #ffd23f; filter: drop-shadow(0 0 3px #ffd23f); }
+.rb-tip { fill: #ff2d55; }
+.rb-leg, .rb-arm { transform-box: fill-box; transform-origin: 50% 0; }
+.is-marching .rb-leg-a, .is-marching .rb-arm-r { animation: rb-march .5s ease-in-out infinite alternate; }
+.is-marching .rb-leg-b, .is-marching .rb-arm-l { animation: rb-march .5s ease-in-out infinite alternate-reverse; }
+@keyframes rb-march { from { rotate: -14deg; } to { rotate: 14deg; } }
+
+/* — Shared stagecraft — */
+/* A city act waits, unseen, until it knows where the skyline's roofs are (--roof-x, --roof-y …). */
+.act-city:not(.is-placed) { visibility: hidden; }
+.act-say { position: absolute; padding: 2px 8px; border-radius: 10px; background: #fff; color: #2a2030; font: 700 12px var(--font-sans, sans-serif); opacity: 0; white-space: nowrap; }
+.act-burst { position: absolute; width: 0; height: 0; }
+.act-burst i { position: absolute; left: 0; top: 0; width: 7px; height: 7px; border-radius: 50%; rotate: var(--a); opacity: 0; }
+/* Unseen until it bursts (a delayed burst holds its first frame while it waits). */
+@keyframes act-drop { 0% { transform: translateX(0) scale(1); opacity: 0; } 6% { opacity: .95; } 60% { opacity: .9; } 100% { transform: translateX(calc(var(--h) * 1.6)) scale(.4); opacity: 0; } }
+.act-surface { position: absolute; left: 0; right: 0; top: 0; overflow: hidden; }
+
+/* ——— City: parkour across the rooftops ——— */
+/* The rendered platypus from the sky (the same loops), its art padded below the feet. */
+.act-art { display: block; width: 100%; margin-bottom: -14.6%; }
+/* Its route over the roofs is worked out from where they are drawn, and played with Web Animations. */
+.act-parkour .act-run-x { position: absolute; left: 0; bottom: 0; width: 72px; transform-origin: 50% 85%; transform: translateX(-200px); }
+
+/* ——— City: the saucer takes the platypus ——— */
+.act-abduct-ufo { position: absolute; width: 124px; bottom: calc(var(--roof-y) + 90px); animation: abduct-ufo-x var(--d) both, abduct-ufo-y var(--d) both; }
+@keyframes abduct-ufo-x { 0% { left: -14%; } 22% { left: calc(var(--roof-x) - 62px); animation-timing-function: ease-out; } 70% { left: calc(var(--roof-x) - 62px); animation-timing-function: ease-in; } 100% { left: 118%; } }
+@keyframes abduct-ufo-y { 0% { transform: translateY(-90px); } 22% { transform: translateY(0); } 40% { transform: translateY(-4px); } 55% { transform: translateY(3px); } 70% { transform: translateY(0); } 74% { transform: translateY(8px); } 80% { transform: translateY(-30px); } 100% { transform: translateY(-260px); } }
+.act-abduct-beam { height: 112px; animation: abduct-beam var(--d) both; }
+@keyframes abduct-beam { 0%, 26% { opacity: 0; } 31%, 62% { opacity: .9; } 67%, 100% { opacity: 0; } }
+.act-abduct-victim { position: absolute; width: 74px; bottom: var(--roof-y); animation: abduct-walk var(--d) both; }
+@keyframes abduct-walk { 0% { left: calc(var(--roof-l) - 30px); } 30%, 100% { left: calc(var(--roof-x) - 37px); } }
+.act-abduct-spin { display: grid; animation: abduct-victim var(--d) both; transform-origin: 50% 60%; }
+.act-abduct-spin > * { grid-area: 1 / 1; }
+@keyframes abduct-victim { 0%, 33% { transform: none; opacity: 1; } 36% { transform: translateY(-6px) rotate(-8deg); } 61% { transform: translateY(-104px) rotate(330deg) scale(.45); opacity: 1; } 63%, 100% { transform: translateY(-110px) rotate(360deg) scale(.3); opacity: 0; } }
+.act-abduct-trot { animation: show-before var(--d) step-end both; }
+.act-abduct-run { animation: show-after var(--d) step-end both; }
+@keyframes show-before { 0% { opacity: 1; } 32%, 100% { opacity: 0; } }
+@keyframes show-after { 0% { opacity: 0; } 32%, 100% { opacity: 1; } }
+
+/* ——— City: the whale as an advertising blimp ——— */
+.act-blimp-ride { position: absolute; top: 30%; width: 180px; animation: blimp-x var(--d) linear both, blimp-bob 5s ease-in-out infinite; }
+@keyframes blimp-x { from { left: -32%; } to { left: 108%; } }
+@keyframes blimp-bob { 50% { transform: translateY(10px) rotate(1.5deg); } }
+.act-banner { position: absolute; right: 100%; top: 34%; display: flex; align-items: center; transform-origin: 100% 50%; animation: banner-wave 1.8s ease-in-out infinite; }
+.act-banner-rope { order: 2; width: 34px; height: 1px; background: #d8d2c0; }
+.act-banner-cloth { order: 1; padding: 4px 12px; background: #f6f0e1; color: #c43b3b; font: 800 12px/1 var(--font-sans, sans-serif); letter-spacing: .12em; clip-path: polygon(6% 0, 100% 0, 100% 100%, 6% 100%, 0 50%); box-shadow: inset 0 -2px 0 rgba(0, 0, 0, .12); }
+@keyframes banner-wave { 0%, 100% { transform: skewY(-3deg); } 50% { transform: skewY(3deg) translateY(2px); } }
+
+/* ——— City: supper at a noodle bar ——— */
+.act-shop { position: absolute; left: calc(var(--roof-x) - 55px); width: 110px; bottom: calc(var(--roof-y) - 1px); }
+.act-shop svg { display: block; width: 100%; overflow: visible; }
+.act-shop-sign { fill: #ffb35c; font: 800 10px var(--font-sans, sans-serif); letter-spacing: .2em; filter: drop-shadow(0 0 3px #ff8a3d); animation: sign-buzz 4s steps(1) infinite; }
+@keyframes sign-buzz { 0%, 46%, 50%, 100% { opacity: 1; } 47%, 49% { opacity: .35; } }
+.act-cook { animation: cook-bob 1.4s ease-in-out infinite; }
+@keyframes cook-bob { 50% { transform: translate(-3px, -1.5px); } }
+.act-shop-steam { left: 46%; top: 52%; width: 7px; height: 7px; }
+/* The bowl is empty by the time he turns round. */
+.act-bowl-noodles { animation: bowl-empty var(--d) step-end both; }
+@keyframes bowl-empty { 0% { opacity: 1; } 74%, 100% { opacity: 0; } }
+.act-patron { position: absolute; width: 50px; animation: patron-x var(--d) both, patron-y var(--d) both; }
+@keyframes patron-x { 0% { left: calc(var(--roof-x) - 320px); } 20% { left: calc(var(--roof-x) - 26px); animation-timing-function: ease-out; } 84% { left: calc(var(--roof-x) - 26px); animation-timing-function: ease-in; } 100% { left: calc(var(--roof-x) + 220px); } }
+@keyframes patron-y { 0% { bottom: calc(var(--roof-y) + 90px); } 12% { bottom: calc(var(--roof-y) + 40px); } 20% { bottom: calc(var(--roof-y) + 9px); animation-timing-function: ease-out; } 84% { bottom: calc(var(--roof-y) + 9px); animation-timing-function: ease-in; } 100% { bottom: calc(var(--roof-y) + 300px); } }
+/* The turn: a squash as one view gives way to the next, side to back, then back to front. */
+.act-patron-turn { display: grid; animation: patron-turn var(--d) both; }
+.act-patron-turn > * { grid-area: 1 / 1; }
+@keyframes patron-turn { 0%, 22%, 28%, 72%, 78%, 100% { transform: none; } 25%, 75% { transform: scaleX(.72); } }
+.act-pk-side { animation: pk-bob 2.6s ease-in-out infinite, show-side var(--d) step-end both; }
+.act-pk-back { animation: pk-chomp .7s ease-in-out infinite, show-back var(--d) step-end both; }
+.act-pk-front { animation: pk-bob 2.6s ease-in-out infinite, show-front var(--d) step-end both; }
+@keyframes show-side { 0% { opacity: 1; } 25%, 100% { opacity: 0; } }
+@keyframes show-back { 0% { opacity: 0; } 25% { opacity: 1; } 75%, 100% { opacity: 0; } }
+@keyframes show-front { 0% { opacity: 0; } 75%, 100% { opacity: 1; } }
+@keyframes pk-chomp { 50% { transform: translateY(1.5px) scaleY(.97); } }
+/* From behind, the gloves go up to his mouth (out of sight) one after the other. */
+.is-eating .pk-arm-l { animation: pk-spoon-l .7s ease-in-out infinite; }
+.is-eating .pk-arm-r { animation: pk-spoon-r .7s ease-in-out infinite; }
+@keyframes pk-spoon-l { 0%, 100% { rotate: 10deg; } 50% { rotate: 46deg; } }
+@keyframes pk-spoon-r { 0%, 100% { rotate: -46deg; } 50% { rotate: -10deg; } }
+.act-pk-side .pk-arm-far, .act-pk-side .pk-arm-near { animation: none; }
+/* Done, he waves on his way up. */
+.act-pk-front .pk-arm-r { animation: pk-wave .5s ease-in-out infinite alternate; }
+@keyframes pk-wave { from { rotate: -10deg; } to { rotate: 22deg; } }
+.act-nom { left: calc(var(--roof-x) + 14px); bottom: calc(var(--roof-y) + 66px); animation: say-nom var(--d) both; }
+@keyframes say-nom { 0%, 32% { opacity: 0; transform: translateY(6px) scale(.6); } 34%, 40% { opacity: 1; transform: none; } 43%, 52% { opacity: 0; transform: translateY(-10px); } 54% { opacity: 0; transform: translateY(6px) scale(.6); } 56%, 62% { opacity: 1; transform: none; } 65%, 100% { opacity: 0; transform: translateY(-10px); } }
+.act-burp { left: calc(var(--roof-x) + 14px); bottom: calc(var(--roof-y) + 66px); animation: say-burp var(--d) both; }
+@keyframes say-burp { 0%, 77% { opacity: 0; transform: translateY(8px) scale(.6); } 79%, 85% { opacity: 1; transform: none; } 88%, 100% { opacity: 0; transform: translateY(-14px); } }
+
+/* ——— Cyberpunk: the platypus against the robots, then off at a sprint ——— */
+.act-brawl > div { position: absolute; bottom: calc(var(--ground) + 1.5%); }
+.act-brawl-hero { width: 56px; animation: hero-x var(--d) both; }
+@keyframes hero-x { 0%, 28% { left: 30%; transform: none; } 33% { left: 40%; transform: none; } 35% { left: 41%; transform: rotate(-14deg); } 38%, 60% { left: 40%; transform: none; } 62% { left: 40%; transform: scaleX(-1); } 66% { left: 38%; transform: scaleX(-1); animation-timing-function: ease-in; } 86%, 100% { left: -16%; transform: scaleX(-1); } }
+.act-bot { width: 48px; }
+.act-bot-1 { animation: bot1 var(--d) both; }
+@keyframes bot1 { 0% { left: 106%; } 26% { left: 44.5%; transform: none; opacity: 1; } 35% { left: 44.5%; transform: none; } 40% { left: 46%; transform: translateY(-8px) rotate(50deg); opacity: 1; } 46%, 100% { left: 48%; transform: translateY(10px) rotate(90deg); opacity: 0; } }
+.act-bot-2 { animation: bot2 var(--d) both; }
+.act-bot-3 { animation: bot3 var(--d) both; }
+@keyframes bot2 { 0%, 50% { left: 108%; opacity: 1; } 60%, 66% { left: 60%; } 90% { left: 18%; opacity: 1; } 96%, 100% { left: 10%; opacity: 0; } }
+@keyframes bot3 { 0%, 53% { left: 112%; opacity: 1; } 63%, 67% { left: 69%; } 92% { left: 27%; opacity: 1; } 98%, 100% { left: 20%; opacity: 0; } }
+.act-sparks { position: absolute; left: 50%; top: 20%; width: 0; height: 0; }
+.act-sparks i { position: absolute; width: 10px; height: 2px; border-radius: 1px; background: #ffe26a; box-shadow: 0 0 6px #ffb347; rotate: var(--a); transform-origin: 0 50%; opacity: 0; animation: spark var(--d) both; }
+@keyframes spark { 0%, 34% { opacity: 0; transform: translateX(0); } 35% { opacity: 1; } 42%, 100% { opacity: 0; transform: translateX(26px); } }
+
+/* ——— Cyberpunk: police drones after the saucer ——— */
+.act-chase-ufo { position: absolute; width: 100px; top: 32%; animation: chase-x var(--d) linear both, chase-weave 1.6s ease-in-out infinite; }
+@keyframes chase-x { 0% { left: -12%; } 40% { left: 38%; transform: none; } 48% { left: 44%; transform: translateY(-40px) rotate(-25deg); } 54% { left: 48%; transform: translateY(10px) rotate(12deg); } 100% { left: 116%; transform: none; } }
+@keyframes chase-weave { 50% { margin-top: 14px; } }
+.act-drone { position: absolute; top: 18%; width: 40px; height: 14px; animation: chase-x var(--d) linear both; }
+.act-drone-0 { animation-delay: 1.1s; top: 34%; }
+.act-drone-1 { animation-delay: 1.9s; top: 38%; }
+.act-drone-body { position: absolute; inset: 3px 0; border-radius: 7px; background: #2b2f45; box-shadow: inset 0 -2px 0 #15172a; }
+.act-drone-siren { position: absolute; left: 12px; top: -2px; width: 16px; height: 5px; border-radius: 3px; background: #ff2d55; animation: siren .5s steps(1) infinite; }
+@keyframes siren { 50% { background: #3a7bff; box-shadow: 0 0 10px #3a7bff; } 0%, 100% { box-shadow: 0 0 10px #ff2d55; } }
+.act-drone-light { position: absolute; left: 30px; top: 10px; width: 80px; height: 120px; transform-origin: 0 0; rotate: -25deg; background: linear-gradient(180deg, rgba(220, 240, 255, .35), transparent); clip-path: polygon(0 0, 14% 0, 100% 100%, 40% 100%); }
+
+/* ——— Cyberpunk: a holographic whale ——— */
+.act-holo-ride { position: absolute; top: 30%; width: 230px; animation: holo-x var(--d) linear both, holo-glitch 3.1s steps(1) infinite; }
+@keyframes holo-x { from { left: -30%; } to { left: 112%; } }
+@keyframes holo-glitch { 0%, 100% { transform: none; opacity: 1; } 91% { transform: translateX(6px) skewX(8deg); opacity: .55; } 93% { transform: translateX(-4px); opacity: .9; } 95% { transform: none; opacity: .4; } 97% { opacity: 1; } }
+.act-holo-trail { position: absolute; right: 92%; top: 45%; width: 90px; height: 10px; background: repeating-linear-gradient(90deg, rgba(79, 243, 255, .7) 0 3px, transparent 3px 9px); -webkit-mask-image: linear-gradient(90deg, transparent, #000); mask-image: linear-gradient(90deg, transparent, #000); }
+
+/* ——— Cyberpunk: the pumpkin hauling a noodle cart down the street ——— */
+.act-cart-train { position: absolute; bottom: calc(var(--ground) + 1%); width: 290px; height: 130px; animation: cart-x var(--d) linear both; }
+@keyframes cart-x { from { left: 104%; } to { left: -40%; } }
+.act-puller { position: absolute; left: 0; bottom: 18px; width: 84px; }
+.is-pulling .pk-arm-r { animation: pk-pull 1.2s ease-in-out infinite; }
+@keyframes pk-pull { 0%, 100% { rotate: 40deg; } 50% { rotate: 52deg; } }
+.act-handle { position: absolute; left: 80px; bottom: 64px; width: 64px; height: 3px; background: #c9cde0; rotate: 8deg; transform-origin: 0 50%; }
+.act-cart { position: absolute; left: 138px; bottom: 0; width: 150px; }
+.act-cart svg { display: block; width: 100%; overflow: visible; }
+.act-neon-sign { fill: #12142a; stroke: #4ff3ff; stroke-width: 1.4; filter: drop-shadow(0 0 4px #4ff3ff); animation: neon-buzz 2.3s steps(1) infinite; }
+.act-neon-text { fill: #ff3fa4; font: 800 8px var(--font-sans, sans-serif); letter-spacing: .14em; filter: drop-shadow(0 0 3px #ff3fa4); }
+@keyframes neon-buzz { 0%, 100% { opacity: 1; } 47% { opacity: .35; } 49% { opacity: 1; } 51% { opacity: .5; } }
+.act-steam { position: absolute; left: 44%; top: 30%; width: 10px; height: 10px; border-radius: 50%; background: rgba(240, 240, 255, .5); filter: blur(2px); animation: steam 2.7s ease-out infinite; }
+@keyframes steam { 0% { transform: translate(0, 0) scale(.6); opacity: 0; } 15% { opacity: .8; } 100% { transform: translate(14px, -46px) scale(2.2); opacity: 0; } }
+
+/* ——— Dunes: a dune buggy over the crests ——— */
+.act-buggy-x { position: absolute; bottom: calc(var(--ground) - 14%); width: 140px; animation: buggy-x var(--d) linear both; }
+@keyframes buggy-x { from { left: -20%; } to { left: 112%; } }
+.act-buggy-y { position: relative; width: 140px; height: 76px; animation: buggy-y var(--d) both; }
+@keyframes buggy-y {
+  0%, 8%, 16%, 24%, 32%, 40% { transform: translateY(0) rotate(0); }
+  4%, 12%, 20%, 28%, 36% { transform: translateY(-6px) rotate(-3deg); }
+  46% { transform: translateY(0) rotate(-8deg); animation-timing-function: ease-out; }
+  54% { transform: translateY(-80px) rotate(-14deg); animation-timing-function: ease-in; }
+  62% { transform: translateY(0) rotate(6deg); }
+  65% { transform: translateY(-10px) rotate(0); }
+  68%, 76%, 84%, 92%, 100% { transform: translateY(0) rotate(0); }
+  72%, 80%, 88%, 96% { transform: translateY(-5px) rotate(-2deg); }
+}
+.act-buggy-car { position: absolute; left: 0; bottom: 0; width: 140px; overflow: visible; }
+.act-wheel { transform-box: fill-box; transform-origin: 50% 50%; animation: wheel .45s linear infinite; }
+@keyframes wheel { to { rotate: 360deg; } }
+.act-driver { position: absolute; left: 34px; bottom: 41px; width: 74px; z-index: -1; }
+.act-driver .pl-leg { display: none; }
+.act-scarf { position: absolute; left: 24px; bottom: 50px; width: 30px; height: 6px; border-radius: 3px; background: #ff5d73; transform-origin: 100% 50%; animation: scarf .25s ease-in-out infinite alternate; }
+@keyframes scarf { from { transform: rotate(-6deg) skewY(-8deg); } to { transform: rotate(6deg) skewY(8deg); } }
+.act-dust { position: absolute; left: -36px; bottom: 0; width: 46px; height: 30px; border-radius: 50%; background: radial-gradient(circle at 60% 60%, color-mix(in srgb, var(--horizon) 40%, #e8c79a) 0%, transparent 70%); filter: blur(3px); animation: dust .6s ease-out infinite; }
+@keyframes dust { 0% { transform: translateX(10px) scale(.6); opacity: .9; } 100% { transform: translateX(-40px) translateY(-10px) scale(1.6); opacity: 0; } }
+
+/* ——— Dunes: the saucer takes a cactus ——— */
+.act-cactus-plant { position: absolute; left: calc(60% - 23px); width: 46px; bottom: calc(var(--ground) - 4%); animation: cactus var(--d) both; }
+@keyframes cactus { 0%, 30% { transform: none; opacity: 1; } 32% { transform: rotate(-6deg); } 34% { transform: rotate(6deg); } 36% { transform: rotate(-4deg); } 38% { transform: none; } 62% { transform: translateY(-170px) rotate(250deg) scale(.4); opacity: 1; } 64%, 100% { transform: translateY(-176px) rotate(270deg) scale(.3); opacity: 0; } }
+.act-cactus-ufo { position: absolute; width: 112px; top: calc(var(--horizon-at) + 4% - 226px); animation: cactus-ufo-x var(--d) both, abduct-ufo-y var(--d) both; }
+@keyframes cactus-ufo-x { 0% { left: 112%; } 22% { left: calc(60% - 56px); animation-timing-function: ease-out; } 70% { left: calc(60% - 56px); animation-timing-function: ease-in; } 100% { left: -20%; } }
+.act-cactus-beam { height: 200px; animation: abduct-beam var(--d) both; }
+
+/* ——— Dunes: a sand whale breaching ——— */
+.act-surface-dunes { height: calc(var(--horizon-at) + 9%); }
+.act-sandwhale .act-breach { position: absolute; left: 30%; bottom: 0; width: 260px; transform-origin: 50% 50%; animation: breach var(--d) both; }
+@keyframes breach {
+  0%, 18% { transform: translate(0, 110%) rotate(-30deg); }
+  22% { transform: translate(20px, 40%) rotate(-30deg); animation-timing-function: ease-out; }
+  40% { transform: translate(150px, -90%) rotate(-4deg); animation-timing-function: ease-in; }
+  60% { transform: translate(300px, 30%) rotate(32deg); }
+  66%, 100% { transform: translate(340px, 130%) rotate(40deg); }
+}
+.act-sand i { background: color-mix(in srgb, var(--horizon) 45%, #e8c79a); }
+.act-sand-out { left: calc(30% + 130px); bottom: calc(var(--ground) - 9%); }
+.act-sand-in { left: calc(30% + 440px); bottom: calc(var(--ground) - 9%); }
+.act-sand-out i { animation: act-drop 1.4s ease-out calc(var(--d) * .2) both; }
+.act-sand-in i { animation: act-drop 1.4s ease-out calc(var(--d) * .6) both; }
+
+/* ——— Dunes: a holiday on the sand ——— */
+.act-beach-set { position: absolute; left: 58%; bottom: calc(var(--ground) - 11%); width: 160px; height: 120px; }
+.act-umbrella { position: absolute; left: 70px; bottom: 0; width: 96px; overflow: visible; }
+.act-towel { position: absolute; left: 0; bottom: 0; width: 120px; height: 12px; border-radius: 3px; background: repeating-linear-gradient(90deg, #4fb3ff 0 14px, #fff7e8 14px 28px); transform: skewX(-20deg); }
+.act-sunbather { position: absolute; left: 10px; bottom: 6px; width: 88px; transform-origin: 50% 80%; animation: sunbather var(--d) both; }
+@keyframes sunbather { 0% { transform: translateY(-300px) rotate(0); } 14% { transform: translateY(0) rotate(0); animation-timing-function: ease-out; } 20%, 86% { transform: translateY(0) rotate(-62deg); } 92% { transform: translateY(-30px) rotate(0); animation-timing-function: ease-in; } 100% { transform: translateY(-340px) rotate(10deg); } }
+.act-shades { position: absolute; left: 28%; top: 28%; width: 46%; height: 10%; border-radius: 3px; background: #121014; box-shadow: 0 0 0 1px #3a3040; }
+.is-lounging .pk-arm-r { animation: lounge-wave var(--d) both; }
+@keyframes lounge-wave { 0%, 58% { rotate: 0deg; } 60%, 64%, 68% { rotate: -40deg; } 62%, 66%, 70% { rotate: -10deg; } 72%, 100% { rotate: 0deg; } }
+.act-juice { position: absolute; left: 96px; bottom: 4px; width: 14px; height: 20px; border-radius: 2px; background: linear-gradient(180deg, #ffd166 0 30%, #ff8c42 30%); }
+.act-straw { position: absolute; left: 6px; top: -10px; width: 2px; height: 12px; background: #ff5d73; rotate: 14deg; }
+.act-ahh { left: calc(58% + 30px); bottom: calc(var(--ground) - 11% + 96px); animation: say-ahh var(--d) both; }
+@keyframes say-ahh { 0%, 30% { opacity: 0; transform: scale(.6); } 34%, 48% { opacity: 1; transform: none; } 52%, 100% { opacity: 0; transform: translateY(-12px); } }
+
+/* ——— Ocean: the platypus surfing ——— */
+.act-wave-ride { position: absolute; bottom: calc(var(--ground) - 18%); width: 240px; height: 100px; animation: surf-x var(--d) linear both; }
+@keyframes surf-x { from { left: -30%; } to { left: 110%; } }
+.act-wave { position: absolute; left: 0; bottom: 0; width: 240px; overflow: visible; animation: wave-heave 2s ease-in-out infinite; -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%, #000 82%, transparent); mask-image: linear-gradient(90deg, transparent, #000 22%, #000 82%, transparent); }
+@keyframes wave-heave { 50% { transform: translateY(4px) scaleY(.96); } }
+.act-wave-body { fill: color-mix(in srgb, var(--iris) 35%, var(--night)); }
+.act-wave-foam { fill: none; stroke: #eef4ff; stroke-width: 4; stroke-linecap: round; }
+.act-surfer { position: absolute; left: 112px; bottom: 50px; width: 58px; transform-origin: 50% 100%; animation: surfer 1.8s ease-in-out infinite; }
+@keyframes surfer { 0%, 100% { transform: rotate(-12deg); } 50% { transform: rotate(-4deg) translateY(-3px); } }
+.act-board { position: absolute; left: -6px; right: -10px; bottom: -4px; height: 6px; border-radius: 50%; background: linear-gradient(90deg, #fff7e8, #ffd166 60%, #ff5d73); }
+.act-spray { left: 178px; bottom: 74px; }
+.act-spray i { background: #eef4ff; animation: act-drop 1s ease-out infinite; }
+.act-spray i:nth-child(odd) { animation-delay: -.5s; }
+
+/* ——— Ocean: the saucer goes fishing ——— */
+.act-ufish-ufo { position: absolute; width: 112px; top: calc(var(--horizon-at) - 160px); animation: ufish-x var(--d) both, abduct-ufo-y var(--d) both; }
+@keyframes ufish-x { 0% { left: -14%; } 22% { left: calc(42% - 56px); animation-timing-function: ease-out; } 70% { left: calc(42% - 56px); animation-timing-function: ease-in; } 100% { left: 118%; } }
+.act-ufish-beam { height: 190px; animation: abduct-beam var(--d) both; }
+.act-fish { position: absolute; left: calc(42% - 18px); width: 36px; top: calc(var(--horizon-at) + 60px); opacity: 0; animation: fish var(--d) both; }
+@keyframes fish { 0%, 33% { opacity: 0; transform: none; } 35% { opacity: 1; transform: translateY(-20px) rotate(-30deg); } 40% { transform: translateY(-50px) rotate(25deg); } 46% { transform: translateY(-80px) rotate(-25deg); } 52% { transform: translateY(-120px) rotate(30deg); opacity: 1; } 60% { transform: translateY(-160px) rotate(-10deg) scale(.6); opacity: 1; } 62%, 100% { transform: translateY(-165px) scale(.4); opacity: 0; } }
+.act-splash i { background: #eef4ff; box-shadow: 0 0 4px rgba(238, 244, 255, .7); }
+/* A ring of foam where something breaks the surface. */
+.act-splash::after { content: ''; position: absolute; left: -40px; top: -6px; width: 80px; height: 12px; border-radius: 50%; border: 2px solid rgba(238, 244, 255, .8); opacity: 0; animation: foam 1.6s ease-out var(--foam-at, 0s) both; }
+@keyframes foam { 0% { transform: scale(.3); opacity: 0; } 8% { opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
+.act-splash-out { --foam-at: calc(var(--d) * .2); }
+.act-splash-in { --foam-at: calc(var(--d) * .6); }
+.act-ufish-splash { --foam-at: calc(var(--d) * .34); }
+.act-boot-splash { --foam-at: calc(var(--d) * .8); }
+.act-ufish-splash { left: 42%; top: calc(var(--horizon-at) + 68px); }
+.act-ufish-splash i { animation: act-drop 1.1s ease-out calc(var(--d) * .34) both; }
+
+/* ——— Ocean: the whale breaches ——— */
+.act-surface-sea { height: calc(var(--horizon-at) + 8%); }
+.act-breach-sea .act-breach { position: absolute; left: 30%; bottom: 0; width: 280px; animation: breach var(--d) both; }
+.act-spout { position: absolute; left: calc(30% + 130px); top: calc(var(--horizon-at) + 6%); width: 0; height: 0; }
+.act-spout i { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #e8f2ff; rotate: var(--a); opacity: 0; animation: spout var(--d) both; }
+@keyframes spout { 0%, 8% { opacity: 0; transform: translateX(0); } 10% { opacity: .95; } 18% { opacity: .9; transform: translateX(70px); } 22%, 100% { opacity: 0; transform: translateX(90px) translateY(30px); } }
+.act-splash-out { left: calc(30% + 130px); top: calc(var(--horizon-at) + 8%); }
+.act-splash-in { left: calc(30% + 450px); top: calc(var(--horizon-at) + 8%); }
+.act-splash-out i { animation: act-drop 1.2s ease-out calc(var(--d) * .2) both; }
+.act-splash-in i { width: 6px; height: 6px; animation: act-drop 1.4s ease-out calc(var(--d) * .6) both; }
+
+/* ——— Ocean: the pumpkin rows out, fishes, and lands a boot ——— */
+.act-boat-bob { position: absolute; left: 30%; bottom: calc(var(--ground) - 9%); width: 150px; height: 120px; animation: boat-bob 3s ease-in-out infinite; }
+@keyframes boat-bob { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(3deg) translateY(3px); } }
+.act-boat { position: absolute; left: 0; bottom: 0; width: 150px; overflow: visible; }
+.act-angler { position: absolute; left: 30px; bottom: 14px; width: 76px; height: 110px; }
+.act-angler .pumpkin { position: absolute; left: 0; bottom: 0; width: 76px; }
+.act-rod { position: absolute; left: 58px; bottom: 50px; width: 70px; height: 2px; background: #8a5a36; transform-origin: 0 50%; rotate: -35deg; animation: rod var(--d) both; }
+@keyframes rod { 0%, 42% { rotate: -35deg; } 44%, 48% { rotate: -55deg; } 46% { rotate: -40deg; } 52%, 70% { rotate: -70deg; } 74% { rotate: -20deg; } 80%, 100% { rotate: -35deg; } }
+.act-line { position: absolute; left: 114px; bottom: -20px; width: 1px; height: 110px; background: rgba(230, 230, 240, .6); transform-origin: 50% 0; animation: line var(--d) both; }
+@keyframes line { 0%, 50% { opacity: 1; height: 110px; } 56%, 72% { height: 34px; } 74%, 100% { opacity: 0; } }
+.act-catch { position: absolute; left: 100px; bottom: -40px; width: 30px; opacity: 0; animation: boot var(--d) both; }
+@keyframes boot { 0%, 50% { opacity: 0; transform: none; } 52% { opacity: 1; } 58% { transform: translate(6px, 130px) rotate(-10deg); } 60%, 70% { opacity: 1; transform: translate(4px, 120px) rotate(12deg); } 76% { transform: translate(60px, 170px) rotate(160deg); opacity: 1; } 82%, 100% { transform: translate(110px, 20px) rotate(300deg); opacity: 0; } }
+.is-fishing .pk-arm-r { animation: fish-reel var(--d) both; }
+@keyframes fish-reel { 0%, 42% { rotate: -20deg; } 44%, 52% { rotate: -50deg; } 60%, 70% { rotate: -60deg; } 74% { rotate: 20deg; } 80%, 100% { rotate: -20deg; } }
+.is-fishing .pk-arm-l { animation: fish-shrug var(--d) both; }
+@keyframes fish-shrug { 0%, 60% { rotate: 0deg; } 63%, 69% { rotate: 50deg; } 72%, 100% { rotate: 0deg; } }
+.act-boot-splash { left: calc(30% + 230px); bottom: calc(var(--ground) - 4%); }
+.act-boot-splash i { animation: act-drop 1.1s ease-out calc(var(--d) * .8) both; }
+.act-shrug { left: calc(30% + 40px); bottom: calc(var(--ground) - 9% + 128px); animation: say-shrug var(--d) both; }
+@keyframes say-shrug { 0%, 60% { opacity: 0; } 63%, 71% { opacity: 1; } 74%, 100% { opacity: 0; } }
+
+/* ——— The grid: roller disco ——— */
+.act-ball-cord { position: absolute; left: 80%; top: 0; width: 1px; height: 30%; background: rgba(220, 220, 240, .5); transform-origin: 50% 0; animation: ball-drop var(--d) both; }
+.act-ball { position: absolute; left: calc(80% - 26px); top: 30%; width: 52px; height: 52px; margin-top: -2px; border-radius: 50%; background: repeating-conic-gradient(#c8cce0 0 15deg, #f6f7ff 15deg 30deg), #ddd; box-shadow: 0 0 22px rgba(255, 255, 255, .5), 0 0 60px color-mix(in srgb, var(--iris) 50%, transparent); animation: ball-drop var(--d) both, ball-spin 2s linear infinite; }
+@keyframes ball-drop { 0% { translate: 0 -40vh; } 12%, 88% { translate: 0 0; } 100% { translate: 0 -40vh; } }
+@keyframes ball-spin { to { rotate: 360deg; } }
+.act-spot { position: absolute; top: calc(var(--horizon-at) + 6%); width: 90px; height: 28px; border-radius: 50%; filter: blur(6px); mix-blend-mode: screen; opacity: .55; animation: spot 4s ease-in-out infinite alternate; }
+.act-spot-0 { left: 10%; background: #ff3fa4; }
+.act-spot-1 { left: 30%; background: #4ff3ff; animation-delay: -1s; top: calc(var(--horizon-at) + 14%); }
+.act-spot-2 { left: 52%; background: #ffd23f; animation-delay: -2s; }
+.act-spot-3 { left: 70%; background: #9b7bff; animation-delay: -3s; top: calc(var(--horizon-at) + 18%); }
+.act-spot-4 { left: 86%; background: #3cc24a; animation-delay: -1.5s; top: calc(var(--horizon-at) + 10%); }
+@keyframes spot { to { transform: translateX(-120px) scale(1.3); } }
+.act-skater { position: absolute; bottom: calc(var(--ground) - 16%); width: 88px; animation: skate-x var(--d) ease-in-out both; }
+@keyframes skate-x { 0% { left: -10%; transform: none; } 40% { left: 40%; transform: rotate(-8deg); } 46% { left: 44%; transform: scaleX(-1); } 52% { left: 48%; transform: none; } 58% { left: 50%; transform: scaleX(-1); } 64% { left: 54%; transform: rotate(8deg); } 100% { left: 108%; transform: none; } }
+.act-skate { position: absolute; bottom: -4px; width: 18px; height: 7px; border-radius: 2px; background: #ff3fa4; box-shadow: -3px 6px 0 -2px #ffd23f, 9px 6px 0 -2px #ffd23f; }
+.act-skate-l { left: 22%; }
+.act-skate-r { left: 56%; }
+.is-skating .pk-arm-l { animation: skate-arm 1.2s ease-in-out infinite; }
+.is-skating .pk-arm-r { animation: skate-arm 1.2s ease-in-out -.6s infinite; }
+@keyframes skate-arm { 0%, 100% { rotate: -40deg; } 50% { rotate: 30deg; } }
+
+/* ——— The mountains: the pumpkin skis down ——— */
+.act-ski-x { position: absolute; width: 86px; animation: ski-x var(--d) linear both, ski-y var(--d) both; }
+@keyframes ski-x { from { left: -8%; } to { left: 108%; } }
+@keyframes ski-y { 0% { top: calc(var(--horizon-at) - 20%); } 44% { top: calc(var(--horizon-at) - 6%); animation-timing-function: ease-out; } 52% { top: calc(var(--horizon-at) - 18%); animation-timing-function: ease-in; } 60% { top: calc(var(--horizon-at) - 2%); } 100% { top: calc(var(--horizon-at) + 10%); } }
+.act-ski-y { animation: ski-flip var(--d) both; }
+@keyframes ski-flip { 0%, 44% { transform: rotate(14deg); } 52% { transform: rotate(-200deg); } 60% { transform: rotate(-345deg); } 61%, 100% { transform: rotate(14deg); } }
+.act-skier { position: relative; width: 86px; }
+.act-skis { position: absolute; left: -12px; right: -18px; bottom: 13px; height: 4px; border-radius: 2px; background: #ff5d73; box-shadow: 0 5px 0 #4fb3ff; }
+.act-scarf-ski { left: -10px; bottom: auto; top: 44%; background: #4fb3ff; }
+.act-snow { position: absolute; left: -30px; top: 60%; width: 46px; height: 24px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 255, 255, .9), transparent 70%); filter: blur(2px); animation: dust .5s ease-out infinite; }
+.is-skiing .pk-arm-l, .is-skiing .pk-arm-r { animation: none; rotate: 30deg; }
+
+/* Gentle and Off: the visitors don't come at all (as the other surprises). */
+:root[data-motion='reduced'] .act, :root[data-motion='off'] .act { display: none; }

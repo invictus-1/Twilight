@@ -43,6 +43,7 @@ import { runE2E } from './e2e'
 import { prepareSelfTest, runSelfTest, seedSelfTest } from './selftest'
 import { mark, runBench, seedBench } from './bench'
 import { runShowcase } from './showcase'
+import { runActShots } from './actShots'
 import { searchAll } from './search'
 import * as code from './code/agent'
 import { applyPendingRestore, backupFolder, backupSettings, chooseBackupFolder, createBackup, listBackups, setBackupSettings, stageRestore, startBackupSchedule, takeRestoredWindowSettings } from './backups'
@@ -74,7 +75,9 @@ const benchDir = process.env.TWILIGHT_BENCH
 const e2eDir = process.env.TWILIGHT_E2E
 /** Releases-page screenshots from made-up demo data (see showcase.ts). */
 const showcaseDir = process.env.TWILIGHT_SHOWCASE
-const testDir = selfTestDir ?? e2eDir ?? showcaseDir ?? benchDir
+/** Frames of every visitor's act in the sky (see actShots.ts). */
+const actsDir = process.env.TWILIGHT_ACTS
+const testDir = selfTestDir ?? e2eDir ?? showcaseDir ?? benchDir ?? actsDir
 if (testDir) {
   // A test window is often covered by other windows. Chromium treats that as hidden and, after a
   // while, wakes its timers about once a minute; a run would crawl. Test runs opt out of that.
@@ -174,7 +177,7 @@ function createWindow(): BrowserWindow {
   })
   win.webContents.on('will-navigate', (event) => event.preventDefault())
   // "#e2e" lets the end-to-end test (and the showcase) reach the editor; it does nothing otherwise.
-  const hash = e2eDir || showcaseDir ? 'e2e' : undefined
+  const hash = e2eDir || showcaseDir || actsDir ? 'e2e' : undefined
   // Window settings a restore brought back (theme, motion, shortcuts) go in once, then a reload.
   const restoredSettings = takeRestoredWindowSettings(app.getPath('userData'))
   if (restoredSettings) {
@@ -648,6 +651,7 @@ app.whenReady().then(() => {
   if (selfTestDir) runSelfTest(win, selfTestDir)
   if (e2eDir) runE2E(win, e2eDir)
   if (showcaseDir) runShowcase(win, showcaseDir)
+  if (actsDir) runActShots(win, actsDir)
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
