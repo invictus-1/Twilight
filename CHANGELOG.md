@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Charts answer at once:** pointing at a bar on the Insights dashboard, a day on the heatmap or a bar in Usage shows its date and figure straight away, in the theme's colours, instead of the browser's plain label after a pause.
+
 ## 1.5.0
 
 **Extras**

@@ -1884,8 +1884,20 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         await wait(500)
         const page = (label) => [...document.querySelectorAll('.insights-nav-item')].find((b) => b.textContent.startsWith(label))?.click()
         const out = { hero: !!document.querySelector('.ins-hero .ins-hero-n'), tabs: document.querySelectorAll('.insights-nav-item').length, stats: [...document.querySelectorAll('.ins-stat-label')].map((e) => e.textContent), bars: document.querySelectorAll('.ins-bar').length }
+        // Pointing at a bar, or a day on the heatmap, shows its label at once, drawn by Twilight rather than the browser.
+        const hover = async (el) => (el?.dispatchEvent(new MouseEvent('mouseover', { bubbles: true })), await wait(50))
+        const leave = async (el) => (el?.dispatchEvent(new MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body })), await wait(50))
+        const tipText = () => [...document.querySelectorAll('.chart-tip span')].map((e) => e.textContent)
+        await hover(document.querySelectorAll('.ins-bar-col')[13])
+        out.barTip = tipText()
+        out.barTitle = document.querySelector('.ins-bar-col')?.getAttribute('title')
+        await leave(document.querySelectorAll('.ins-bar-col')[13])
+        out.tipGone = !document.querySelector('.chart-tip')
         page('Heatmap'); await wait(300)
         out.heatCells = document.querySelectorAll('.heatmap-cell.l4, .heatmap-cell.l3, .heatmap-cell.l2, .heatmap-cell.l1').length - 4
+        await hover(document.querySelector('.heatmap-grid .heatmap-cell.l4, .heatmap-grid .heatmap-cell.l3, .heatmap-grid .heatmap-cell.l2, .heatmap-grid .heatmap-cell.l1'))
+        out.heatTip = tipText()
+        await leave(document.querySelector('.heatmap-grid .heatmap-cell'))
         page('Word analysis'); await wait(300)
         out.topWords = document.querySelectorAll('.word-bars li').length
         page('Characters'); await wait(300)
@@ -1900,6 +1912,11 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       check('insights pages listed', insUi.tabs === 9, insUi.tabs)
       check('dashboard shows today, the stat cards and 14 bars', insUi.hero === true && insUi.stats.includes('Best day') && insUi.bars === 14, insUi)
       check('heatmap marks today', insUi.heatCells >= 1, insUi.heatCells)
+      check(
+        'pointing at a bar or a heatmap day shows its date and words at once, in the theme, not the browser\'s slow label',
+        insUi.barTip.length === 2 && /words?$/.test(insUi.barTip[1]) && !insUi.barTitle && insUi.tipGone && insUi.heatTip.length === 2 && /words?$/.test(insUi.heatTip[1]),
+        { bar: insUi.barTip, heat: insUi.heatTip, title: insUi.barTitle, gone: insUi.tipGone }
+      )
       check('word analysis lists words', insUi.topWords > 0, insUi.topWords)
       check('characters page shows screen time and pairs', insUi.characters.join() === 'Rowan,Wren' && insUi.pairs >= 1, insUi)
       check('achievements page shows every achievement', insUi.achievements === ACHIEVEMENTS.length && insUi.unlocked >= 2, insUi)

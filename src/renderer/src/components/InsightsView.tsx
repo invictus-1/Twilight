@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { AchievementDef, InsightsSummary, TrackedCharacter } from '@shared/insights'
 import { useInsights, type InsightsPage } from '../insightsStore'
 import { useStore } from '../store'
@@ -93,6 +94,36 @@ export function Stat(props: { label: string; value: number | string; format?: (v
  * Bars with a few labelled gridlines; used for the last 14 days, the hours of the day, and
  * Settings → Usage (which formats its axis as tokens or dollars, and has a smaller floor for cost).
  */
+/**
+ * One label for whatever's under the pointer in a chart (anything with data-tip="head|body"): it
+ * shows at once, unlike the browser's own, in the theme's colours, and sits above everything so a
+ * chart's edges never cut it off.
+ */
+function useChartTip(): [{ onMouseOver: (e: React.MouseEvent) => void; onMouseLeave: () => void }, React.ReactNode] {
+  const [tip, setTip] = useState<{ head: string; body: string; x: number; y: number } | null>(null)
+  const handlers = {
+    onMouseOver: (e: React.MouseEvent): void => {
+      const el = (e.target as HTMLElement).closest<HTMLElement>('[data-tip]')
+      if (!el?.dataset.tip) return setTip(null)
+      // Over a bar, the label sits on the bar's top rather than the top of its column.
+      const r = (el.querySelector('.ins-bar') ?? el).getBoundingClientRect()
+      const [head, body = ''] = el.dataset.tip.split('|')
+      setTip({ head, body, x: Math.min(innerWidth - 90, Math.max(90, r.left + r.width / 2)), y: r.top })
+    },
+    onMouseLeave: (): void => setTip(null)
+  }
+  const node =
+    tip &&
+    createPortal(
+      <div className="chart-tip" role="tooltip" style={{ left: tip.x, top: tip.y }}>
+        <span className="chart-tip-head">{tip.head}</span>
+        {tip.body && <span className="chart-tip-body">{tip.body}</span>}
+      </div>,
+      document.body
+    )
+  return [handlers, node]
+}
+
 export function Bars({
   data,
   label,
@@ -100,6 +131,7 @@ export function Bars({
   format = short,
   floor = 1
 }: {
+  /** title: the label shown over a bar, its heading and its figure as "head|body". */
   data: { key: string; label: string; value: number; title: string }[]
   label: string
   highlight?: string
@@ -110,6 +142,7 @@ export function Bars({
   const step = niceStep(max)
   const top = Math.ceil(max / step) * step
   const ticks = Array.from({ length: Math.round(top / step) + 1 }, (_, i) => i * step).reverse()
+  const [tipOn, tip] = useChartTip()
   return (
     <div className="ins-bars" role="img" aria-label={label}>
       <div className="ins-bars-axis">
@@ -117,17 +150,18 @@ export function Bars({
           <span key={t}>{format(t)}</span>
         ))}
       </div>
-      <div className="ins-bars-plot">
+      <div className="ins-bars-plot" {...tipOn}>
         {ticks.map((t) => (
           <span key={t} className="ins-bars-grid" style={{ bottom: `${(t / top) * 100}%` }} />
         ))}
         {data.map((d) => (
-          <div key={d.key} className="ins-bar-col" title={d.title}>
+          <div key={d.key} className="ins-bar-col" data-tip={d.title}>
             <span className={`ins-bar ${d.key === highlight ? 'now' : ''}`} style={{ height: `${(d.value / top) * 100}%` }} />
             <span className="ins-bar-label">{d.label}</span>
           </div>
         ))}
       </div>
+      {tip}
     </div>
   )
 }
@@ -224,7 +258,7 @@ function Dashboard({ s }: { s: InsightsSummary }) {
             key: d.day,
             label: dayLabel(d.day, { weekday: 'short' }),
             value: d.words,
-            title: `${dayLabel(d.day, { weekday: 'long', month: 'short', day: 'numeric' })}: ${n(d.words)} words`
+            title: `${dayLabel(d.day, { weekday: 'long', month: 'short', day: 'numeric' })}|${n(d.words)} word${d.words === 1 ? '' : 's'}`
           }))}
         />
       </section>
@@ -241,6 +275,7 @@ function Dashboard({ s }: { s: InsightsSummary }) {
 // ——— Heatmap ———
 
 function Heatmap({ s }: { s: InsightsSummary }) {
+  const [tipOn, tip] = useChartTip()
   const years = useMemo(() => {
     const ys = new Set(s.days.map((d) => Number(d.day.slice(0, 4))))
     ys.add(new Date().getFullYear())
@@ -299,14 +334,14 @@ function Heatmap({ s }: { s: InsightsSummary }) {
             <span />
             <span>Sat</span>
           </div>
-          <div className="heatmap-grid">
+          <div className="heatmap-grid" {...tipOn}>
             {weeks.map((col, i) => (
               <div key={i} className="heatmap-col">
                 {col.map((c) => (
                   <span
                     key={c.day}
                     className={`heatmap-cell l${c.inYear ? level(c.words) : 'x'}`}
-                    title={c.inYear ? `${dayLabel(c.day, { weekday: 'short', month: 'short', day: 'numeric' })}: ${n(c.words)} words` : undefined}
+                    data-tip={c.inYear ? `${dayLabel(c.day, { weekday: 'long', month: 'short', day: 'numeric' })}|${n(c.words)} word${c.words === 1 ? '' : 's'}` : undefined}
                   />
                 ))}
               </div>
@@ -320,6 +355,7 @@ function Heatmap({ s }: { s: InsightsSummary }) {
           ))}
           More
         </div>
+        {tip}
       </section>
       <section className="ins-card">
         <h3 className="ins-card-title">When you write</h3>
@@ -329,7 +365,7 @@ function Heatmap({ s }: { s: InsightsSummary }) {
             key: String(h),
             label: h % 3 === 0 ? `${h}:00` : '',
             value: v,
-            title: `${h}:00–${h + 1}:00: ${n(v)} words`
+            title: `${h}:00–${h + 1}:00|${n(v)} word${v === 1 ? '' : 's'}`
           }))}
         />
       </section>

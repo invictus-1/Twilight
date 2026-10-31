@@ -133,7 +133,7 @@ export function UsageSection() {
                   key: b.key,
                   label: barLabel(b.key, i, stats.series.length, stats.unit),
                   value: measure === 'tokens' ? b.tokens : b.cost,
-                  title: `${when}: ${tokens(b.tokens)} tokens · ${formatCost(b.cost)} · ${plural(b.requests, 'request')}`
+                  title: `${when}|${tokens(b.tokens)} tokens · ${formatCost(b.cost)} · ${plural(b.requests, 'request')}`
                 }
               })}
             />
