@@ -4,6 +4,10 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.5.2 · November 2026
+- [x] **Smoother over the city** · Core — no stutter scrolling past the city at the top of a chat, on the fastest displays
+- [x] **The sky holds still while you type** · Core — a long message in a new chat rises over the sky instead of rescaling it
+
 ### 1.5.1 · October 2026
 - [x] **Charts answer at once** · Core — a themed label over Insights' and Usage's bars and the heatmap's days, the moment you point at one
 - [x] **Pasted writing can count** · Writing — words that appear in a file all at once are asked about on the dashboard, instead of quietly left out
