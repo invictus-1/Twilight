@@ -5907,6 +5907,25 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       // Back to a new chat, where the checks below look at the empty sky.
       await key('N', ['control'])
       await new Promise((r) => setTimeout(r, 300))
+      // Typing a long message there: the box rises over the foot of the sky, and the sky (so the
+      // scene) keeps its size, rather than rescaling with every new line.
+      const grow57 = await js<{ sky: number[]; box: number[] }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const area = document.querySelector('.tw-composer textarea')
+        const set = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set
+        const out = { sky: [], box: [] }
+        for (const text of ['One', 'One\\ntwo\\nthree', 'One\\ntwo\\nthree\\nfour\\nfive\\nsix']) {
+          set.call(area, text)
+          area.dispatchEvent(new Event('input', { bubbles: true }))
+          await wait(100)
+          out.sky.push(Math.round(document.querySelector('.empty .empty-sky').getBoundingClientRect().height))
+          out.box.push(Math.round(area.getBoundingClientRect().height))
+        }
+        set.call(area, '')
+        area.dispatchEvent(new Event('input', { bubbles: true }))
+        return out
+      })()`)
+      check('in a new chat, a growing message box rises over the sky instead of shrinking it', grow57.box[2] > grow57.box[0] && new Set(grow57.sky).size === 1, grow57)
       await pickHorizon57('grid')
       check('the city keeps every tower top on wide windows, showing more of the city instead', wide57.every((s) => s.clipped === 0 && s.towers > 50), wide57)
 

@@ -1373,6 +1373,10 @@ div.continuity-target { padding: var(--space-2) var(--space-3); border-radius: v
 /* ——— The empty chat's small evening ——— */
 .empty { position: relative; overflow: hidden; isolation: isolate; }
 .empty > :not(.empty-sky) { position: relative; z-index: 1; }
+/* As the message box grows, it rises over the foot of a new chat's sky instead of taking room from
+   it: the sky keeps its size, so the scene doesn't rescale with every line (Composer: --composer-grow). */
+.empty { margin-bottom: calc(-1 * var(--composer-grow, 0px)); }
+.empty ~ * { position: relative; z-index: 1; }
 .empty-sky { position: absolute; inset: 0; z-index: 0; pointer-events: none; background: linear-gradient(180deg, transparent 0%, transparent 45%, color-mix(in srgb, var(--dusk-soft) 70%, transparent) 85%, color-mix(in srgb, var(--horizon-soft) 90%, transparent) 100%); }
 .empty-star { position: absolute; width: 2px; height: 2px; border-radius: 50%; background: var(--ink); opacity: .15; animation: wl-twinkle 3.6s ease-in-out infinite; }
 .empty-sun { position: absolute; left: 50%; bottom: -70px; width: 200px; height: 200px; margin-left: -100px; border-radius: 50%; background: radial-gradient(circle at 50% 38%, color-mix(in srgb, #fff 55%, var(--horizon)) 0%, var(--horizon) 45%, color-mix(in srgb, var(--horizon) 50%, var(--dusk)) 85%); box-shadow: 0 0 90px 24px color-mix(in srgb, var(--horizon) 22%, transparent); opacity: .85; animation: empty-sun-rise 1.6s cubic-bezier(.3, .7, .2, 1) both; }

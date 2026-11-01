@@ -116,12 +116,18 @@ export function Composer() {
   const pendingB = useStore((s) => s.current?.split?.settings.pendingInstruction ?? '')
   const pending = (target === 'b' ? pendingB : target === 'both' ? pendingA || pendingB : pendingA).trim()
 
-  // Grow with the text up to MAX_LINES, then scroll.
+  // Grow with the text up to MAX_LINES, then scroll. How much it has grown is told to the window
+  // (--composer-grow), so over a new chat's sky the box rises over the sky's foot rather than
+  // shrinking the sky, which would rescale the whole scene with every new line.
+  const baseHeight = useRef(0)
   useLayoutEffect(() => {
     const el = area.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = `${Math.min(el.scrollHeight, MAX_LINES * LINE + 8)}px`
+    const height = Math.min(el.scrollHeight, MAX_LINES * LINE + 8)
+    el.style.height = `${height}px`
+    if (!text) baseHeight.current = height
+    el.closest('main')?.style.setProperty('--composer-grow', `${Math.max(0, height - (baseHeight.current || height))}px`)
   }, [text])
 
   useLayoutEffect(() => area.current?.focus(), [currentId])
