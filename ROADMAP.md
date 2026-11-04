@@ -4,6 +4,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.5.3 · November 2026
+- [x] **Find goes to every match** · Core — Ctrl+F in a chat brings each match into view, opening the summary, thinking or long message it is in
+
 ### 1.5.2 · November 2026
 - [x] **Smoother over the city** · Core — no stutter scrolling past the city at the top of a chat, on the fastest displays
 - [x] **The sky holds still while you type** · Core — a long message in a new chat rises over the sky instead of rescaling it

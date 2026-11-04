@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+## 1.5.3
+
 - **Find goes to every match:** in a chat, Ctrl+F's arrows now bring each match into view. A match in something folded (a compacted chat's summary, a reply's thinking, a tool step, a collapsed code block, a system prompt shown in two lines) is unfolded first, and one deep in a long block of thinking is brought to the word itself, where before the arrows stayed on one spot. Words in the folded rest of a long message are now found too, and the message opens to show them, with no need to click Show all.
 
 ## 1.5.2
