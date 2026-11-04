@@ -137,6 +137,7 @@ h1, h2, h3 { margin: 0; }
 .msg.warm { content-visibility: visible; }
 .msg-user-row { display: flex; justify-content: flex-end; align-items: flex-start; gap: var(--space-2); }
 .tw-msg-user { max-width: 80%; background: var(--iris-soft); padding: var(--space-2) var(--space-3); border-radius: var(--radius-md); white-space: pre-wrap; overflow-wrap: anywhere; }
+.msg-rest[hidden] { display: none; }
 .msg-expand { display: block; margin-top: var(--space-2); background: none; border: 0; padding: 0; color: var(--iris); font-size: 12px; font-weight: 500; cursor: pointer; }
 .tw-msg-ai { display: flex; flex-direction: column; gap: var(--space-2); }
 .tw-msg-head { display: flex; align-items: center; gap: var(--space-1); font-size: 12px; line-height: 16px; font-weight: 500; color: var(--ink-muted); }

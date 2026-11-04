@@ -51,13 +51,14 @@ const clear = (): void => {
 }
 
 /**
- * Brings a match to the middle of its scroller; twice, as messages above may lay out on the way.
- * A match inside something folded (a chat's summary, thinking, a tool step, a collapsed code block)
- * has nowhere on screen to scroll to, so it's unfolded first, as the browser's own find does.
+ * Brings a match to the middle of the chat; twice, as messages above may lay out on the way.
+ * A match inside something folded (a chat's summary, thinking, a tool step, a collapsed code block,
+ * the rest of a long message) has nowhere on screen to scroll to, so it's unfolded first, as the
+ * browser's own find does.
  */
 function reveal(range: Range | undefined): void {
   const el = range?.startContainer.parentElement
-  if (!el) return
+  if (!range || !el) return
   for (let fold = el.closest('details:not([open])'); fold; fold = fold.parentElement?.closest('details:not([open])') ?? null) {
     // Its own summary line shows while folded.
     if (!fold.querySelector(':scope > summary')?.contains(el)) (fold as HTMLDetailsElement).open = true
@@ -68,10 +69,35 @@ function reveal(range: Range | undefined): void {
     const toggle = code.querySelector('[data-collapse]')
     if (toggle) toggle.textContent = 'Collapse'
   }
+  // The rest of a long message, as Show all would: shown here at once so it can be measured, and
+  // the button pressed so the message knows it's open.
+  const rest = el.closest<HTMLElement>('.msg-rest[hidden]')
+  if (rest) {
+    rest.hidden = false
+    rest.closest('.msg')?.querySelector<HTMLElement>('.msg-expand')?.click()
+  }
+  // A system prompt shown in two lines opens when clicked.
+  el.closest<HTMLElement>('.chat-prompt-text.is-clamped')?.click()
   // Laid out for good, as the idle pass in Thread would, so its place is its real one.
   el.closest('.msg')?.classList.add('warm')
-  el.scrollIntoView({ block: 'center' })
-  requestAnimationFrame(() => el.scrollIntoView({ block: 'center' }))
+  centre(range)
+  requestAnimationFrame(() => centre(range))
+}
+
+/**
+ * Centres the words themselves in each box that scrolls around them, innermost first. Not the
+ * element they're in: a reply's thinking or a long message is one tall block, and centring that
+ * would bring every match in it to the same spot, often with the match itself off screen.
+ */
+function centre(range: Range): void {
+  for (let box = range.startContainer.parentElement; box; box = box.parentElement) {
+    if (box.scrollHeight <= box.clientHeight) continue
+    const overflow = getComputedStyle(box).overflowY
+    if (overflow !== 'auto' && overflow !== 'scroll') continue
+    const at = range.getBoundingClientRect()
+    const view = box.getBoundingClientRect()
+    box.scrollTop += at.top + at.height / 2 - (view.top + view.height / 2)
+  }
 }
 
 /**

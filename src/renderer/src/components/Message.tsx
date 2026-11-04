@@ -188,6 +188,8 @@ function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: bool
   const [editing, setEditing] = useState(false)
   const long = node.text.length > COLLAPSE_AT
   const words = long ? node.text.split(/\s+/).length : 0
+  const space = long ? node.text.lastIndexOf(' ', 1200) : -1
+  const cut = space > 800 ? space : 1200
   if (editing) {
     return (
       <div className="msg msg-user-row">
@@ -199,7 +201,7 @@ function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: bool
     <div
       className={`msg msg-user-row ${fresh ? 'msg-enter' : ''} ${slide}`}
       data-node={node.id}
-      style={{ containIntrinsicSize: `auto ${estimateHeight(long && !expanded ? node.text.slice(0, 1200) : node.text, 28)}px` }}
+      style={{ containIntrinsicSize: `auto ${estimateHeight(long && !expanded ? node.text.slice(0, cut) : node.text, 28)}px` }}
     >
       <div className="tw-msg-user">
         {node.library && node.library.length > 0 && (
@@ -240,7 +242,15 @@ function UserMessage({ node, waiting = false }: { node: NodeView; waiting?: bool
             ))}
           </div>
         )}
-        {long && !expanded ? `${node.text.slice(0, 1200)}…` : node.text}
+        {/* The rest stays on the page, hidden, so find counts its words and opens it to show one;
+            cut at a space so no word is split across the two. */}
+        {long ? node.text.slice(0, cut) : node.text}
+        {long && !expanded && '…'}
+        {long && (
+          <span className="msg-rest" hidden={!expanded}>
+            {node.text.slice(cut)}
+          </span>
+        )}
         {long && (
           <button className="msg-expand" onClick={() => setExpanded((e) => !e)}>
             {expanded ? 'Collapse' : `Show all · ${words.toLocaleString()} words`}

@@ -4258,11 +4258,15 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       let flParent = db.getConversation(fl).root_id
       const flNode = (role: 'user' | 'assistant', text: string, extra: { content?: string; thinking?: string } = {}): string =>
         db.insertNode({ id: randomUUID(), conversation_id: fl, parent_id: flParent, role, text, content: extra.content ?? JSON.stringify([{ type: 'text', text }]), thinking: extra.thinking ?? null, model: role === 'user' ? null : 'mock-a', provider_id: role === 'user' ? null : 'mock', usage: null, status: 'done', error: null }).id
+      // Thinking and the summary are each one tall block of text, with the word deep inside: centring
+      // the block, not the word, left every match in it at the same spot with the word off screen.
       const filler = 'The tide came in over the stones and the keeper wrote the hour in the log. '.repeat(22)
+      const musing = 'Weighing the tide tables against the log.\n'.repeat(120)
       for (let i = 0; i < 300; i++) {
-        flParent = flNode('user', `Night ${i} at the light`)
-        flParent = flNode('assistant', (i % 20 === 7 ? 'It was July when the fog came. ' : '') + filler, i % 50 === 13 ? { thinking: 'Keep the July storms in mind.' } : {})
-        if (i === 200) flParent = flNode('assistant', 'Nights 0 to 200: the keeper kept the light through a foggy July and a stormy autumn.', { content: JSON.stringify([{ type: 'compaction', local: true }, { type: 'kept', count: 0 }]) })
+        // One long message of yours, folded to its start, with the word in the folded rest.
+        flParent = flNode('user', i === 250 ? `Night ${i} notes. ${'The lamp room was swept and the brass polished before dusk. '.repeat(60)}In July the gulls nested on the gallery.` : `Night ${i} at the light`)
+        flParent = flNode('assistant', (i % 20 === 7 ? 'It was July when the fog came. ' : '') + filler, i % 50 === 13 ? { thinking: `${musing}Keep the July storms in mind.\n${musing}And the July fog.\n${musing}` } : {})
+        if (i === 200) flParent = flNode('assistant', `${musing}Nights 0 to 200: the keeper kept the light through a foggy July and a stormy autumn.\n${musing}`, { content: JSON.stringify([{ type: 'compaction', local: true }, { type: 'kept', count: 0 }]) })
       }
       db.updateConversation(fl, { started: 1, title: 'Long keeper log' })
       await reloadUi()
@@ -4277,12 +4281,19 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       await new Promise((r) => setTimeout(r, 150))
       win.webContents.insertText('July')
       await new Promise((r) => setTimeout(r, 500))
-      const findLong = await js<{ count: string; steps: number; unseen: number[]; summaryOpen: boolean; thinkingOpen: number }>(`(async () => {
+      const findLong = await js<{ count: string; steps: number; unseen: number[]; summaryOpen: boolean; thinkingOpen: number; messageOpen: string }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
-        const sc = document.querySelector('.thread-scroll').getBoundingClientRect()
+        // In view in every box that clips it (the chat, and the summary's own scrolling box).
         const seen = () => {
-          const r = [...(CSS.highlights.get('find-current') ?? [])][0]?.getBoundingClientRect()
-          return !!r && r.width > 0 && r.top >= sc.top && r.bottom <= sc.bottom
+          const range = [...(CSS.highlights.get('find-current') ?? [])][0]
+          const r = range?.getBoundingClientRect()
+          if (!r || !r.width) return false
+          for (let box = range.startContainer.parentElement; box; box = box.parentElement) {
+            if (getComputedStyle(box).overflowY === 'visible') continue
+            const b = box.getBoundingClientRect()
+            if (r.top < b.top || r.bottom > b.bottom) return false
+          }
+          return true
         }
         const count = document.querySelector('.find-count')?.textContent ?? ''
         const total = Number(count.split(' of ')[1] ?? 0)
@@ -4292,10 +4303,19 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
           await wait(120)
           if (!seen()) unseen.push(i + 1)
         }
-        return { count, steps: total, unseen, summaryOpen: !!document.querySelector('.compaction-summary[open]'), thinkingOpen: document.querySelectorAll('details.thinking[open]').length }
+        return {
+          count, steps: total, unseen,
+          summaryOpen: !!document.querySelector('.compaction-summary[open]'),
+          thinkingOpen: document.querySelectorAll('details.thinking[open]').length,
+          messageOpen: [...document.querySelectorAll('.msg-expand')].map((b) => b.textContent).join()
+        }
       })()`)
       await key('Escape')
-      check('find in a long compacted chat brings every match into view, opening the folded summary and thinking it is in', findLong.count === '1 of 22' && findLong.unseen.length === 0 && findLong.summaryOpen && findLong.thinkingOpen === 6, findLong)
+      check(
+        'find in a long compacted chat brings every match into view, opening the folded summary, thinking and long message it is in',
+        findLong.count === '1 of 29' && findLong.unseen.length === 0 && findLong.summaryOpen && findLong.thinkingOpen === 6 && findLong.messageOpen === 'Collapse',
+        findLong
+      )
       // A big message says roughly what it costs before it's sent.
       const sizeLine = await js<{ big: string; small: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))
