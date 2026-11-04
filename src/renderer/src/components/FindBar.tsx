@@ -50,10 +50,26 @@ const clear = (): void => {
   CSS.highlights.delete('find-current')
 }
 
-/** Brings a match to the middle of its scroller; twice, as messages above may lay out on the way. */
+/**
+ * Brings a match to the middle of its scroller; twice, as messages above may lay out on the way.
+ * A match inside something folded (a chat's summary, thinking, a tool step, a collapsed code block)
+ * has nowhere on screen to scroll to, so it's unfolded first, as the browser's own find does.
+ */
 function reveal(range: Range | undefined): void {
   const el = range?.startContainer.parentElement
   if (!el) return
+  for (let fold = el.closest('details:not([open])'); fold; fold = fold.parentElement?.closest('details:not([open])') ?? null) {
+    // Its own summary line shows while folded.
+    if (!fold.querySelector(':scope > summary')?.contains(el)) (fold as HTMLDetailsElement).open = true
+  }
+  const code = el.closest('.tw-codeblock.collapsed')
+  if (code) {
+    code.classList.remove('collapsed')
+    const toggle = code.querySelector('[data-collapse]')
+    if (toggle) toggle.textContent = 'Collapse'
+  }
+  // Laid out for good, as the idle pass in Thread would, so its place is its real one.
+  el.closest('.msg')?.classList.add('warm')
   el.scrollIntoView({ block: 'center' })
   requestAnimationFrame(() => el.scrollIntoView({ block: 'center' }))
 }

@@ -4252,6 +4252,50 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return { jump, flashed, stored, after: !!document.querySelector('.bookmark-jump') }
       })()`)
       check('a starred reply is a bookmark the header jumps to, and unstarring removes it', markUi.jump === '1' && markUi.flashed && markUi.stored === 1 && !markUi.after, markUi)
+      // Find in a long, compacted chat (some 100k words): every step brings its match into view,
+      // including words in the folded summary and in folded thinking.
+      const fl = chat.create().id
+      let flParent = db.getConversation(fl).root_id
+      const flNode = (role: 'user' | 'assistant', text: string, extra: { content?: string; thinking?: string } = {}): string =>
+        db.insertNode({ id: randomUUID(), conversation_id: fl, parent_id: flParent, role, text, content: extra.content ?? JSON.stringify([{ type: 'text', text }]), thinking: extra.thinking ?? null, model: role === 'user' ? null : 'mock-a', provider_id: role === 'user' ? null : 'mock', usage: null, status: 'done', error: null }).id
+      const filler = 'The tide came in over the stones and the keeper wrote the hour in the log. '.repeat(22)
+      for (let i = 0; i < 300; i++) {
+        flParent = flNode('user', `Night ${i} at the light`)
+        flParent = flNode('assistant', (i % 20 === 7 ? 'It was July when the fog came. ' : '') + filler, i % 50 === 13 ? { thinking: 'Keep the July storms in mind.' } : {})
+        if (i === 200) flParent = flNode('assistant', 'Nights 0 to 200: the keeper kept the light through a foggy July and a stormy autumn.', { content: JSON.stringify([{ type: 'compaction', local: true }, { type: 'kept', count: 0 }]) })
+      }
+      db.updateConversation(fl, { started: 1, title: 'Long keeper log' })
+      await reloadUi()
+      await js(`(async () => {
+        document.querySelector('[data-mode="chat"]')?.click()
+        await new Promise((r) => setTimeout(r, 200))
+        ;[...document.querySelectorAll('.tw-conv')].find((r) => r.querySelector('.tw-conv-title')?.textContent === 'Long keeper log')?.click()
+        await new Promise((r) => setTimeout(r, 1500))
+        document.activeElement?.blur()
+      })()`)
+      await key('F', ['control'])
+      await new Promise((r) => setTimeout(r, 150))
+      win.webContents.insertText('July')
+      await new Promise((r) => setTimeout(r, 500))
+      const findLong = await js<{ count: string; steps: number; unseen: number[]; summaryOpen: boolean; thinkingOpen: number }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const sc = document.querySelector('.thread-scroll').getBoundingClientRect()
+        const seen = () => {
+          const r = [...(CSS.highlights.get('find-current') ?? [])][0]?.getBoundingClientRect()
+          return !!r && r.width > 0 && r.top >= sc.top && r.bottom <= sc.bottom
+        }
+        const count = document.querySelector('.find-count')?.textContent ?? ''
+        const total = Number(count.split(' of ')[1] ?? 0)
+        const unseen = []
+        for (let i = 0; i < total; i++) {
+          if (i) document.querySelectorAll('.find-bar button')[1].click()
+          await wait(120)
+          if (!seen()) unseen.push(i + 1)
+        }
+        return { count, steps: total, unseen, summaryOpen: !!document.querySelector('.compaction-summary[open]'), thinkingOpen: document.querySelectorAll('details.thinking[open]').length }
+      })()`)
+      await key('Escape')
+      check('find in a long compacted chat brings every match into view, opening the folded summary and thinking it is in', findLong.count === '1 of 22' && findLong.unseen.length === 0 && findLong.summaryOpen && findLong.thinkingOpen === 6, findLong)
       // A big message says roughly what it costs before it's sent.
       const sizeLine = await js<{ big: string; small: boolean }>(`(async () => {
         const wait = (ms) => new Promise((r) => setTimeout(r, ms))

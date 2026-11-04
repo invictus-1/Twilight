@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Find reaches folded words:** in a chat, Ctrl+F's arrows now go to every match it counts. A match in something folded (a compacted chat's summary, a reply's thinking, a tool step or a collapsed code block) is unfolded and brought into view, where before the arrows stayed put on it.
+
 ## 1.5.2
 
 - **Smoother over the city:** scrolling past the city at the top of a chat no longer stutters on a fast display. Its few blinking windows and beacons are drawn apart from the still skyline, so a blink no longer repaints the whole city and its reflection; above a chat they hold still, and the river's ripples are moved rather than redrawn. The beacons now flash on and off, as real ones do.
