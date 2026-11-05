@@ -513,6 +513,7 @@ function registerIpc(): void {
     },
     getSpellcheck: () => spellcheckOn(),
     editPassage: (_e, id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane?: Pane) => chat.editPassage(id, nodeId, passage, instruction, withChat, pane),
+    stopPassage: (_e, id: string, pane?: Pane) => chat.stopPassage(id, pane),
     compactChat: (_e, id: string, pane?: Pane) => chat.compact(id, pane),
     cancelCompaction: (_e, id: string) => chat.cancelCompaction(id),
     getCompaction: () => chat.compactionSettings(),

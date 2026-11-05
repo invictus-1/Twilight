@@ -1739,13 +1739,19 @@ input[type='checkbox']:not(.switch input):disabled { opacity: 0.5; cursor: defau
 .passage-tools.is-bar .tw-btn-ghost { color: var(--ink); }
 .passage-tools .tw-ask { color: var(--horizon); }
 .passage-tools .tw-sep { width: 1px; align-self: stretch; background: var(--line); margin: var(--space-1) 2px; }
-.passage-context { color: var(--ink-faint) !important; }
-.passage-context[aria-pressed="true"] { color: var(--iris) !important; }
+.passage-tools:not(.is-bar) { max-height: calc(100vh - 32px); }
+.passage-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); padding-left: var(--space-1); cursor: grab; user-select: none; touch-action: none; }
+.passage-head:active { cursor: grabbing; }
+.passage-quick { display: inline-flex; align-items: center; }
+.passage-tools .passage-note { width: 22px; color: var(--ink-faint); }
+.passage-tools .passage-note:hover { color: var(--ink); }
+.passage-tools .passage-context { gap: var(--space-1); color: var(--ink-muted) !important; }
+.passage-tools .passage-context[aria-pressed="true"] { color: var(--iris) !important; background: color-mix(in srgb, var(--iris) 14%, transparent); }
 .passage-working { padding: 0 var(--space-2); height: var(--control-sm); display: inline-flex; align-items: center; gap: var(--space-2); }
 .passage-row { display: flex; align-items: center; gap: var(--space-1); flex-wrap: wrap; }
 .passage-tools .seltool-ask input.passage-ask { width: 360px; }
 .passage-meta { justify-content: space-between; font-size: 12px; }
-.passage-compare { display: flex; flex-direction: column; gap: var(--space-2); max-height: 50vh; overflow-y: auto; }
+.passage-compare { display: flex; flex-direction: column; gap: var(--space-2); max-height: 50vh; min-height: 0; overflow-y: auto; }
 .passage-old { white-space: pre-wrap; font-size: 13px; color: var(--ink-faint); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 50%, transparent); }
 .passage-new { white-space: pre-wrap; font-size: 14px; line-height: 22px; color: var(--ink); padding-left: var(--space-2); border-left: 2px solid var(--horizon); }
 .passage-error { margin: 0; font-size: 12px; color: var(--danger); }

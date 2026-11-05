@@ -718,6 +718,8 @@ export interface TwilightApi {
   getSpellcheck(): Promise<boolean>
   /** A passage of a reply rewritten as asked (with the whole chat as context, or the passage alone); nothing is stored. */
   editPassage(id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane?: Pane): Promise<string>
+  /** Stops the passage edit under way in a chat (or pane); its editPassage call then fails with "Stopped." */
+  stopPassage(id: string, pane?: Pane): Promise<void>
   /** Replaces a chat's (or pane's) conversation so far with a summary; requests start from it after. */
   compactChat(id: string, pane?: Pane): Promise<ConversationView>
   cancelCompaction(id: string): Promise<void>

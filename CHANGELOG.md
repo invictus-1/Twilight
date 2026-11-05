@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **Changing a passage, easier to steer:** select text in a reply and Rewrite now has a pen beside it, to say why you want it rewritten; leave the note empty for a plain rewrite. While it works, Stop ends the request. The before and after stays inside the window instead of running off the bottom, can be dragged by its top to wherever suits, and closes with its × or Esc, so Accept and Discard are always in reach. The context switch now says what it sends, Whole chat or Passage only, and the before and after says which it was made from.
+
 ## 1.5.3
 
 - **Find goes to every match:** in a chat, Ctrl+F's arrows now bring each match into view. A match in something folded (a compacted chat's summary, a reply's thinking, a tool step, a collapsed code block, a system prompt shown in two lines) is unfolded first, and one deep in a long block of thinking is brought to the word itself, where before the arrows stayed on one spot. Words in the folded rest of a long message are now found too, and the message opens to show them, with no need to click Show all.

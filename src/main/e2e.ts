@@ -1361,20 +1361,25 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         bar.back = !!document.querySelector('.passage-tools .tw-ask')
         const toggle = document.querySelector('.passage-tools .passage-context')
         bar.context = toggle?.getAttribute('aria-pressed')
+        bar.before = toggle?.textContent
         toggle?.click()
         await wait(30)
         bar.contextAfter = document.querySelector('.passage-tools .passage-context')?.getAttribute('aria-pressed')
+        bar.words = [bar.before, document.querySelector('.passage-tools .passage-context')?.textContent].join('/')
         document.querySelector('.passage-tools .passage-context')?.click()
+        await wait(30)
         ;[...document.querySelectorAll('.passage-tools button')].find((b) => b.textContent === 'Rewrite')?.click()
         for (let end = Date.now() + 5000; Date.now() < end && !document.querySelector('.passage-new'); ) await wait(50)
         const compared = !!document.querySelector('.passage-old') && !!document.querySelector('.passage-new')
+        bar.heading = document.querySelector('.passage-head')?.textContent ?? ''
         ;[...document.querySelectorAll('.passage-tools button')].find((b) => b.textContent === 'Accept')?.click()
         await wait(600)
         return { shown, compared, gone: !document.querySelector('.passage-tools'), bar }
       })()`)
       check(
-        'the passage toolbar is one slim row; Ask opens its box when clicked, and the whole-chat toggle switches',
-        passageUi.bar.slim && !passageUi.bar.boxFirst && passageUi.bar.labels === 'Ask,Rewrite,Tighten,Expand' && passageUi.bar.boxAfter && passageUi.bar.back && passageUi.bar.context === 'true' && passageUi.bar.contextAfter === 'false',
+        'the passage toolbar is one slim row; Ask opens its box when clicked, and the whole-chat toggle says what it sends and switches',
+        passageUi.bar.slim && !passageUi.bar.boxFirst && passageUi.bar.labels === 'Ask,Rewrite,Tighten,Expand,Whole chat' && passageUi.bar.boxAfter && passageUi.bar.back && passageUi.bar.context === 'true' && passageUi.bar.contextAfter === 'false' &&
+          passageUi.bar.words === 'Whole chat/Passage only' && passageUi.bar.heading.includes('with the whole chat'),
         passageUi.bar
       )
       const peAfter = chat.view(pe).path[1]
@@ -1382,6 +1387,66 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         'select text in a reply, ask for a change, see it before and after, and Accept saves a new version',
         passageUi.shown && passageUi.compared && passageUi.gone && peAfter.siblingCount === 2 && peAfter.text !== peReply.text,
         { ...passageUi, versions: peAfter.siblingCount }
+      )
+      // A rewrite can be stopped, or given a note on why; before and after stays inside the window,
+      // moves when dragged by its top, and Esc closes it.
+      const beforeNote = log.length
+      const passageMore = await win.webContents.executeJavaScript(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const until = async (test, ms = 5000) => { for (let end = Date.now() + ms; Date.now() < end && !test(); ) await wait(25) }
+        const pick = async () => {
+          // The reply's last paragraph: the first is the rewrite accepted above, in the mock's own words.
+          const p = [...[...document.querySelectorAll('.tw-msg-ai .tw-msg-body')].at(-1).querySelectorAll('p')].at(-1)
+          const range = document.createRange()
+          range.selectNodeContents(p)
+          document.getSelection().removeAllRanges()
+          document.getSelection().addRange(range)
+          document.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+          await until(() => document.querySelector('.passage-tools'), 2000)
+        }
+        const button = (label) => [...document.querySelectorAll('.passage-tools button')].find((b) => b.textContent === label)
+        await pick()
+        button('Rewrite')?.click()
+        await wait(150)
+        const stopShown = !!document.querySelector('.passage-tools .passage-stop')
+        document.querySelector('.passage-tools .passage-stop')?.click()
+        await wait(3000)
+        const stopped = { result: !!document.querySelector('.passage-new'), bar: !!button('Rewrite'), error: document.querySelector('.passage-error')?.textContent ?? '' }
+        document.querySelector('.passage-tools .passage-note')?.click()
+        await wait(50)
+        const input = document.querySelector('.passage-tools .passage-ask')
+        const placeholder = input?.getAttribute('placeholder') ?? ''
+        if (!input) return { stopShown, stopped, placeholder, noBox: document.querySelector('.passage-tools')?.innerHTML.slice(0, 400) ?? 'no panel', shown: false, dragged: false, closed: false }
+        Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, 'Make the lamps warmer')
+        input?.dispatchEvent(new Event('input', { bubbles: true }))
+        await wait(50)
+        input?.closest('form')?.requestSubmit()
+        await until(() => document.querySelector('.passage-new'))
+        const panel = () => document.querySelector('.passage-tools').getBoundingClientRect()
+        const inside = (r) => r.top >= 15 && r.left >= 15 && r.bottom <= innerHeight - 15 && r.right <= innerWidth - 15
+        const first = panel()
+        const head = document.querySelector('.passage-head')
+        const hr = head.getBoundingClientRect()
+        const at = { clientX: hr.left + 40, clientY: hr.top + 8, button: 0, pointerId: 1, bubbles: true }
+        head.dispatchEvent(new PointerEvent('pointerdown', at))
+        head.dispatchEvent(new PointerEvent('pointermove', { ...at, clientX: at.clientX - 30, clientY: at.clientY - innerHeight }))
+        head.dispatchEvent(new PointerEvent('pointerup', at))
+        await wait(100)
+        const dragged = panel()
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+        await wait(100)
+        return {
+          stopShown, stopped, placeholder, shown: inside(first), dragged: inside(dragged) && Math.round(dragged.top) === 16 && Math.round(first.left - dragged.left) === 30,
+          closed: !document.querySelector('.passage-tools'),
+          spots: [first, dragged].map((r) => [r.top, r.left, r.width, r.height].map(Math.round).join()), win: innerWidth + 'x' + innerHeight
+        }
+      })()`)
+      const noted = log.slice(beforeNote).map((r) => JSON.stringify(r.messages.at(-1))).filter((m) => m.includes('<passage>'))
+      check(
+        'a passage rewrite can be stopped, or run with a note on why; before and after stays in the window, drags by its top, and Esc closes it',
+        passageMore.stopShown && !passageMore.stopped.result && passageMore.stopped.bar && !passageMore.stopped.error && passageMore.placeholder.startsWith('Why rewrite it') &&
+          noted.some((m) => m.includes('What I want from the rewrite: Make the lamps warmer')) && passageMore.shown && passageMore.dragged && passageMore.closed,
+        { ...passageMore, requests: noted.length }
       )
 
       // 22. Game Format: paragraphs joined within chunks, dividers kept, code and HTML untouched.

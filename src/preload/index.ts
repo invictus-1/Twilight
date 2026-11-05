@@ -108,6 +108,7 @@ const methods: Exclude<keyof TwilightApi, 'onStream' | 'onUpdate' | 'onInsights'
   'setLlamaAutoStart',
   'getSpellcheck',
   'editPassage',
+  'stopPassage',
   'compactChat',
   'cancelCompaction',
   'getCompaction',

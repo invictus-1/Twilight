@@ -1168,7 +1168,28 @@ Keep the voice, tense, point of view and markdown formatting unless the instruct
  * exactly as it would for a reply, so it reads from the chat's cache, and the request comes last
  * in a message of its own; without it, the model sees only the passage.
  */
+// Passage edits under way, by chat and pane, so Stop can end one.
+const passageRuns = new Map<string, AbortController>()
+export function stopPassage(id: string, pane: Pane = 'a'): void {
+  passageRuns.get(`${id}:${pane}`)?.abort()
+}
+
 export async function editPassage(id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane: Pane = 'a'): Promise<string> {
+  const key = `${id}:${pane}`
+  passageRuns.get(key)?.abort()
+  const controller = new AbortController()
+  passageRuns.set(key, controller)
+  try {
+    return await passageEdit(id, nodeId, passage, instruction, withChat, pane, controller.signal)
+  } catch (err) {
+    if (controller.signal.aborted) throw new Error('Stopped.')
+    throw err
+  } finally {
+    if (passageRuns.get(key) === controller) passageRuns.delete(key)
+  }
+}
+
+async function passageEdit(id: string, nodeId: string, passage: string, instruction: string, withChat: boolean, pane: Pane, signal: AbortSignal): Promise<string> {
   const conv = db.getConversation(id)
   const settings: ChatSettings = { ...settingsFor(conv, pane), webSearch: false, webFetch: false, choiceTool: false, imageGen: false, library: false, mcpServers: [] }
   const nodes = db.loadNodes(id)
@@ -1185,10 +1206,11 @@ export async function editPassage(id: string, nodeId: string, passage: string, i
     history,
     settings,
     options: modelOptions(settings.providerId, settings.modelId),
-    signal: new AbortController().signal,
+    signal,
     onText: () => undefined,
     onThinking: () => undefined
   })
+  if (signal.aborted) throw new Error('Stopped.')
   if (result.error) throw new Error(result.error)
   const text = result.text.trim().replace(/^<passage>\s*|\s*<\/passage>$/g, '')
   if (!text) throw new Error('Nothing came back. Try again, or say more in the request.')
