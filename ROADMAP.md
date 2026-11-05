@@ -4,6 +4,9 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.5.4 · November 2026
+- [x] **Changing a passage, easier to steer** · Core — Stop, Rewrite with a note on why, a Whole chat or Passage only switch in words (both under the chat's system prompt), and a before and after that stays in the window and drags
+
 ### 1.5.3 · November 2026
 - [x] **Find goes to every match** · Core — Ctrl+F in a chat brings each match into view, opening the summary, thinking or long message it is in
 

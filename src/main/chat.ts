@@ -1166,7 +1166,7 @@ Keep the voice, tense, point of view and markdown formatting unless the instruct
  * Rewrites a passage of a reply as asked, and returns the new passage (nothing is stored: it's
  * accepted as a new version of the reply, or not). With the whole chat, the conversation goes up
  * exactly as it would for a reply, so it reads from the chat's cache, and the request comes last
- * in a message of its own; without it, the model sees only the passage.
+ * in a message of its own; without it, the model sees only the chat's system prompt and the passage.
  */
 // Passage edits under way, by chat and pane, so Stop can end one.
 const passageRuns = new Map<string, AbortController>()
@@ -1202,7 +1202,9 @@ async function passageEdit(id: string, nodeId: string, passage: string, instruct
   const result = await implFor(config).generate({
     config,
     apiKey: getApiKey(config.id),
-    system: withChat ? systemFor(settings, nodes.get(conv.root_id)?.text ?? '') : '',
+    // The chat's own system prompt either way, so the voice holds; alone, without the choice cards'
+    // how-to, which has nothing to do with a passage.
+    system: withChat ? systemFor(settings, nodes.get(conv.root_id)?.text ?? '') : settings.systemPrompt || (nodes.get(conv.root_id)?.text ?? ''),
     history,
     settings,
     options: modelOptions(settings.providerId, settings.modelId),

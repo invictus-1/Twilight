@@ -4,7 +4,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
-- **Changing a passage, easier to steer:** select text in a reply and Rewrite now has a pen beside it, to say why you want it rewritten; leave the note empty for a plain rewrite. While it works, Stop ends the request. The before and after stays inside the window instead of running off the bottom, can be dragged by its top to wherever suits, and closes with its × or Esc, so Accept and Discard are always in reach. The context switch now says what it sends, Whole chat or Passage only, and the before and after says which it was made from.
+## 1.5.4
+
+- **Changing a passage, easier to steer:** select text in a reply and Rewrite now has a pen beside it, to say why you want it rewritten; leave the note empty for a plain rewrite. While it works, Stop ends the request. The before and after stays inside the window instead of running off the bottom, can be dragged by its top to wherever suits, and closes with its × or Esc, so Accept and Discard are always in reach. The context switch now says what it sends, Whole chat or Passage only, and the before and after says which it was made from. Passage only now goes with the chat's system prompt too, so the voice holds either way.
 
 ## 1.5.3
 

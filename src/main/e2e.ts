@@ -1324,16 +1324,18 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       chat.send(contents, pe, 'Passage lamps one')
       await idle(pe)
       const peReply = chat.view(pe).path[1]
+      chat.updateSettings(pe, { systemPrompt: 'Write as the lighthouse keeper.' })
       const beforePe = log.length
       const withChatText = await chat.editPassage(pe, peReply.id, 'Here is a short answer', 'Make it grander.', true)
       const withChatReq = log[beforePe]
       await chat.editPassage(pe, peReply.id, 'Here is a short answer', 'Make it grander.', false)
       const aloneReq = log[beforePe + 1]
       check(
-        'a passage edit sends the chat (unchanged, then the request) or the passage alone, and stores nothing',
+        "a passage edit sends the chat (unchanged, then the request) or the passage alone, each under the chat's system prompt, and stores nothing",
         !!withChatText && JSON.stringify(withChatReq?.messages).includes('Passage lamps one') && JSON.stringify(withChatReq?.messages.at(-1)).includes('<passage>') &&
-          !JSON.stringify(aloneReq?.messages).includes('Passage lamps one') && chat.view(pe).path.length === 2,
-        { withChat: withChatReq?.messages.length, alone: aloneReq?.messages.length }
+          !JSON.stringify(aloneReq?.messages).includes('Passage lamps one') && chat.view(pe).path.length === 2 &&
+          [withChatReq, aloneReq].every((r) => r?.messages[0]?.role === 'system' && String(r.messages[0].content).includes('Write as the lighthouse keeper.')),
+        { withChat: withChatReq?.messages.length, alone: aloneReq?.messages.length, systems: [withChatReq, aloneReq].map((r) => r?.messages[0]?.role) }
       )
       await reloadUi()
       const passageUi = await win.webContents.executeJavaScript(`(async () => {
@@ -1886,10 +1888,10 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
         return out
       })()`)
       check('roadmap shows planned work as cards', roadmapUi.cards >= 1 && roadmapUi.doing >= 1, roadmapUi)
-      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '1.5.3,1.5.2,1.5.1,1.5.0,1.4.0,1.3.0,1.2.0,1.1.0,1.0.0,0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
+      check('roadmap timeline lists the releases', roadmapUi.releases.join() === '1.5.4,1.5.3,1.5.2,1.5.1,1.5.0,1.4.0,1.3.0,1.2.0,1.1.0,1.0.0,0.9.0,0.8.0,0.7.0,0.6.0,0.5.0,0.4.0,0.3.0,0.2.0,0.1.0', roadmapUi.releases)
       check(
         'a wide window shows the way to 1.0 beside the roadmap, and a step jumps to its release',
-        roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.5.3,1.5.2,1.5.1,1.5,1.4,1.3,1.2,1.1,1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
+        roadmapUi.wide ? roadmapUi.aside && roadmapUi.steps.join() === '1.5.4,1.5.3,1.5.2,1.5.1,1.5,1.4,1.3,1.2,1.1,1.0,0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1' && roadmapUi.jumped : !roadmapUi.aside,
         roadmapUi
       )
       check('roadmap filters by area', roadmapUi.writingCards.length > 0 && roadmapUi.writingCards.every((a: string) => a === 'Core'), roadmapUi.writingCards)
