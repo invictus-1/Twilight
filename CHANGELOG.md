@@ -4,6 +4,8 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+## 1.5.5
+
 - **No more meteor showers:** shooting stars no longer pile up while the sky above a chat is scrolled out of view and then all fall at once when you scroll back; each one clears on its own, and none are launched while the sky is away.
 - **The cache bar stays:** its × now hides it for that chat only (turn it off everywhere in Model settings), and the compaction bar sits above it, so nothing moves under the pointer when compacting finishes. Before, a click meant for the compaction bar could land on the × and hide the cache bar in every chat for good. If yours is gone, turn it back on in Model settings: Show the cache status bar under the chat.
 

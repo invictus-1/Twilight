@@ -4,6 +4,10 @@ What's shipped, what's next, and ideas not yet committed to. Twilight shows this
 
 ## Shipped
 
+### 1.5.5 · November 2026
+- [x] **No more meteor showers** · Core — shooting stars no longer pile up while the sky is scrolled away and fall all at once on your return
+- [x] **The cache bar stays** · Chat — its × hides it for one chat only, and the compaction bar sits above it so nothing moves under the pointer
+
 ### 1.5.4 · November 2026
 - [x] **Changing a passage, easier to steer** · Core — Stop, Rewrite with a note on why, a Whole chat or Passage only switch in words (both under the chat's system prompt), and a before and after that stays in the window and drags
 
