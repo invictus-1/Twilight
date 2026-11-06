@@ -544,13 +544,29 @@ const stillMotion = (): boolean => ['reduced', 'off'].includes(document.document
  * second follows it), a bright head with a glow and a long tapering tail. Nothing is scheduled
  * while motion is Gentle or Off, or while the window is hidden.
  */
+/**
+ * Shooting stars, now and then, while the sky is on screen. One that's away (above a chat you've
+ * scrolled down, where the browser stops drawing it) isn't launched, and each is cleared on its
+ * own clock rather than when its animation ends: an undrawn sky never ends one, and they used to
+ * pile up and all fall at once when you scrolled back.
+ */
 export function Meteors() {
   const [meteors, setMeteors] = useState<Meteor[]>([])
+  const anchor = useRef<HTMLSpanElement>(null)
   useEffect(() => {
     let timer = 0
     let id = 0
+    let onScreen = true
+    const sky = anchor.current?.parentElement
+    const seen = sky ? new IntersectionObserver(([e]) => (onScreen = e.isIntersecting)) : null
+    if (sky) seen?.observe(sky)
+    const clear = (m: Meteor): void => void window.setTimeout(() => setMeteors((list) => list.filter((x) => x.id !== m.id)), m.duration * 1000 + 400)
+    const add = (m: Meteor): void => {
+      setMeteors((list) => [...list.slice(-2), m])
+      clear(m)
+    }
     const launch = (): void => {
-      if (!document.hidden && !stillMotion()) {
+      if (!document.hidden && onScreen && !stillMotion()) {
         const rand = Math.random
         const toLeft = rand() < 0.3
         const one = (): Meteor => ({
@@ -563,22 +579,25 @@ export function Meteors() {
           duration: 1.1 + rand() * 0.9
         })
         const first = one()
-        setMeteors((list) => [...list, first])
-        if (rand() < 0.2) setTimeout(() => setMeteors((list) => [...list, { ...one(), x: first.x + 4, y: first.y + 3, angle: first.angle, length: first.length * 0.6 }]), 350)
+        add(first)
+        if (rand() < 0.2) setTimeout(() => add({ ...one(), x: first.x + 4, y: first.y + 3, angle: first.angle, length: first.length * 0.6 }), 350)
       }
       timer = window.setTimeout(launch, 7000 + Math.random() * 14000)
     }
     timer = window.setTimeout(launch, 2500 + Math.random() * 3000)
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      seen?.disconnect()
+    }
   }, [])
   return (
     <>
+      <span ref={anchor} hidden />
       {meteors.map((m) => (
         <span
           key={m.id}
           className="meteor"
           style={{ left: `${m.x}%`, top: `${m.y}%`, rotate: `${m.angle}deg`, '--travel': `${m.travel}vw`, '--len': `${m.length}px`, animationDuration: `${m.duration}s` } as React.CSSProperties}
-          onAnimationEnd={() => setMeteors((list) => list.filter((x) => x.id !== m.id))}
         >
           <span className="meteor-tail" />
           <span className="meteor-head" />

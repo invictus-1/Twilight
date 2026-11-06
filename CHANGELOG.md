@@ -4,6 +4,9 @@ Each version's section becomes its release notes on the releases page (`npm run 
 
 ## Unreleased
 
+- **No more meteor showers:** shooting stars no longer pile up while the sky above a chat is scrolled out of view and then all fall at once when you scroll back; each one clears on its own, and none are launched while the sky is away.
+- **The cache bar stays:** its × now hides it for that chat only (turn it off everywhere in Model settings), and the compaction bar sits above it, so nothing moves under the pointer when compacting finishes. Before, a click meant for the compaction bar could land on the × and hide the cache bar in every chat for good. If yours is gone, turn it back on in Model settings: Show the cache status bar under the chat.
+
 ## 1.5.4
 
 - **Changing a passage, easier to steer:** select text in a reply and Rewrite now has a pen beside it, to say why you want it rewritten; leave the note empty for a plain rewrite. While it works, Stop ends the request. The before and after stays inside the window instead of running off the bottom, can be dragged by its top to wherever suits, and closes with its × or Esc, so Accept and Discard are always in reach. The context switch now says what it sends, Whole chat or Passage only, and the before and after says which it was made from. Passage only now goes with the chat's system prompt too, so the voice holds either way.

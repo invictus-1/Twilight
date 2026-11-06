@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { cacheSaved, formatCost, formatTokens } from '@shared/pricing'
 import type { ChatSettings, ModelInfo, ModelOptions, NodeView, Usage } from '@shared/types'
 import { optionsFor, paneOf, useStore } from '../store'
-import { readHidden, writeHidden } from './ChatSettingsPanel'
+import { readHidden } from './ChatSettingsPanel'
 import { CloseIcon } from './Icons'
 
 export type CacheTone = 'hit' | 'write' | 'miss' | 'off' | 'idle'
@@ -78,8 +78,14 @@ export function chatSaved(path: NodeView[], models: ModelInfo[]): number | null 
 }
 
 /** Under a single-pane chat. (Split panes show the same status in their footers.) */
+// Chats whose bar was closed with its ×, for this session. Turning it off everywhere is the
+// Model settings switch: a single click that hid it in every chat for good too easily happened
+// by accident, as the compaction bar going away moved it under the pointer.
+const closedFor = new Set<string>()
+
 export function CacheBar() {
   const [hidden, setHidden] = useState(readHidden)
+  const [, setClosed] = useState(0)
   const current = useStore((s) => s.current)
   const models = useStore((s) => s.models)
   const providers = useStore((s) => s.providers)
@@ -95,7 +101,7 @@ export function CacheBar() {
   // Worked out again only when the thread or a price changes, not on every redraw.
   const saved = useMemo(() => (path ? chatSaved(path, models) : null), [path, models, prices])
 
-  if (hidden || !current || !path) return null
+  if (hidden || !current || !path || closedFor.has(current.id)) return null
   const { settings } = paneOf(current, 'a')
   const last = path.findLast((n) => n.role === 'assistant' && n.status !== 'streaming')
   const status = cacheStatus(last?.usage, settings, optionsFor(models, providers, settings.providerId, settings.modelId))
@@ -111,9 +117,12 @@ export function CacheBar() {
       <ContextMeter path={path} settings={settings} />
       <button
         className="tw-btn tw-btn-ghost tw-btn-icon"
-        aria-label="Hide the cache status bar"
-        title="Hide (turn it back on in Model settings)"
-        onClick={() => writeHidden(true)}
+        aria-label="Hide the cache status bar for this chat"
+        title="Hide for this chat (turn it off everywhere in Model settings)"
+        onClick={() => {
+          closedFor.add(current.id)
+          setClosed((n) => n + 1)
+        }}
       >
         <CloseIcon size={12} />
       </button>

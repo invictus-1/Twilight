@@ -177,8 +177,9 @@ export function ChatView() {
       ) : (
         <Thread key={current.id} />
       )}
-      {!split && current && <CacheBar />}
+      {/* The compaction bar above the cache bar: when it goes, nothing below it moves under the pointer. */}
       {!split && current && <CompactBar />}
+      {!split && current && <CacheBar />}
       <Composer />
     </main>
   )

@@ -6069,6 +6069,37 @@ export function runE2E(win: BrowserWindow, outDir: string): void {
       })()`)
       await shot('e2e-meteor.png')
       check('shooting stars cross the sky now and then, with a head and a tail', meteor57.seen && meteor57.head && meteor57.tail, meteor57)
+      // A star goes on its own clock even if its animation never runs (a sky scrolled out of view
+      // isn't drawn), so they can't pile up and all fall at once when you scroll back.
+      const cleared57 = await js<{ waited: boolean; gone: boolean }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        for (let end = Date.now() + 25000; Date.now() < end && !document.querySelector('.meteor'); ) await wait(30)
+        const m = document.querySelector('.meteor')
+        if (!m) return { waited: false, gone: false }
+        m.style.animationPlayState = 'paused'
+        await wait(2900)
+        return { waited: true, gone: !m.isConnected }
+      })()`)
+      check('a shooting star is cleared on its own clock, so stars never pile up off screen', cleared57.waited && cleared57.gone, cleared57)
+      // The cache bar's × hides it for that chat only; a new chat shows it again, and nothing is saved.
+      const cacheX57 = await js<{ before: boolean; after: boolean; saved: string | null }>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        const before = !!document.querySelector('.cache-bar')
+        document.querySelector('.cache-bar .tw-btn-icon')?.click()
+        await wait(100)
+        const after = !!document.querySelector('.cache-bar')
+        return { before, after, saved: localStorage.getItem('twilight.hideCacheBar') }
+      })()`)
+      // Another chat (an empty new chat is reused by Ctrl+N, so open one with messages) shows it again.
+      const cacheBack57 = await js<boolean>(`(async () => {
+        const wait = (ms) => new Promise((r) => setTimeout(r, ms))
+        ;[...document.querySelectorAll('.tw-conv')].find((c) => c.textContent.includes('Hello'))?.click()
+        for (let end = Date.now() + 3000; Date.now() < end && !document.querySelector('.cache-bar'); ) await wait(50)
+        return !!document.querySelector('.cache-bar')
+      })()`)
+      await key('N', ['control'])
+      await new Promise((r) => setTimeout(r, 300))
+      check('closing the cache bar hides it for that chat only; another chat shows it again', cacheX57.before && !cacheX57.after && cacheX57.saved !== '1' && cacheBack57, { ...cacheX57, back: cacheBack57 })
 
       // The desert's saguaros and the sea's sailboats stand on the horizon (they place themselves from it).
       const company57: Record<string, unknown> = {}
